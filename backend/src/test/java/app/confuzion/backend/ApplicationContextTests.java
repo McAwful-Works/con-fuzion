@@ -1,10 +1,10 @@
-package app.con_fuzion.backend;
+package app.confuzion.backend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class BackendApplicationTests {
+class ApplicationContextTests {
 
 	@Test
 	void contextLoads() {
