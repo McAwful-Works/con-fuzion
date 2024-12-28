@@ -18,9 +18,9 @@
  */
 package app.confuzion.backend.exception;
 
-import lombok.Generated;
-
 import java.io.Serial;
+
+import lombok.Generated;
 
 /**
  * Exception to handle API requests that get rate limited.
@@ -29,46 +29,48 @@ import java.io.Serial;
  */
 @Generated
 public class RateLimitException extends RuntimeException {
-    @Serial
-    private static final long serialVersionUID = -4098311617023722236L;
+	@Serial
+	private static final long serialVersionUID = -4098311617023722236L;
 
-    /**
-     * The default exception message.
-     */
-    private static final String DEFAULT_MSG = "Too many requests, please wait and try again";
+	/**
+	 * The default exception message.
+	 */
+	private static final String DEFAULT_MSG = "Too many requests, please wait and try again";
 
-    /**
-     * Constructs a {@code RateLimitException} with the default detail message.
-     */
-    public RateLimitException() {
-        super(DEFAULT_MSG);
-    }
+	/**
+	 * Constructs a {@code RateLimitException} with the default detail message.
+	 */
+	public RateLimitException() {
+		super(DEFAULT_MSG);
+	}
 
-    /**
-     * Constructs a {@code RateLimitException} with the specified detail message and cause.
-     *
-     * @param message the detail message
-     * @param cause   the cause
-     */
-    public RateLimitException(String message, Throwable cause) {
-        super(message, cause);
-    }
+	/**
+	 * Constructs a {@code RateLimitException} with the specified detail message and
+	 * cause.
+	 *
+	 * @param message the detail message
+	 * @param cause   the cause
+	 */
+	public RateLimitException(String message, Throwable cause) {
+		super(message, cause);
+	}
 
-    /**
-     * Constructs a {@code RateLimitException} with the specified detail message.
-     *
-     * @param message the detail message
-     */
-    public RateLimitException(String message) {
-        super(message);
-    }
+	/**
+	 * Constructs a {@code RateLimitException} with the specified detail message.
+	 *
+	 * @param message the detail message
+	 */
+	public RateLimitException(String message) {
+		super(message);
+	}
 
-    /**
-     * Constructs a {@code RateLimitException} with the default detail message and cause.
-     *
-     * @param cause the cause
-     */
-    public RateLimitException(Throwable cause) {
-        super(DEFAULT_MSG, cause);
-    }
+	/**
+	 * Constructs a {@code RateLimitException} with the default detail message and
+	 * cause.
+	 *
+	 * @param cause the cause
+	 */
+	public RateLimitException(Throwable cause) {
+		super(DEFAULT_MSG, cause);
+	}
 }

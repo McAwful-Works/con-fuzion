@@ -18,17 +18,18 @@
  */
 package app.confuzion.backend.aspect;
 
-import app.confuzion.backend.exception.RateLimitException;
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
-import lombok.Generated;
+import java.time.Duration;
+
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
+import app.confuzion.backend.exception.RateLimitException;
+import io.github.bucket4j.Bandwidth;
+import io.github.bucket4j.Bucket;
+import lombok.Generated;
 
 /**
  * Rate limiter aspect.

@@ -18,9 +18,10 @@
  */
 package app.confuzion.backend.aspect;
 
-import app.confuzion.backend.util.HttpUtil;
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.Generated;
+import java.util.Arrays;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.AfterThrowing;
@@ -32,9 +33,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
+import app.confuzion.backend.util.HttpUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.Generated;
 
 /**
  * Logger aspect.
@@ -44,116 +45,112 @@ import java.util.stream.Collectors;
 @Aspect
 @Component
 public class LoggerAspect {
-    /**
-     * Predicate wrapper method.
-     *
-     * @param <T>       the generic class type
-     * @param predicate the {@link Predicate} to be wrapped
-     * @return a wrapped {@link Predicate}
-     */
-    private static <T> Predicate<T> predicate(Predicate<T> predicate) {
-        return predicate;
-    }
+	/**
+	 * Predicate wrapper method.
+	 *
+	 * @param <T>       the generic class type
+	 * @param predicate the {@link Predicate} to be wrapped
+	 * @return a wrapped {@link Predicate}
+	 */
+	private static <T> Predicate<T> predicate(Predicate<T> predicate) {
+		return predicate;
+	}
 
-    /**
-     * The controller pointcut.
-     */
-    @Generated
-    @Pointcut("within(app.confuzion.backend.controller.*)")
-    public void controllerPointcut() {
-        // This method is intentionally left empty
-    }
+	/**
+	 * The controller pointcut.
+	 */
+	@Generated
+	@Pointcut("within(app.confuzion.backend.controller.*)")
+	public void controllerPointcut() {
+		// This method is intentionally left empty
+	}
 
-    /**
-     * Around advice logger for controller methods.
-     *
-     * @param pjp the {@link ProceedingJoinPoint}
-     * @return the result of proceeding
-     * @throws Throwable When the invoked proceed throws anything
-     */
-    @Around("controllerPointcut()")
-    public Object logAroundController(ProceedingJoinPoint pjp) throws Throwable {
-        final Logger log = LoggerFactory.getLogger(pjp.getTarget().getClass());
+	/**
+	 * Around advice logger for controller methods.
+	 *
+	 * @param pjp the {@link ProceedingJoinPoint}
+	 * @return the result of proceeding
+	 * @throws Throwable When the invoked proceed throws anything
+	 */
+	@Around("controllerPointcut()")
+	public Object logAroundController(ProceedingJoinPoint pjp) throws Throwable {
+		final Logger log = LoggerFactory.getLogger(pjp.getTarget().getClass());
 
-        var methodName = getMethodName(pjp);
-        var methodArgs = getArgs(pjp);
-        var remoteAddr = getRemoteAddr(pjp);
-        var headers = getHeaders(pjp);
+		var methodName = getMethodName(pjp);
+		var methodArgs = getArgs(pjp);
+		var remoteAddr = getRemoteAddr(pjp);
+		var headers = getHeaders(pjp);
 
-        log.info(
-                "Method '{}{}' called from the following IP address '{}' with the following headers - {}", methodName,
-                methodArgs, remoteAddr, headers
-        );
-        var proceed = pjp.proceed();
-        log.info("Method '{}{}' returned the following result: {}", methodName, methodArgs, proceed);
-        return proceed;
-    }
+		log.info("Method '{}{}' called from the following IP address '{}' with the following headers - {}", methodName,
+				methodArgs, remoteAddr, headers);
+		var proceed = pjp.proceed();
+		log.info("Method '{}{}' returned the following result: {}", methodName, methodArgs, proceed);
+		return proceed;
+	}
 
-    /**
-     * After throwing advice logger for controller methods.
-     *
-     * @param jp the {@link JoinPoint}
-     * @param e  the {@link Exception}
-     */
-    @AfterThrowing(pointcut = "controllerPointcut()", throwing = "e")
-    public void logExceptionController(JoinPoint jp, Exception e) {
-        final Logger log = LoggerFactory.getLogger(jp.getTarget().getClass());
-        log.error(
-                "Exception during method '{}{}' with the following exception - {}: {}", getMethodName(jp),
-                getArgs(jp), e.getClass().getSimpleName(), e.getMessage()
-        );
-    }
+	/**
+	 * After throwing advice logger for controller methods.
+	 *
+	 * @param jp the {@link JoinPoint}
+	 * @param e  the {@link Exception}
+	 */
+	@AfterThrowing(pointcut = "controllerPointcut()", throwing = "e")
+	public void logExceptionController(JoinPoint jp, Exception e) {
+		final Logger log = LoggerFactory.getLogger(jp.getTarget().getClass());
+		log.error("Exception during method '{}{}' with the following exception - {}: {}", getMethodName(jp),
+				getArgs(jp), e.getClass().getSimpleName(), e.getMessage());
+	}
 
-    /**
-     * Gets and returns the method name of a {@link JoinPoint} as a string.
-     *
-     * @param jp the {@link JoinPoint}
-     * @return the method name as a string
-     */
-    private String getMethodName(JoinPoint jp) {
-        return ((MethodSignature) jp.getSignature()).getMethod().getName();
-    }
+	/**
+	 * Gets and returns the method name of a {@link JoinPoint} as a string.
+	 *
+	 * @param jp the {@link JoinPoint}
+	 * @return the method name as a string
+	 */
+	private String getMethodName(JoinPoint jp) {
+		return ((MethodSignature) jp.getSignature()).getMethod().getName();
+	}
 
-    /**
-     * Gets and returns the parameter arguments of a {@link JoinPoint} as a string.
-     *
-     * @param jp the {@link JoinPoint}
-     * @return the parameter arguments as a string
-     */
-    private String getArgs(JoinPoint jp) {
-        return Arrays.stream(jp.getArgs()).filter(predicate(HttpServletRequest.class::isInstance).negate())
-                .map(String::valueOf).collect(Collectors.joining(",", "(", ")"));
-    }
+	/**
+	 * Gets and returns the parameter arguments of a {@link JoinPoint} as a string.
+	 *
+	 * @param jp the {@link JoinPoint}
+	 * @return the parameter arguments as a string
+	 */
+	private String getArgs(JoinPoint jp) {
+		return Arrays.stream(jp.getArgs()).filter(predicate(HttpServletRequest.class::isInstance).negate())
+				.map(String::valueOf).collect(Collectors.joining(",", "(", ")"));
+	}
 
-    /**
-     * Gets and returns the request headers of a {@link JoinPoint} as a string if an {@link HttpServletRequest} is given
-     * in the method parameters.
-     *
-     * @param jp The {@link JoinPoint}
-     * @return the headers as a string
-     */
-    private String getHeaders(JoinPoint jp) {
-        var headerOptional = Arrays.stream(jp.getArgs()).filter(HttpServletRequest.class::isInstance).findFirst();
+	/**
+	 * Gets and returns the request headers of a {@link JoinPoint} as a string if an
+	 * {@link HttpServletRequest} is given in the method parameters.
+	 *
+	 * @param jp The {@link JoinPoint}
+	 * @return the headers as a string
+	 */
+	private String getHeaders(JoinPoint jp) {
+		var headerOptional = Arrays.stream(jp.getArgs()).filter(HttpServletRequest.class::isInstance).findFirst();
 
-        if (headerOptional.isPresent())
-            return HttpUtil.getRequestHeaders((HttpServletRequest) headerOptional.get());
+		if (headerOptional.isPresent())
+			return HttpUtil.getRequestHeaders((HttpServletRequest) headerOptional.get());
 
-        return "Headers not provided in this method's parameters";
-    }
+		return "Headers not provided in this method's parameters";
+	}
 
-    /**
-     * Gets and returns the remote IP address of a {@link JoinPoint} as a string if an {@link HttpServletRequest} is
-     * given in the method parameters.
-     *
-     * @param jp The {@link JoinPoint}
-     * @return the remote IP address string
-     */
-    private String getRemoteAddr(JoinPoint jp) {
-        var headerOptional = Arrays.stream(jp.getArgs()).filter(HttpServletRequest.class::isInstance).findFirst();
+	/**
+	 * Gets and returns the remote IP address of a {@link JoinPoint} as a string if
+	 * an {@link HttpServletRequest} is given in the method parameters.
+	 *
+	 * @param jp The {@link JoinPoint}
+	 * @return the remote IP address string
+	 */
+	private String getRemoteAddr(JoinPoint jp) {
+		var headerOptional = Arrays.stream(jp.getArgs()).filter(HttpServletRequest.class::isInstance).findFirst();
 
-        if (headerOptional.isPresent())
-            return HttpUtil.getRemoteAddr((HttpServletRequest) headerOptional.get());
+		if (headerOptional.isPresent())
+			return HttpUtil.getRemoteAddr((HttpServletRequest) headerOptional.get());
 
-        return "Remote IP address not provided in this method's parameters";
-    }
+		return "Remote IP address not provided in this method's parameters";
+	}
 }

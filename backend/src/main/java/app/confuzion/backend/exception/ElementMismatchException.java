@@ -18,9 +18,9 @@
  */
 package app.confuzion.backend.exception;
 
-import lombok.Generated;
-
 import java.io.Serial;
+
+import lombok.Generated;
 
 /**
  * Exception to handle when there is an element mismatch in an argument, such as
@@ -31,46 +31,50 @@ import java.io.Serial;
  */
 @Generated
 public class ElementMismatchException extends IllegalArgumentException {
-    @Serial
-    private static final long serialVersionUID = 4646116550522682401L;
+	@Serial
+	private static final long serialVersionUID = 4646116550522682401L;
 
-    /**
-     * The default exception message.
-     */
-    private static final String DEFAULT_MSG = "Element mismatch occurred";
+	/**
+	 * The default exception message.
+	 */
+	private static final String DEFAULT_MSG = "Element mismatch occurred";
 
-    /**
-     * Constructs a {@code ElementMismatchException} with the default detail message.
-     */
-    public ElementMismatchException() {
-        super(DEFAULT_MSG);
-    }
+	/**
+	 * Constructs a {@code ElementMismatchException} with the default detail
+	 * message.
+	 */
+	public ElementMismatchException() {
+		super(DEFAULT_MSG);
+	}
 
-    /**
-     * Constructs a {@code ElementMismatchException} with the specified detail message and cause.
-     *
-     * @param message the detail message
-     * @param cause   the cause
-     */
-    public ElementMismatchException(String message, Throwable cause) {
-        super(message, cause);
-    }
+	/**
+	 * Constructs a {@code ElementMismatchException} with the specified detail
+	 * message and cause.
+	 *
+	 * @param message the detail message
+	 * @param cause   the cause
+	 */
+	public ElementMismatchException(String message, Throwable cause) {
+		super(message, cause);
+	}
 
-    /**
-     * Constructs a {@code ElementMismatchException} with the specified detail message.
-     *
-     * @param message the detail message
-     */
-    public ElementMismatchException(String message) {
-        super(message);
-    }
+	/**
+	 * Constructs a {@code ElementMismatchException} with the specified detail
+	 * message.
+	 *
+	 * @param message the detail message
+	 */
+	public ElementMismatchException(String message) {
+		super(message);
+	}
 
-    /**
-     * Constructs a {@code ElementMismatchException} with the default detail message and cause.
-     *
-     * @param cause the cause
-     */
-    public ElementMismatchException(Throwable cause) {
-        super(DEFAULT_MSG, cause);
-    }
+	/**
+	 * Constructs a {@code ElementMismatchException} with the default detail message
+	 * and cause.
+	 *
+	 * @param cause the cause
+	 */
+	public ElementMismatchException(Throwable cause) {
+		super(DEFAULT_MSG, cause);
+	}
 }

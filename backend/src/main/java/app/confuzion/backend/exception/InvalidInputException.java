@@ -18,9 +18,9 @@
  */
 package app.confuzion.backend.exception;
 
-import lombok.Generated;
-
 import java.io.Serial;
+
+import lombok.Generated;
 
 /**
  * Exception to handle bad input exceptions.
@@ -30,48 +30,48 @@ import java.io.Serial;
  */
 @Generated
 public class InvalidInputException extends IllegalArgumentException {
-    @Serial
-    private static final long serialVersionUID = 4372707348643607009L;
+	@Serial
+	private static final long serialVersionUID = 4372707348643607009L;
 
-    /**
-     * The default exception message.
-     */
-    private static final String DEFAULT_MSG = "Bad input received";
+	/**
+	 * The default exception message.
+	 */
+	private static final String DEFAULT_MSG = "Bad input received";
 
-    /**
-     * Constructs a {@code InvalidInputException} with the default detail message.
-     */
-    public InvalidInputException() {
-        super(DEFAULT_MSG);
-    }
+	/**
+	 * Constructs a {@code InvalidInputException} with the default detail message.
+	 */
+	public InvalidInputException() {
+		super(DEFAULT_MSG);
+	}
 
-    /**
-     * Constructs a {@code InvalidInputException} with the specified detail message
-     * and cause.
-     *
-     * @param message the detail message
-     * @param cause   the cause
-     */
-    public InvalidInputException(String message, Throwable cause) {
-        super(message, cause);
-    }
+	/**
+	 * Constructs a {@code InvalidInputException} with the specified detail message
+	 * and cause.
+	 *
+	 * @param message the detail message
+	 * @param cause   the cause
+	 */
+	public InvalidInputException(String message, Throwable cause) {
+		super(message, cause);
+	}
 
-    /**
-     * Constructs a {@code InvalidInputException} with the specified detail message.
-     *
-     * @param message the detail message
-     */
-    public InvalidInputException(String message) {
-        super(message);
-    }
+	/**
+	 * Constructs a {@code InvalidInputException} with the specified detail message.
+	 *
+	 * @param message the detail message
+	 */
+	public InvalidInputException(String message) {
+		super(message);
+	}
 
-    /**
-     * Constructs a {@code InvalidInputException} with the default detail message
-     * and cause.
-     *
-     * @param cause the cause
-     */
-    public InvalidInputException(Throwable cause) {
-        super(DEFAULT_MSG, cause);
-    }
+	/**
+	 * Constructs a {@code InvalidInputException} with the default detail message
+	 * and cause.
+	 *
+	 * @param cause the cause
+	 */
+	public InvalidInputException(Throwable cause) {
+		super(DEFAULT_MSG, cause);
+	}
 }

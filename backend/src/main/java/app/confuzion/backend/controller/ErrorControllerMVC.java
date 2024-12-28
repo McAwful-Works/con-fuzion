@@ -18,13 +18,13 @@
  */
 package app.confuzion.backend.controller;
 
+import org.springframework.boot.web.servlet.error.ErrorController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import app.confuzion.backend.exception.EndpointNotFoundException;
 import app.confuzion.backend.record.ErrorResponseRecord;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.boot.web.servlet.error.ErrorController;
-import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The {@link RestController} for the {@code /error} fallback endpoint.

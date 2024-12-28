@@ -18,9 +18,9 @@
  */
 package app.confuzion.backend.aspect;
 
-import app.confuzion.backend.exception.InvalidInputException;
-import app.confuzion.backend.exception.RateLimitException;
-import app.confuzion.backend.record.ErrorResponseRecord;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+
 import org.hibernate.PropertyValueException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -32,8 +32,9 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
-import java.util.NoSuchElementException;
-import java.util.Objects;
+import app.confuzion.backend.exception.InvalidInputException;
+import app.confuzion.backend.exception.RateLimitException;
+import app.confuzion.backend.record.ErrorResponseRecord;
 
 /**
  * Global REST Controller advice exception handling.
@@ -42,82 +43,92 @@ import java.util.Objects;
  */
 @ControllerAdvice
 public class GlobalControllerExceptionHandler {
-    @ExceptionHandler(RateLimitException.class)
-    public ResponseEntity<ErrorResponseRecord> handleTooManyRequests(Exception e) {
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).contentType(MediaType.APPLICATION_JSON).body(getErrorResponseRecord(e));
-    }
+	@ExceptionHandler(RateLimitException.class)
+	public ResponseEntity<ErrorResponseRecord> handleTooManyRequests(Exception e) {
+		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).contentType(MediaType.APPLICATION_JSON)
+				.body(getErrorResponseRecord(e));
+	}
 
-    /**
-     * Method to handle exceptions that should lead to an HTTP status response code of 409 {@code (CONFLICT)}.
-     *
-     * @param e the base {@link Exception}
-     * @return a {@link ResponseEntity} with an {@link HttpStatus} of {@code CONFLICT}
-     */
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ErrorResponseRecord> handleConflict(Exception e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON).body(getErrorResponseRecord(e));
-    }
+	/**
+	 * Method to handle exceptions that should lead to an HTTP status response code
+	 * of 409 {@code (CONFLICT)}.
+	 *
+	 * @param e the base {@link Exception}
+	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
+	 *         {@code CONFLICT}
+	 */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	public ResponseEntity<ErrorResponseRecord> handleConflict(Exception e) {
+		return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
+				.body(getErrorResponseRecord(e));
+	}
 
-    /**
-     * Method to handle exceptions that should lead to an HTTP status response code of 405
-     * {@code (METHOD NOT ALLOWED)}.
-     *
-     * @param e the base {@link Exception}
-     * @return a {@link ResponseEntity} with an {@link HttpStatus} of {@code METHOD NOT ALLOWED}
-     */
-    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<ErrorResponseRecord> handleMethodNotAllowed(Exception e) {
+	/**
+	 * Method to handle exceptions that should lead to an HTTP status response code
+	 * of 405 {@code (METHOD NOT ALLOWED)}.
+	 *
+	 * @param e the base {@link Exception}
+	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
+	 *         {@code METHOD NOT ALLOWED}
+	 */
+	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+	public ResponseEntity<ErrorResponseRecord> handleMethodNotAllowed(Exception e) {
 
-        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).contentType(MediaType.APPLICATION_JSON).body(getErrorResponseRecord(e));
-    }
+		return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).contentType(MediaType.APPLICATION_JSON)
+				.body(getErrorResponseRecord(e));
+	}
 
-    /**
-     * Method to handle exceptions that should lead to an HTTP status response code of 404 {@code (NOT FOUND)}.
-     *
-     * @param e the base {@link Exception}
-     * @return a {@link ResponseEntity} with an {@link HttpStatus} of {@code NOT FOUND}
-     */
-    @ExceptionHandler({NoSuchElementException.class, EmptyResultDataAccessException.class})
-    public ResponseEntity<ErrorResponseRecord> handleNotFound(Exception e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON).body(getErrorResponseRecord(e));
-    }
+	/**
+	 * Method to handle exceptions that should lead to an HTTP status response code
+	 * of 404 {@code (NOT FOUND)}.
+	 *
+	 * @param e the base {@link Exception}
+	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
+	 *         {@code NOT FOUND}
+	 */
+	@ExceptionHandler({ NoSuchElementException.class, EmptyResultDataAccessException.class })
+	public ResponseEntity<ErrorResponseRecord> handleNotFound(Exception e) {
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON)
+				.body(getErrorResponseRecord(e));
+	}
 
-    /**
-     * Method to handle exceptions that should lead to an HTTP status response code of 400 {@code (BAD REQUEST)}.
-     *
-     * @param e the base {@link Exception}
-     * @return a {@link ResponseEntity} with an {@link HttpStatus} of {@code BAD REQUEST}
-     */
-    @ExceptionHandler(
-            {IllegalArgumentException.class, MissingServletRequestParameterException.class,
-                    PropertyValueException.class, InvalidInputException.class}
-    )
-    public ResponseEntity<ErrorResponseRecord> handleBadRequest(Exception e) {
-        return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON).body(getErrorResponseRecord(e));
-    }
+	/**
+	 * Method to handle exceptions that should lead to an HTTP status response code
+	 * of 400 {@code (BAD REQUEST)}.
+	 *
+	 * @param e the base {@link Exception}
+	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
+	 *         {@code BAD REQUEST}
+	 */
+	@ExceptionHandler({ IllegalArgumentException.class, MissingServletRequestParameterException.class,
+			PropertyValueException.class, InvalidInputException.class })
+	public ResponseEntity<ErrorResponseRecord> handleBadRequest(Exception e) {
+		return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON).body(getErrorResponseRecord(e));
+	}
 
-    /**
-     * Creates and return an {@link ErrorResponseRecord} from the given {@link Exception}.
-     *
-     * @param e the base {@link Exception}
-     * @return an {@link ErrorResponseRecord}
-     */
-    private ErrorResponseRecord getErrorResponseRecord(Exception e) {
-        return new ErrorResponseRecord(e.getClass().getSimpleName(), getRootCause(e).getMessage());
-    }
+	/**
+	 * Creates and return an {@link ErrorResponseRecord} from the given
+	 * {@link Exception}.
+	 *
+	 * @param e the base {@link Exception}
+	 * @return an {@link ErrorResponseRecord}
+	 */
+	private ErrorResponseRecord getErrorResponseRecord(Exception e) {
+		return new ErrorResponseRecord(e.getClass().getSimpleName(), getRootCause(e).getMessage());
+	}
 
-    /**
-     * Returns the root cause {@link Throwable} from a base {@link Exception}.
-     *
-     * @param e the base {@link Exception}
-     * @return the root cause {@link Throwable}
-     */
-    private Throwable getRootCause(Exception e) {
-        Objects.requireNonNull(e);
-        Throwable cause = e;
-        while (cause.getCause() != null && cause.getCause() != cause)
-            cause = cause.getCause();
+	/**
+	 * Returns the root cause {@link Throwable} from a base {@link Exception}.
+	 *
+	 * @param e the base {@link Exception}
+	 * @return the root cause {@link Throwable}
+	 */
+	private Throwable getRootCause(Exception e) {
+		Objects.requireNonNull(e);
+		Throwable cause = e;
+		while (cause.getCause() != null && cause.getCause() != cause)
+			cause = cause.getCause();
 
-        return cause;
-    }
+		return cause;
+	}
 }
