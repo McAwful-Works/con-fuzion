@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.RateLimitException;
-import app.confuzion.backend.record.ErrorResponseRecord;
+import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
 
 /**
  * Global REST Controller advice exception handling.
@@ -44,7 +44,7 @@ import app.confuzion.backend.record.ErrorResponseRecord;
 @ControllerAdvice
 public class GlobalControllerExceptionHandler {
 	@ExceptionHandler(RateLimitException.class)
-	public ResponseEntity<ErrorResponseRecord> handleTooManyRequests(Exception e) {
+	public ResponseEntity<ErrorResponseBodyRecord> handleTooManyRequests(Exception e) {
 		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).contentType(MediaType.APPLICATION_JSON)
 				.body(getErrorResponseRecord(e));
 	}
@@ -58,7 +58,7 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code CONFLICT}
 	 */
 	@ExceptionHandler(DataIntegrityViolationException.class)
-	public ResponseEntity<ErrorResponseRecord> handleConflict(Exception e) {
+	public ResponseEntity<ErrorResponseBodyRecord> handleConflict(Exception e) {
 		return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
 				.body(getErrorResponseRecord(e));
 	}
@@ -72,7 +72,7 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code METHOD NOT ALLOWED}
 	 */
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-	public ResponseEntity<ErrorResponseRecord> handleMethodNotAllowed(Exception e) {
+	public ResponseEntity<ErrorResponseBodyRecord> handleMethodNotAllowed(Exception e) {
 
 		return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).contentType(MediaType.APPLICATION_JSON)
 				.body(getErrorResponseRecord(e));
@@ -87,7 +87,7 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code NOT FOUND}
 	 */
 	@ExceptionHandler({ NoSuchElementException.class, EmptyResultDataAccessException.class })
-	public ResponseEntity<ErrorResponseRecord> handleNotFound(Exception e) {
+	public ResponseEntity<ErrorResponseBodyRecord> handleNotFound(Exception e) {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON)
 				.body(getErrorResponseRecord(e));
 	}
@@ -102,19 +102,19 @@ public class GlobalControllerExceptionHandler {
 	 */
 	@ExceptionHandler({ IllegalArgumentException.class, MissingServletRequestParameterException.class,
 			PropertyValueException.class, InvalidInputException.class })
-	public ResponseEntity<ErrorResponseRecord> handleBadRequest(Exception e) {
+	public ResponseEntity<ErrorResponseBodyRecord> handleBadRequest(Exception e) {
 		return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON).body(getErrorResponseRecord(e));
 	}
 
 	/**
-	 * Creates and return an {@link ErrorResponseRecord} from the given
+	 * Creates and return an {@link ErrorResponseBodyRecord} from the given
 	 * {@link Exception}.
 	 *
 	 * @param e the base {@link Exception}
-	 * @return an {@link ErrorResponseRecord}
+	 * @return an {@link ErrorResponseBodyRecord}
 	 */
-	private ErrorResponseRecord getErrorResponseRecord(Exception e) {
-		return new ErrorResponseRecord(e.getClass().getSimpleName(), getRootCause(e).getMessage());
+	private ErrorResponseBodyRecord getErrorResponseRecord(Exception e) {
+		return new ErrorResponseBodyRecord(e.getClass().getSimpleName(), getRootCause(e).getMessage());
 	}
 
 	/**

@@ -16,7 +16,21 @@
  * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package app.confuzion.backend.record;
+package app.confuzion.backend.model;
 
-public record ErrorResponseRecord(String errorType, String errorMessage) {
+/**
+ * The response type enum.
+ * 
+ * @author mcawful
+ */
+public enum ResponseType {
+	/**
+	 * Indicates an error response body.
+	 */
+	ERROR,
+
+	/**
+	 * Indicates the response body is unknown.
+	 */
+	UNKNOWN
 }
