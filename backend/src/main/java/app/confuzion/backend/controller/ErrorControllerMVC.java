@@ -25,7 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 import app.confuzion.backend.exception.EndpointNotFoundException;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
 import app.confuzion.backend.model.record.ResponseRecord;
-import app.confuzion.backend.util.ResponseGeneratorUtil;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
@@ -44,8 +43,7 @@ public class ErrorControllerMVC implements ErrorController {
 	 */
 	@RequestMapping(path = "/error")
 	public ResponseRecord handleError(HttpServletRequest request) {
-		var e = new EndpointNotFoundException();
-		var errorResponseBody = new ErrorResponseBodyRecord(e.getClass().getSimpleName(), e.getMessage());
-		return ResponseGeneratorUtil.createResponse(errorResponseBody);
+		var errorResponseBody = new ErrorResponseBodyRecord(new EndpointNotFoundException());
+		return new ResponseRecord(errorResponseBody);
 	}
 }

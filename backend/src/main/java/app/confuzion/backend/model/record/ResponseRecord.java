@@ -18,8 +18,10 @@
  */
 package app.confuzion.backend.model.record;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import app.confuzion.backend.model.ResponseBodyObject;
-import app.confuzion.backend.model.ResponseType;
 
 /**
  * The standard response record.
@@ -30,4 +32,37 @@ import app.confuzion.backend.model.ResponseType;
  * @author mcawful
  */
 public record ResponseRecord(ResponseType responseType, ResponseBodyObject body) {
+	/**
+	 * The response body to type map.
+	 */
+	private static final Map<Class<? extends ResponseBodyObject>, ResponseType> BODY_TO_TYPE_MAP = new HashMap<>();
+
+	// Initializes the mapping
+	static {
+		BODY_TO_TYPE_MAP.put(ErrorResponseBodyRecord.class, ResponseType.ERROR);
+	}
+
+	/**
+	 * Constructor to create a {@link ResponseRecord} from the provided
+	 * {@link ResponseBodyObject}
+	 *
+	 * @param responseBodyObject the {@link ResponseBodyObject}
+	 */
+	public ResponseRecord(ResponseBodyObject responseBodyObject) {
+		this(getResponseType(responseBodyObject), responseBodyObject);
+	}
+
+	/**
+	 * Returns a {@link ResponseType} from the provided {@link ResponseBodyObject}
+	 * class.
+	 *
+	 * @param responseBodyObject a {@link ResponseBodyObject}
+	 * @return a {@link ResponseType}
+	 */
+	private static ResponseType getResponseType(ResponseBodyObject responseBodyObject) {
+		var responseBodyObjectClass = responseBodyObject.getClass();
+		if (BODY_TO_TYPE_MAP.containsKey(responseBodyObjectClass))
+			return BODY_TO_TYPE_MAP.get(responseBodyObjectClass);
+		return ResponseType.UNKNOWN;
+	}
 }

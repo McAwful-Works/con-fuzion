@@ -29,4 +29,12 @@ import app.confuzion.backend.model.ResponseBodyObject;
  * @author mcawful
  */
 public record ErrorResponseBodyRecord(String errorType, String errorMessage) implements ResponseBodyObject {
+	/**
+	 * Constructor to create a record directly from the provided {@link Exception}.
+	 * 
+	 * @param e the {@link Exception}
+	 */
+	public ErrorResponseBodyRecord(Exception e) {
+		this(e.getClass().getSimpleName(), e.getMessage());
+	}
 }
