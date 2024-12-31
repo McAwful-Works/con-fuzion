@@ -18,7 +18,6 @@
  */
 package app.confuzion.backend.aspect;
 
-import app.confuzion.backend.util.HttpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -26,7 +25,6 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.slf4j.Logger;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.mockito.Mockito.*;
@@ -37,7 +35,7 @@ import static org.mockito.Mockito.*;
  * @author mcawful
  */
 @SpringBootTest
-class LoggerAspectTest {
+class LoggerAspectTests {
 	@Mock
 	private ProceedingJoinPoint pjp;
 
