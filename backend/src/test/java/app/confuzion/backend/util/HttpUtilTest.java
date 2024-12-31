@@ -34,7 +34,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
  *
  */
 @SpringBootTest
-class HttpUtilTests {
+class HttpUtilTest {
 	/**
 	 * The {@link List} of header names.
 	 */
