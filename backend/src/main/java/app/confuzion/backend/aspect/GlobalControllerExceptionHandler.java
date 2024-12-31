@@ -43,6 +43,14 @@ import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
  */
 @ControllerAdvice
 public class GlobalControllerExceptionHandler {
+	/**
+	 * Method to handle exceptions that should lead to an HTTP status response code
+	 * of 429 {@code (TOO MANY REQUESTS)}.
+	 *
+	 * @param e the base {@link Exception}
+	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
+	 *         {@code TOO MANY REQUESTS}
+	 */
 	@ExceptionHandler(RateLimitException.class)
 	public ResponseEntity<ErrorResponseBodyRecord> handleTooManyRequests(Exception e) {
 		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).contentType(MediaType.APPLICATION_JSON)
