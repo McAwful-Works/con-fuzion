@@ -34,7 +34,6 @@ import app.confuzion.backend.model.record.ResponseRecord;
  * Unit tests for the {@link ErrorControllerMVC} class.
  *
  * @author mcawful
- *
  */
 @SpringBootTest
 class ErrorControllerMVCTests {
@@ -46,7 +45,7 @@ class ErrorControllerMVCTests {
 	/**
 	 * The expected response.
 	 */
-	private static final ResponseRecord EXPECTED_RESPONSE = new ResponseRecord(
+	private static final ResponseRecord EXPECTED = new ResponseRecord(
 			new ErrorResponseBodyRecord(new EndpointNotFoundException()));
 
 	/**
@@ -70,7 +69,8 @@ class ErrorControllerMVCTests {
 	 * what is expected.
 	 */
 	@Test
-	void handleErrorTest() {
-		assertEquals(EXPECTED_RESPONSE, errorControllerMVC.handleError(MOCK_REQUEST));
+	void handleErrorTest_shouldReturnDefaultResponse() {
+		var actual = errorControllerMVC.handleError(MOCK_REQUEST);
+		assertEquals(EXPECTED, actual);
 	}
 }
