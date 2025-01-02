@@ -18,16 +18,7 @@
  */
 package app.confuzion.backend.aspect;
 
-import jakarta.servlet.http.HttpServletRequest;
-import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.reflect.MethodSignature;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for the {@link LoggerAspect} class.
@@ -36,31 +27,5 @@ import static org.mockito.Mockito.*;
  */
 @SpringBootTest
 class LoggerAspectTests {
-	@Mock
-	private ProceedingJoinPoint pjp;
 
-	@Mock
-	private JoinPoint jp;
-
-	@Mock
-	private HttpServletRequest httpServletRequest;
-
-	@InjectMocks
-	private LoggerAspect loggerAspect;
-
-	@Test
-	void logAroundController() throws Throwable {
-		var methodSignature = mock(MethodSignature.class);
-		when(methodSignature.getMethod()).thenReturn(TestClass.class.getMethod("testMethod"));
-	}
-
-	@Test
-	void logExceptionController() throws Throwable {
-	}
-
-	private static class TestClass {
-		String testMethod() {
-			return "Test";
-		}
-	}
 }
