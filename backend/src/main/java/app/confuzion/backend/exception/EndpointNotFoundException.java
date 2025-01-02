@@ -18,6 +18,8 @@
  */
 package app.confuzion.backend.exception;
 
+import lombok.Generated;
+
 import java.io.Serial;
 
 /**
@@ -26,6 +28,7 @@ import java.io.Serial;
  *
  * @author mcawful
  */
+@Generated
 public class EndpointNotFoundException extends RuntimeException {
 	@Serial
 	private static final long serialVersionUID = -3524909008372749037L;
