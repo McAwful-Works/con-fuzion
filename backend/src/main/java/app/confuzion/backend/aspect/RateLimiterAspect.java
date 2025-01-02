@@ -24,11 +24,13 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import app.confuzion.backend.exception.RateLimitException;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
+import jakarta.annotation.PostConstruct;
 import lombok.Generated;
 
 /**
@@ -50,15 +52,37 @@ public class RateLimiterAspect {
 	private static final String CONTROLLER_POINTCUT_EXCLUDE = "!within(app.confuzion.backend.controller.ErrorControllerMVC)";
 
 	/**
-	 * The {@link Bucket} size.
+	 * The token capacity for the bucket.
 	 */
-	private static final Bandwidth BANDWIDTH = Bandwidth.builder().capacity(25)
-			.refillIntervally(25, Duration.ofSeconds(5)).build();
+	@Value("${con-fuzion.rate-limiter.token.capacity:10}")
+	Integer tokenCapacity;
+
+	/**
+	 * The token refill amount for the bucket.
+	 */
+	@Value("${con-fuzion.rate-limiter.token.refill-amount:5}")
+	Integer tokenRefillAmount;
+
+	/**
+	 * The bucket refill rate in seconds.
+	 */
+	@Value("${con-fuzion.rate-limiter.refill-rate-seconds:1}")
+	Integer refillRateInSeconds;
 
 	/**
 	 * The rate limit {@link Bucket}.
 	 */
-	private static final Bucket BUCKET = Bucket.builder().addLimit(BANDWIDTH).build();
+	private Bucket bucket;
+
+	/**
+	 * The post construct initializer.
+	 */
+	@PostConstruct
+    private void init() {
+		var bandwidth = Bandwidth.builder().capacity(tokenCapacity)
+				.refillIntervally(tokenRefillAmount, Duration.ofSeconds(refillRateInSeconds)).build();
+		bucket = Bucket.builder().addLimit(bandwidth).build();
+	}
 
 	/**
 	 * The controller pointcut.
@@ -75,11 +99,11 @@ public class RateLimiterAspect {
 	 * @param pjp the {@link ProceedingJoinPoint}
 	 * @return the result of proceeding
 	 * @throws Throwable          When the invoked proceed throws anything
-	 * @throws RateLimitException When the API endpoint method is rate limited.
+	 * @throws RateLimitException When the API endpoint method is rate limited
 	 */
 	@Around("controllerPointcut()")
 	public Object rateLimit(ProceedingJoinPoint pjp) throws Throwable {
-		if (BUCKET.tryConsume(1))
+		if (bucket.tryConsume(1))
 			return pjp.proceed();
 		throw new RateLimitException();
 	}
