@@ -31,7 +31,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
  * Unit tests for the {@link HttpUtil} class.
  *
  * @author mcawful
- *
  */
 @SpringBootTest
 class HttpUtilTests {
@@ -77,7 +76,7 @@ class HttpUtilTests {
 	 * response equals the expected response.
 	 */
 	@Test
-	void getRequestHeadersTest() {
+	void getRequestHeadersTest_shouldReturnGivenHeaders() {
 		var mockRequest = new MockHttpServletRequest();
 		var sb = new StringBuilder("[");
 		HEADER_NAME_LIST.forEach(ele -> {
@@ -98,7 +97,7 @@ class HttpUtilTests {
 	 * Asserts that the actual response equals the expected response.
 	 */
 	@Test
-	void getRemoteAddrTest() {
+	void getRemoteAddrTest_shouldReturnGivenHeaders() {
 		var addrStr = "127.0.0.1";
 		var mockRequest = new MockHttpServletRequest();
 		mockRequest.addHeader(KNOWN_ADDR_HEADER, addrStr);
@@ -114,7 +113,7 @@ class HttpUtilTests {
 	 * key. Asserts that the actual response equals the expected response.
 	 */
 	@Test
-	void getRemoteAddrEmptyIPTest() {
+	void getRemoteAddrTest_shouldReturnEmpty() {
 		var addrStr = "";
 		var mockRequest = new MockHttpServletRequest();
 		mockRequest.setRemoteAddr(addrStr);
@@ -132,7 +131,7 @@ class HttpUtilTests {
 	 * equals the expected response.
 	 */
 	@Test
-	void getRemoteAddrUnknownIPTest() {
+	void getRemoteAddrTest_shouldReturnUnknown() {
 		var addrStr = "unknown";
 		var mockRequest = new MockHttpServletRequest();
 		mockRequest.setRemoteAddr(addrStr);
@@ -149,7 +148,7 @@ class HttpUtilTests {
 	 * key. Asserts that the actual response equals the expected response.
 	 */
 	@Test
-	void getRemoteAddrUnknownHeaderTest() {
+	void getRemoteAddrTest_shouldReturnUnknownHeader() {
 		var addrStr = "127.0.0.1";
 		var mockRequest = new MockHttpServletRequest();
 		mockRequest.setRemoteAddr(addrStr);

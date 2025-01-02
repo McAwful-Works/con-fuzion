@@ -42,13 +42,22 @@ class GlobalControllerExceptionHandlerTests {
 	@Autowired
 	private GlobalControllerExceptionHandler handler;
 
+	/**
+	 * Tests that the {@link GlobalControllerExceptionHandler} has loaded. Asserts
+	 * that the {@link GlobalControllerExceptionHandler} is not {@code null}.
+	 */
 	@Test
 	void contextLoads() {
 		assertThat(handler).isNotNull();
 	}
 
+	/**
+	 * Tests the {@code handleTooManyRequests} method of the
+	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 429
+	 * with the expected field values.
+	 */
 	@Test
-	void handleTooManyRequests_shouldReturn429() {
+	void handleTooManyRequestsTest_shouldReturn429() {
 		var exception = new RateLimitException("Too many requests");
 
 		var response = handler.handleTooManyRequests(exception);
@@ -60,8 +69,13 @@ class GlobalControllerExceptionHandlerTests {
 		assertThat(response.getBody().errorMessage()).isEqualTo("Too many requests");
 	}
 
+	/**
+	 * Tests the {@code handleConflict} method of the
+	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 409
+	 * with the expected field values.
+	 */
 	@Test
-	void handleConflict_shouldReturn409() {
+	void handleConflictTest_shouldReturn409() {
 		var exception = new DataIntegrityViolationException("Conflict occurred");
 
 		var response = handler.handleConflict(exception);
@@ -73,9 +87,15 @@ class GlobalControllerExceptionHandlerTests {
 		assertThat(response.getBody().errorMessage()).isEqualTo("Conflict occurred");
 	}
 
+	/**
+	 * Tests the {@code handleMethodNotAllowed} method of the
+	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 405
+	 * with the expected field values.
+	 */
 	@Test
-	void handleMethodNotAllowed_shouldReturn405() {
-		var exception = new HttpRequestMethodNotSupportedException("testMethod");
+	void handleMethodNotAllowedTest_shouldReturn405() {
+		var methodName = "testMethod(testArg)";
+		var exception = new HttpRequestMethodNotSupportedException(methodName);
 
 		var response = handler.handleMethodNotAllowed(exception);
 
@@ -83,11 +103,17 @@ class GlobalControllerExceptionHandlerTests {
 		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().errorType()).isEqualTo("HttpRequestMethodNotSupportedException");
-		assertThat(response.getBody().errorMessage()).isEqualTo("Request method 'testMethod' is not supported");
+		assertThat(response.getBody().errorMessage())
+				.isEqualTo(String.format("Request method '%s' is not supported", methodName));
 	}
 
+	/**
+	 * Tests the {@code handleNotFound} method of the
+	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 404
+	 * with the expected field values.
+	 */
 	@Test
-	void handleNotFound_shouldReturn404() {
+	void handleNotFoundTest_shouldReturn404() {
 		var exception = new NoSuchElementException("Resource not found");
 
 		var response = handler.handleNotFound(exception);
@@ -99,8 +125,13 @@ class GlobalControllerExceptionHandlerTests {
 		assertThat(response.getBody().errorMessage()).isEqualTo("Resource not found");
 	}
 
+	/**
+	 * Tests the {@code handleBadRequest} method of the
+	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 400
+	 * with the expected field values.
+	 */
 	@Test
-	void handleBadRequest_shouldReturn400() {
+	void handleBadRequestTest_shouldReturn400() {
 		var exception = new InvalidInputException("Invalid input provided");
 
 		var response = handler.handleBadRequest(exception);
