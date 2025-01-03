@@ -132,7 +132,9 @@ class GlobalControllerExceptionHandlerTests {
 	 */
 	@Test
 	void handleBadRequestTest_shouldReturn400() {
-		var exception = new InvalidInputException("Invalid input provided");
+		var rootMessage = "Input is not a number";
+		var innerException = new NumberFormatException(rootMessage);
+		var exception = new InvalidInputException("Invalid input provided", innerException);
 
 		var response = handler.handleBadRequest(exception);
 
@@ -140,6 +142,6 @@ class GlobalControllerExceptionHandlerTests {
 		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().errorType()).isEqualTo("InvalidInputException");
-		assertThat(response.getBody().errorMessage()).isEqualTo("Invalid input provided");
+		assertThat(response.getBody().errorMessage()).isEqualTo(rootMessage);
 	}
 }
