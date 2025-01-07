@@ -40,19 +40,28 @@ import io.github.bucket4j.Bucket;
  */
 @SpringBootTest
 class RateLimiterAspectTest {
+	/**
+	 * The mock {@link ProceedingJoinPoint}.
+	 */
 	@Mock
 	private ProceedingJoinPoint proceedingJoinPoint;
 
+	/**
+	 * The {@link RateLimiterAspect} to test.
+	 */
 	@InjectMocks
 	private RateLimiterAspect rateLimiterAspect;
 
+	/**
+	 * The mock bucket.
+	 */
 	private Bucket mockBucket;
 
 	/**
-	 * The before each setup.
+	 * Initializes the mock bucket.
 	 */
 	@BeforeEach
-	void setUp() {
+	void setup() {
 		mockBucket = mock(Bucket.class);
 		ReflectionTestUtils.setField(rateLimiterAspect, "bucket", mockBucket);
 	}
@@ -63,7 +72,7 @@ class RateLimiterAspectTest {
 	 * the bucket and join point methods were called.
 	 */
 	@Test
-	void rateLimitTest_allowsRequest() throws Throwable {
+	void testRateLimitAllowsRequest() throws Throwable {
 		when(mockBucket.tryConsume(1)).thenReturn(true);
 		when(proceedingJoinPoint.proceed()).thenReturn("Success");
 
@@ -81,7 +90,7 @@ class RateLimiterAspectTest {
 	 * called.
 	 */
 	@Test
-	void rateLimitTest_blocksRequest() throws Throwable {
+	void testRateLimitBlocksRequest() throws Throwable {
 		when(mockBucket.tryConsume(1)).thenReturn(false);
 
 		assertThrows(RateLimitException.class, () -> rateLimiterAspect.rateLimit(proceedingJoinPoint));

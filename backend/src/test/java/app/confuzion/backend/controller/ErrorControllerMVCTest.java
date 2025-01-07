@@ -69,7 +69,7 @@ class ErrorControllerMVCTest {
 	 * what is expected.
 	 */
 	@Test
-	void handleErrorTest_shouldReturnDefaultResponse() {
+	void testHandleErrorWithDefaultRequest() {
 		var actual = errorControllerMVC.handleError(MOCK_REQUEST);
 		assertEquals(EXPECTED, actual);
 	}

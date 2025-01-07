@@ -74,7 +74,7 @@ class HttpUtilTest {
 	 * response equals the expected response.
 	 */
 	@Test
-	void getRequestHeadersTest_shouldReturnGivenHeaders() {
+	void testGetRequestHeadersTestWithGivenHeaders() {
 		var mockRequest = new MockHttpServletRequest();
 		var sb = new StringBuilder("[");
 		HEADER_NAME_LIST.forEach(ele -> {
@@ -95,7 +95,7 @@ class HttpUtilTest {
 	 * Asserts that the actual response equals the expected response.
 	 */
 	@Test
-	void getRemoteAddrTest_shouldReturnGivenHeaders() {
+	void testGetRemoteAddrTestWithGivenHeaders() {
 		var addrStr = "127.0.0.1";
 		var mockRequest = new MockHttpServletRequest();
 		mockRequest.addHeader(KNOWN_ADDR_HEADER, addrStr);
@@ -111,7 +111,7 @@ class HttpUtilTest {
 	 * key. Asserts that the actual response equals the expected response.
 	 */
 	@Test
-	void getRemoteAddrTest_shouldReturnEmpty() {
+	void testGetRemoteAddrTestWithEmptyAddress() {
 		var addrStr = "";
 		var mockRequest = new MockHttpServletRequest();
 		mockRequest.setRemoteAddr(addrStr);
@@ -129,7 +129,7 @@ class HttpUtilTest {
 	 * equals the expected response.
 	 */
 	@Test
-	void getRemoteAddrTest_shouldReturnUnknown() {
+	void testGetRemoteAddrTestWithUnknownAddress() {
 		var addrStr = "unknown";
 		var mockRequest = new MockHttpServletRequest();
 		mockRequest.setRemoteAddr(addrStr);
@@ -146,7 +146,7 @@ class HttpUtilTest {
 	 * key. Asserts that the actual response equals the expected response.
 	 */
 	@Test
-	void getRemoteAddrTest_shouldReturnUnknownHeader() {
+	void testGetRemoteAddrWithUnknownHeader() {
 		var addrStr = "127.0.0.1";
 		var mockRequest = new MockHttpServletRequest();
 		mockRequest.setRemoteAddr(addrStr);

@@ -23,11 +23,9 @@ import static org.mockito.Mockito.*;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import app.confuzion.backend.util.HttpUtil;
@@ -40,26 +38,41 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 @SpringBootTest
 class LoggerAspectTest {
+	/**
+	 * The mock {@link ProceedingJoinPoint}.
+	 */
 	@Mock
 	private ProceedingJoinPoint proceedingJoinPoint;
 
+	/**
+	 * The mock {@link JoinPoint}.
+	 */
 	@Mock
 	private JoinPoint joinPoint;
 
+	/**
+	 * The mock {@link MethodSignature}.
+	 */
 	@Mock
 	private MethodSignature methodSignature;
 
+	/**
+	 * The mock {@link HttpServletRequest}.
+	 */
 	@Mock
 	private HttpServletRequest httpServletRequest;
 
+	/**
+	 * The {@link LoggerAspect} to test.
+	 */
 	@InjectMocks
 	private LoggerAspect loggerAspect;
 
-	@BeforeEach
-	void setup() {
-		MockitoAnnotations.openMocks(this);
-	}
-
+	/**
+	 * Tests the {@code logAroundController} method of the {@link LoggerAspect}.
+	 * Verifies that the expected {@link ProceedingJoinPoint} methods were called
+	 * the expected number of times.
+	 */
 	@Test
 	void testLogAroundController() throws Throwable {
 		when(proceedingJoinPoint.getTarget()).thenReturn(this);
@@ -72,9 +85,17 @@ class LoggerAspectTest {
 
 		loggerAspect.logAroundController(proceedingJoinPoint);
 
+		verify(proceedingJoinPoint, times(1)).getTarget();
+		verify(proceedingJoinPoint, times(1)).getSignature();
+		verify(proceedingJoinPoint, times(3)).getArgs();
 		verify(proceedingJoinPoint, times(1)).proceed();
 	}
 
+	/**
+	 * Tests the {@code logExceptionController} method of the {@link LoggerAspect}.
+	 * Verifies that the expected {@link JoinPoint} methods were called the expected
+	 * number of times.
+	 */
 	@Test
 	void testLogExceptionController() throws NoSuchMethodException {
 		when(joinPoint.getTarget()).thenReturn(this);
@@ -86,9 +107,16 @@ class LoggerAspectTest {
 
 		loggerAspect.logExceptionController(joinPoint, exception);
 
+		verify(joinPoint, times(1)).getTarget();
 		verify(joinPoint, times(1)).getSignature();
+		verify(joinPoint, times(1)).getArgs();
 	}
 
+	/**
+	 * Tests the {@code logAroundController} method of the {@link LoggerAspect} when
+	 * no {@link HttpServletRequest} is given. Verifies that the expected
+	 * {@link ProceedingJoinPoint} methods were called the expected number of times.
+	 */
 	@Test
 	void testLogAroundControllerWithoutHttpServletRequest() throws Throwable {
 		when(proceedingJoinPoint.getTarget()).thenReturn(this);
@@ -98,6 +126,9 @@ class LoggerAspectTest {
 
 		loggerAspect.logAroundController(proceedingJoinPoint);
 
+		verify(proceedingJoinPoint, times(1)).getTarget();
+		verify(proceedingJoinPoint, times(1)).getSignature();
+		verify(proceedingJoinPoint, times(3)).getArgs();
 		verify(proceedingJoinPoint, times(1)).proceed();
 	}
 }

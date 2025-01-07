@@ -32,7 +32,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest
 class ApplicationContextTest {
 	/**
-	 * The {@link ApplicationContext} to autowire.
+	 * The {@link ApplicationContext} to test.
 	 */
 	@Autowired
 	private ApplicationContext applicationContext;

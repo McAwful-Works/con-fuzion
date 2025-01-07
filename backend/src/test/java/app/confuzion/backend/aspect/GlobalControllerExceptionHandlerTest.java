@@ -39,6 +39,9 @@ import app.confuzion.backend.exception.RateLimitException;
  */
 @SpringBootTest
 class GlobalControllerExceptionHandlerTest {
+	/**
+	 * The {@link GlobalControllerExceptionHandler} to test.
+	 */
 	@Autowired
 	private GlobalControllerExceptionHandler handler;
 
@@ -57,7 +60,7 @@ class GlobalControllerExceptionHandlerTest {
 	 * with the expected field values.
 	 */
 	@Test
-	void handleTooManyRequestsTest_shouldReturn429() {
+	void testHandleTooManyRequests() {
 		var exception = new RateLimitException("Too many requests");
 
 		var response = handler.handleTooManyRequests(exception);
@@ -75,7 +78,7 @@ class GlobalControllerExceptionHandlerTest {
 	 * with the expected field values.
 	 */
 	@Test
-	void handleConflictTest_shouldReturn409() {
+	void testHandleConflict() {
 		var exception = new DataIntegrityViolationException("Conflict occurred");
 
 		var response = handler.handleConflict(exception);
@@ -93,7 +96,7 @@ class GlobalControllerExceptionHandlerTest {
 	 * with the expected field values.
 	 */
 	@Test
-	void handleMethodNotAllowedTest_shouldReturn405() {
+	void testHandleMethodNotAllowed() {
 		var methodName = "testMethod(testArg)";
 		var exception = new HttpRequestMethodNotSupportedException(methodName);
 
@@ -113,7 +116,7 @@ class GlobalControllerExceptionHandlerTest {
 	 * with the expected field values.
 	 */
 	@Test
-	void handleNotFoundTest_shouldReturn404() {
+	void testHandleNotFound() {
 		var exception = new NoSuchElementException("Resource not found");
 
 		var response = handler.handleNotFound(exception);
@@ -131,7 +134,7 @@ class GlobalControllerExceptionHandlerTest {
 	 * with the expected field values.
 	 */
 	@Test
-	void handleBadRequestTest_shouldReturn400() {
+	void testHandleBadRequest() {
 		var rootMessage = "Input is not a number";
 		var innerException = new NumberFormatException(rootMessage);
 		var exception = new InvalidInputException("Invalid input provided", innerException);
