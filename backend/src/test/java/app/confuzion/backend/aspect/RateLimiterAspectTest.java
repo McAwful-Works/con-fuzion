@@ -39,7 +39,7 @@ import io.github.bucket4j.Bucket;
  * @author mcawful
  */
 @SpringBootTest
-class RateLimiterAspectTests {
+class RateLimiterAspectTest {
 	@Mock
 	private ProceedingJoinPoint proceedingJoinPoint;
 

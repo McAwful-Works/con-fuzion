@@ -36,7 +36,7 @@ import app.confuzion.backend.model.record.ResponseRecord;
  * @author mcawful
  */
 @SpringBootTest
-class ErrorControllerMVCTests {
+class ErrorControllerMVCTest {
 	/**
 	 * The {@link MockHttpServletRequest}.
 	 */

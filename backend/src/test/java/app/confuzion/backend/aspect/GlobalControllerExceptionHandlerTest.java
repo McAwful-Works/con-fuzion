@@ -38,7 +38,7 @@ import app.confuzion.backend.exception.RateLimitException;
  * @author mcawful
  */
 @SpringBootTest
-class GlobalControllerExceptionHandlerTests {
+class GlobalControllerExceptionHandlerTest {
 	@Autowired
 	private GlobalControllerExceptionHandler handler;
 

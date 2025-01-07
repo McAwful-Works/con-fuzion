@@ -30,7 +30,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * @author mcawful
  */
 @SpringBootTest
-class ApplicationContextTests {
+class ApplicationContextTest {
 	/**
 	 * The {@link ApplicationContext} to autowire.
 	 */

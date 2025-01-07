@@ -33,7 +33,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
  * @author mcawful
  */
 @SpringBootTest
-class HttpUtilTests {
+class HttpUtilTest {
 	/**
 	 * The {@link List} of header names.
 	 */
@@ -53,12 +53,10 @@ class HttpUtilTests {
 	 * Initializes required test data.
 	 */
 	@BeforeAll
-	static void init() {
-		// Initializes the header name list
+	static void setup() {
 		HEADER_NAME_LIST.addAll(Arrays.asList("host", "connection", "accept", "user-agent", "dnt", "referer",
 				"accept-encoding", "accept-language"));
 
-		// Initializes the header name and value mapping
 		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(0), "localhost:8080");
 		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(1), "keep-alive");
 		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(2), "text/plain");
