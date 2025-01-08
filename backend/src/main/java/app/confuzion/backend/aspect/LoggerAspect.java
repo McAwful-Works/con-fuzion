@@ -33,6 +33,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import app.confuzion.backend.util.HttpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Generated;
@@ -74,17 +76,19 @@ public class LoggerAspect {
 	 */
 	@Around("controllerPointcut()")
 	public Object logAroundController(ProceedingJoinPoint pjp) throws Throwable {
-		final Logger log = LoggerFactory.getLogger(pjp.getTarget().getClass());
+		final Logger logger = LoggerFactory.getLogger(pjp.getTarget().getClass());
 
 		var methodName = getMethodName(pjp);
 		var methodArgs = getArgs(pjp);
 		var remoteAddr = getRemoteAddr(pjp);
 		var headers = getHeaders(pjp);
 
-		log.info("Method '{}{}' called from the following IP address '{}' with the following headers - {}", methodName,
-				methodArgs, remoteAddr, headers);
+		logger.info("Method '{}{}' called from the following IP address '{}' with the following headers - {}",
+				methodName, methodArgs, remoteAddr, headers);
+		var objectMapper = new ObjectMapper();
 		var proceed = pjp.proceed();
-		log.info("Method '{}{}' returned the following result: {}", methodName, methodArgs, proceed);
+		var json = objectMapper.writeValueAsString(proceed);
+		logger.info("Method '{}{}' returned the following response: {}", methodName, methodArgs, json);
 		return proceed;
 	}
 
@@ -96,9 +100,11 @@ public class LoggerAspect {
 	 */
 	@AfterThrowing(pointcut = "controllerPointcut()", throwing = "e")
 	public void logExceptionController(JoinPoint jp, Exception e) {
-		final Logger log = LoggerFactory.getLogger(jp.getTarget().getClass());
-		log.error("Exception during method '{}{}' with the following exception - {}: {}", getMethodName(jp),
-				getArgs(jp), e.getClass().getSimpleName(), e.getMessage());
+		final Logger logger = LoggerFactory.getLogger(jp.getTarget().getClass());
+		var methodName = getMethodName(jp);
+		var args = getArgs(jp);
+		logger.error("Exception during method '{}{}' with the following exception - {}: {}", methodName, args,
+				e.getClass().getSimpleName(), e.getMessage());
 	}
 
 	/**
