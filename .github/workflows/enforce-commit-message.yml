@@ -1,0 +1,19 @@
+name: Enforce Commit Message
+
+on: push
+
+jobs:
+  validate-commit-message:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Validate commit messages
+        run: |
+          git log --format=%B ${{ github.event.before }}..HEAD | while read message; do
+            if [[ ! $message =~ ^Dooble ]]; then
+              echo "Commit message must start with 'Dooble': $message"
+              exit 1
+            fi
+          done
