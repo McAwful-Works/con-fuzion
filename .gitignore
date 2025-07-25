@@ -7,11 +7,6 @@
 # BlueJ files
 *.ctxt
 
-# IntelliJ files
-*/build/
-*/.gradle/
-*/.idea/
-
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
@@ -24,6 +19,16 @@
 *.tar.gz
 *.rar
 
+# Folders
+build/
+.idea/
+.gradle/
+.settings/
+
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Allow Gradle wrapper JAR
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
