@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -136,7 +137,8 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
 	 *
 	 * @param userRequest the {@link OAuth2UserRequest} with the access token
 	 * @return an {@link OAuth2User} named by the Con-Fuzion user ID
-	 * @throws OAuth2AuthenticationException when Discord's user can't be read
+	 * @throws OAuth2AuthenticationException when Discord's user can't be read or
+	 *                                       the login can't be recorded
 	 */
 	@Override
 	public OAuth2User loadUser(OAuth2UserRequest userRequest) {
@@ -154,7 +156,15 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
 		if (user == null || !isSnowflake(user.id()) || user.username() == null)
 			throw new OAuth2AuthenticationException(new OAuth2Error("discord_user_invalid"));
 
-		var login = userService.recordLogin(user, fetchGuilds(userUri + GUILDS_QUERY, token));
+		UserService.LoginResult login;
+		try {
+			login = userService.recordLogin(user, fetchGuilds(userUri + GUILDS_QUERY, token));
+		} catch (DataAccessException e) {
+			// Fail the login cleanly (a redirect to the sign-in page) rather than a 500 on
+			// the callback.
+			LOGGER.error("Recording the login failed", e);
+			throw new OAuth2AuthenticationException(new OAuth2Error("login_failed"), e);
+		}
 
 		List<GrantedAuthority> authorities = new ArrayList<>();
 		authorities.add(new SimpleGrantedAuthority("ROLE_USER"));

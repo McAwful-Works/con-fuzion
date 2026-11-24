@@ -126,7 +126,9 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
-	 * Tests the security headers on an API response and on the SPA shell.
+	 * Tests the security headers on an API response, the SPA shell, a deep link and
+	 * a hashed asset (which keeps its long-lived cache header), that the SPA
+	 * answers HEAD, and that the API docs need a session.
 	 */
 	@Test
 	void securityHeadersOnApiAndSpa() throws Exception {
@@ -134,7 +136,14 @@ class SecurityConfigIntegrationTest {
 		assertThat(spa.statusCode()).isEqualTo(200);
 		assertThat(spa.body()).contains("test-spa-shell");
 
-		for (var response : List.of(send("GET", "/api/me", null, null), spa, send("GET", "/onboarding", null, null))) {
+		var asset = send("GET", "/assets/app-abc123.js", null, null);
+		assertThat(asset.statusCode()).isEqualTo(200);
+		assertThat(asset.headers().firstValue("Cache-Control")).hasValue("max-age=31536000, public, immutable");
+		assertThat(send("HEAD", "/onboarding", null, null).statusCode()).isEqualTo(200);
+		assertThat(send("GET", "/v3/api-docs", null, null).statusCode()).isEqualTo(401);
+
+		for (var response : List.of(send("GET", "/api/me", null, null), spa, send("GET", "/onboarding", null, null),
+				asset)) {
 			var headers = response.headers();
 			assertThat(headers.firstValue("Content-Security-Policy")).hasValue(SecurityConfig.CONTENT_SECURITY_POLICY);
 			assertThat(headers.firstValue("Strict-Transport-Security"))

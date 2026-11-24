@@ -20,6 +20,8 @@ package app.confuzion.backend.model.entity;
 
 import java.util.UUID;
 
+import org.hibernate.annotations.DynamicUpdate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -38,6 +40,8 @@ import lombok.Setter;
  */
 @Entity
 @Table(name = "app_user")
+// Write only the changed columns, so concurrent updates of different settings don't overwrite each other.
+@DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor

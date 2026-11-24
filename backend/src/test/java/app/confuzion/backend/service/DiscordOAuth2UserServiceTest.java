@@ -21,6 +21,7 @@ package app.confuzion.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -44,6 +45,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -229,9 +231,17 @@ class DiscordOAuth2UserServiceTest {
 		expect(USER_URI).andRespond(json("{\"id\":\"700000000000000006\"}"));
 		assertThatThrownBy(() -> service.loadUser(request())).isInstanceOf(OAuth2AuthenticationException.class);
 
+		discord.reset();
+		expect(USER_URI).andRespond(json(user("700000000000000007", false)));
+		expect(GUILDS_URI).andRespond(json("[]"));
+		when(userService.recordLogin(argThat(u -> u != null && "700000000000000007".equals(u.id())), any()))
+				.thenThrow(new DataAccessResourceFailureException("database down"));
+		assertThatThrownBy(() -> service.loadUser(request())).isInstanceOf(OAuth2AuthenticationException.class);
+
 		var captor = ArgumentCaptor.forClass(DiscordUser.class);
-		verify(userService).recordLogin(captor.capture(), any());
-		assertThat(captor.getValue().id()).isEqualTo("700000000000000005");
+		verify(userService, times(2)).recordLogin(captor.capture(), any());
+		assertThat(captor.getAllValues()).extracting(DiscordUser::id).containsExactly("700000000000000005",
+				"700000000000000007");
 	}
 
 	/**

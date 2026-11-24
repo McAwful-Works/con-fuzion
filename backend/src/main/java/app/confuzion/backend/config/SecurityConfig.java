@@ -55,9 +55,9 @@ import jakarta.servlet.http.HttpServletResponse;
  * Spring Security: Discord sign-in, sessions, CSRF and security headers
  * ({@code docs/security.md}).
  * <ul>
- * <li>Deny by default. Public: health, the OAuth endpoints, and {@code GET} of
- * anything outside {@code /api}, which is only ever the SPA (its shell, assets
- * and deep links).</li>
+ * <li>Deny by default. Public: health, the OAuth endpoints, and {@code GET} or
+ * {@code HEAD} of anything outside {@code /api} except the API docs, which is
+ * only ever the SPA (its shell, assets and deep links).</li>
  * <li>An unauthenticated {@code /api} request gets a 401 and a failed CSRF
  * check a 403, never a redirect. Both go through {@code /error}, so the body is
  * the standard error envelope (D-010).</li>
@@ -141,7 +141,13 @@ public class SecurityConfig {
 				// loopback-only.
 				.requestMatchers("/api/actuator/**").permitAll()
 				.requestMatchers(AUTHORIZATION_BASE_URI + "/**", LOGIN_PROCESSING_URL).permitAll()
-				.requestMatchers("/api/**").authenticated().requestMatchers(HttpMethod.GET, "/**").permitAll()
+				.requestMatchers("/api/**").authenticated()
+				// The API docs aren't part of the SPA, so they need a session too.
+				.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").authenticated()
+				// Everything else outside /api is the SPA. Controllers must map under /api, or
+				// this rule makes a
+				// GET of theirs public.
+				.requestMatchers(HttpMethod.GET, "/**").permitAll().requestMatchers(HttpMethod.HEAD, "/**").permitAll()
 				.anyRequest().authenticated())
 				.oauth2Login(oauth2 -> oauth2.loginPage("/")
 						.authorizationEndpoint(
