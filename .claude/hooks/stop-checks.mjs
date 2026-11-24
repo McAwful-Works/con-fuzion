@@ -65,7 +65,7 @@ if (backend) {
 	const build = readFileSync(path.join(dir, 'build.gradle'), 'utf8');
 	const tasks = [...(build.includes('spotless') ? ['spotlessApply'] : []), 'test', '-PexcludeTags=integration', '--console=plain'];
 	const r = run(gradlew, tasks, dir);
-	// Environment problems (no JDK 21, no wrapper jar, no JAVA_HOME) only warn; test/compile failures block.
+	// Environment problems (no JDK 25, no wrapper jar, no JAVA_HOME) only warn; test/compile failures block.
 	if (!r.ok && /toolchain|Cannot find a Java installation|GradleWrapperMain|JAVA_HOME/i.test(r.out)) {
 		warnings.push(`stop-checks: backend checks skipped (build environment not ready, which M0 fixes): ${tail(r.out, 3)}`);
 	} else if (!r.ok) {

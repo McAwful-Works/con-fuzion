@@ -5,7 +5,7 @@
 ## Context
 Con-Fuzion is a free mobile + desktop web app for convention-goers to host meetups and open them to **audiences the host picks**, with **limited first-come-first-served spots** and an auto-promoting waitlist. Discord is the login and the source of social data.
 
-Starting point (Nov 2026): Spring Boot 3.3 / Java 21 scaffold (Boot 3.5.3 bump waiting on `feature/add-discord-oauth`) with a global exception handler, logging and rate-limit aspects, a `ResponseRecord` envelope, and a half-configured Discord OAuth2 client. There's no domain code and no frontend.
+Starting point (Nov 2026): Spring Boot 3.3 / Java 21 scaffold, being upgraded to Boot 4.x on Java 25 in M0 (D-008), with a global exception handler, logging and rate-limit aspects, a `ResponseRecord` envelope, and a half-configured Discord OAuth2 client. There's no domain code and no frontend.
 
 **Guiding principles:**
 - **Small footprint, built to scale out.** The app is stateless and deployed as one container image that scales horizontally.
@@ -235,7 +235,7 @@ Each change inserts a `notification` row in the same transaction. A `@Scheduled`
 - **M6** AWS deploy with Terraform:
   - VPC across 2 AZs.
   - Aurora Serverless v2 and ElastiCache Serverless.
-  - ECS service with autoscaling, ALB, and CloudFront + WAF.
+  - ECS service with autoscaling, ALB, and CloudFront + WAF. The container uses a JRE 25 base image.
   - ACM, Secrets Manager, CloudWatch alarms.
   - CD on merge, with staging and prod environments.
 - **M7** Polish + **launch gates**: accessibility, account deletion, donation links, artist asset swap, privacy policy and terms pages, the **load test** and the **security pass** (ZAP + manual review) against staging. Both must pass before launch.
@@ -295,7 +295,7 @@ The full threat model and per-PR checklist live in `docs/security.md`. This is t
   - **Admin:** a bootstrap ID gets ADMIN on login. A moderator without MFA has no admin access. A banned Discord ID is rejected at login and its sessions are purged. A role change invalidates sessions. Every admin action writes an `audit_log` row.
   - **Errors:** a forced constraint violation returns a generic 409 body with no SQL or Hibernate text.
   - **Headers:** CSP, HSTS, nosniff, and frame-ancestors are present on the SPA and `/api` responses.
-- **Security scans:** gitleaks and Dependabot are green (CodeQL is pending, see decisions.md D-007), and the ZAP baseline against staging has no high findings.
+- **Security scans:** CodeQL, secret scanning, gitleaks and Dependabot are green, and the ZAP baseline against staging has no high findings.
 - **Manual end-to-end:**
   1. `docker compose -f infra/docker-compose.yml up -d` (Postgres + Valkey) and `./gradlew bootRun`, plus `npm run dev`.
   2. Sign in with a Discord test app at `localhost:5173`.

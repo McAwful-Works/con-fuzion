@@ -46,9 +46,21 @@ Context · Decision · Consequences · Trigger to revisit
   - Original art comes from a hired artist. Licensed icons and fonts are allowed in the meantime.
   - Donation links are config-driven and passive, with no recognition or perks.
 
-## D-007 Code scanning on a private repo (2026-11-24) — Proposed
-- **Context:** The repo is private in an org. CodeQL and GitHub secret scanning on private repos need paid
-  GitHub Code/Secret Protection. The `gitleaks-action` needs a license for orgs.
-- **Decision for now:** Dependabot (free), plus the gitleaks binary (pinned and checksum-verified) in CI.
-- **Open:** The owner chooses between enabling GitHub Code Security, adding Semgrep CE (free) as a SAST step,
-  or deferring SAST until the M7 security pass.
+## D-007 Code and secret scanning (2026-11-24) — Accepted
+- **Context:** While the repo was private, CodeQL and GitHub secret scanning needed paid GitHub Code/Secret Protection.
+  The owner then made the repo public, after a full-history scan found no secrets.
+- **Decision:** The repo is public, so CodeQL default setup, secret scanning and push protection are on at no cost.
+  The gitleaks CI job (pinned and SHA-256-verified) stays as defense in depth, along with Dependabot version updates.
+- **Open:** Branch protection or a ruleset on `main` (now free) and Dependabot security updates are the owner's call.
+
+## D-008 Spring Boot 4.x on Java 25 LTS, not Boot 3.5 on Java 21 (2026-11-24) — Accepted
+- **Context:** The plan said "upgrade to Boot 3.5". By now 3.5's open-source support has ended, and Dependabot is
+  already proposing Boot 4.2, Gradle 9 and springdoc 3.
+- **Decision:** M0 (#7) upgrades straight to Spring Boot 4.x (latest 4.2.x), with Gradle 9.x and springdoc 3.x,
+  following the official migration guide, and moves the toolchain to **Java 25 LTS** (CI uses Temurin 25; M6 uses a
+  JRE 25 base image). The `feature/add-discord-oauth` Boot 3.5.3 bump is dropped.
+- **Why Java 25:** since JDK 24, `synchronized` no longer pins virtual threads to their carrier (JEP 491), and we rely
+  on virtual threads. It's also the longest LTS runway, and Boot 4 supports it.
+- **Consequences:** Jackson 3, Spring Framework 7, Jakarta EE 11 and some starter renames land before any domain
+  code exists, which is the cheapest time to absorb them. Java 25 needs JaCoCo 0.8.14 or later (the 0.8.13 pin is
+  bumped in #7) and Lombok 1.18.40 or later. Dependabot PRs #3–#6 close once #7 merges.

@@ -10,7 +10,7 @@ auto-promoting waitlist. Discord is the only login.
 
 ## Layout
 ```
-backend/    Spring Boot 3.x (3.5 after M0), Java 21, Gradle. Serves the REST API at /api and the built SPA at /   → backend/CLAUDE.md
+backend/    Spring Boot 4.x and Java 25 (after #7), Gradle. Serves the REST API at /api and the built SPA at /   → backend/CLAUDE.md
 frontend/   React + Vite + TypeScript PWA                                                      → frontend/CLAUDE.md
 infra/      Terraform (AWS) and docker-compose for local Postgres + Valkey (added in M0/M6)
 docs/       plan, roadmap, decisions, security, runbooks, research

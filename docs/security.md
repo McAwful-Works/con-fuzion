@@ -26,8 +26,8 @@ Summary of the plan's section B11 (security) and B12 (admin). Reviewers (the `re
 | Spam / abuse / floods | Per-user and per-IP rate limits (Valkey). WAF rate rules. Caps (20 events per host per day, 10 reports per user per day). Single-use invites that expire after 24h. Blocks, reports, suspensions, bans |
 | Harassment at meetups | Report → moderator queue. Block. Location hidden until confirmed. Hidden events. Bans by Discord ID that survive account deletion |
 | Admin compromise | MODERATOR/ADMIN authority only when Discord `mfa_enabled=true`. Role changes purge sessions. Insert-only `audit_log`. The last ADMIN can't be removed |
-| Secret leakage | Secrets Manager → ECS. Hooks block writing or printing secret files. gitleaks in CI |
-| Vulnerable dependencies | Dependabot. The dependency gate keeps the dependency surface small |
+| Secret leakage | Secrets Manager → ECS. Hooks block writing or printing secret files. GitHub secret scanning + push protection, plus gitleaks in CI |
+| Vulnerable code and dependencies | CodeQL default setup. Dependabot. The dependency gate keeps the dependency surface small |
 | Infrastructure exposure | Private subnets for tasks, database, and cache. Least-privilege security groups. TLS everywhere. KMS encryption at rest. OIDC deploy role (no static AWS keys). CloudTrail + GuardDuty |
 
 ## Required HTTP headers
