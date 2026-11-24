@@ -7,6 +7,8 @@ interface Props {
   confirmLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** The safe button's text. Say what it keeps when "Cancel" would be confusing. */
+  cancelLabel?: string;
   pending?: boolean;
   error?: unknown;
 }
@@ -21,6 +23,7 @@ export function ConfirmPanel({
   confirmLabel,
   onConfirm,
   onCancel,
+  cancelLabel = 'Cancel',
   pending = false,
   error,
 }: Props) {
@@ -55,7 +58,7 @@ export function ConfirmPanel({
           disabled={pending}
           onClick={onCancel}
         >
-          Cancel
+          {cancelLabel}
         </button>
         <button type="button" className="btn btn-primary" disabled={pending} onClick={onConfirm}>
           {confirmLabel}

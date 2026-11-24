@@ -1,0 +1,88 @@
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, fillPath, type ContractPath } from './client';
+import type { components } from './schema';
+
+type Schemas = components['schemas'];
+export type Event = Schemas['EventResponse'];
+export type EventRequest = Schemas['EventRequest'];
+export type AudienceEntry = Schemas['AudienceEntryResponse'];
+export type AudienceEntryRequest = Schemas['AudienceEntryRequest'];
+export type EventScope = 'feed' | 'hosting';
+
+const EVENTS = '/events' satisfies ContractPath;
+const EVENT = '/events/{eventId}' satisfies ContractPath;
+
+/** The limits the API enforces on an event (D-012 and the contract). The server checks them again. */
+export const EVENT_TITLE_MAX = 100;
+export const EVENT_DESCRIPTION_MAX = 2000;
+export const EVENT_LOCATION_MAX = 200;
+export const EVENT_TAG_MAX = 30;
+export const EVENT_CAPACITY_MAX = 10000;
+export const AUDIENCE_MAX = 50;
+export const FEED_PAGE_SIZE = 20;
+
+const events = ['events'] as const;
+
+export function useEventFeed(scope: EventScope) {
+  return useInfiniteQuery({
+    queryKey: [...events, 'list', scope],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const query = new URLSearchParams({ scope, limit: String(FEED_PAGE_SIZE) });
+      if (pageParam) query.set('cursor', pageParam);
+      return (await api<Schemas['ResponseRecordEventPageResponse']>(`${EVENTS}?${query}`)).body;
+    },
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+  });
+}
+
+export function useEvent(eventId: string) {
+  return useQuery({
+    queryKey: [...events, 'one', eventId],
+    queryFn: async () =>
+      (await api<Schemas['ResponseRecordEventResponse']>(fillPath(EVENT, { eventId }))).body,
+  });
+}
+
+export function useCreateEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: EventRequest) =>
+      (
+        await api<Schemas['ResponseRecordEventResponse']>(EVENTS, {
+          method: 'POST',
+          body: request,
+        })
+      ).body,
+    onSuccess: (created) => {
+      queryClient.setQueryData([...events, 'one', created.id], created);
+      return queryClient.invalidateQueries({ queryKey: [...events, 'list'] });
+    },
+  });
+}
+
+/** `PATCH` is a full replace (D-012): send the whole event, audience included. */
+export function useUpdateEvent(eventId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: EventRequest) =>
+      (
+        await api<Schemas['ResponseRecordEventResponse']>(fillPath(EVENT, { eventId }), {
+          method: 'PATCH',
+          body: request,
+        })
+      ).body,
+    onSuccess: (updated) => {
+      queryClient.setQueryData([...events, 'one', eventId], updated);
+      return queryClient.invalidateQueries({ queryKey: [...events, 'list'] });
+    },
+  });
+}
+
+export function useCancelEvent(eventId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<void>(fillPath(EVENT, { eventId }), { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: events }),
+  });
+}
