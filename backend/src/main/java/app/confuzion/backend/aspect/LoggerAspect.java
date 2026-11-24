@@ -33,11 +33,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import app.confuzion.backend.util.HttpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Generated;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Logger aspect.

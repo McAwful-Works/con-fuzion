@@ -78,7 +78,7 @@ public class RateLimiterAspect {
 	 * The post construct initializer.
 	 */
 	@PostConstruct
-    private void init() {
+	private void init() {
 		var bandwidth = Bandwidth.builder().capacity(tokenCapacity)
 				.refillIntervally(tokenRefillAmount, Duration.ofSeconds(refillRateInSeconds)).build();
 		bucket = Bucket.builder().addLimit(bandwidth).build();
