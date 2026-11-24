@@ -41,6 +41,269 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the users the signed-in user has blocked
+         * @description Sorted by display name. Never shows who has blocked the user.
+         */
+        get: operations["getBlocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blocks/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Block a user
+         * @description Idempotent. In one transaction it ends any friendship between the two and removes each from the other's circles. From then on, whichever of them made the block, neither can find or pick the other, use the other's invites, or see the other's events. A user ID that doesn't exist is also a 204, so it reveals nothing; the documented 404 never happens.
+         */
+        put: operations["blockUser"];
+        post?: never;
+        /**
+         * Unblock a user
+         * @description Removes only the caller's own block; a block the other person made stays. Friendships and circle memberships aren't restored. Always 204, also when there was no block or no such user; the documented 404 never happens.
+         */
+        delete: operations["unblockUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the signed-in user's circles
+         * @description Sorted by name, each with its members.
+         */
+        get: operations["getCircles"];
+        put?: never;
+        /**
+         * Create a circle
+         * @description The new circle has no members.
+         */
+        post: operations["createCircle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/{circleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one of the signed-in user's circles */
+        get: operations["getCircle"];
+        put?: never;
+        post?: never;
+        /** Delete one of the signed-in user's circles */
+        delete: operations["deleteCircle"];
+        options?: never;
+        head?: never;
+        /** Rename one of the signed-in user's circles */
+        patch: operations["updateCircle"];
+        trace?: never;
+    };
+    "/api/circles/{circleId}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Add a person to a circle
+         * @description Idempotent. The person must be pickable (D-011): a friend, or someone who shares a Discord server where both are discoverable, and not blocked either way. They aren't told. Adding someone who is already a member is a 204 without re-checking.
+         */
+        put: operations["addMember"];
+        post?: never;
+        /**
+         * Remove a person from a circle
+         * @description Also 204 when the person isn't a member. 404 only when the circle isn't one of the caller's.
+         */
+        delete: operations["removeMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List upcoming events
+         * @description Upcoming means the end (or, without one, the start plus 3 hours) is still in the future. feed: published events visible to the user, their own included. hosting: the user's own events, cancelled ones included. Sorted by start time, then ID.
+         */
+        get: operations["getEvents"];
+        put?: never;
+        /**
+         * Create an event
+         * @description Publishes it at once, hosted by the signed-in user. A host can create at most 20 events in any 24 hours.
+         */
+        post: operations["createEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an event
+         * @description 404 unless the user can see it (D-012). The host also sees their own cancelled events.
+         */
+        get: operations["getEvent"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel an event the user hosts
+         * @description Sets its status to CANCELLED and keeps it; it drops out of everyone's feed. Cancelling a cancelled event is also a 204. 404 unless the user is the host.
+         */
+        delete: operations["cancelEvent"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit an event the user hosts
+         * @description Send the whole event, as for create: every editable field is replaced, and the audience too. Entries already on the event are kept without a re-check, so sending back the audience as received never fails; only new entries are checked. 404 unless the user is the host.
+         */
+        patch: operations["updateEvent"];
+        trace?: never;
+    };
+    "/api/friends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the signed-in user's friends
+         * @description Sorted by display name.
+         */
+        get: operations["getFriends"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/friends/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a friend invite link
+         * @description The link holds a 128-bit random token, works once, and expires after 24 hours. This response is the only place the token appears: the server stores only its SHA-256. A user can have at most 20 unused, unexpired invites, and can't list or revoke them, so the client makes a new one only when the user asks for a new code, not each time a screen opens.
+         */
+        post: operations["createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/friends/invites/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview a friend invite before accepting it
+         * @description Doesn't use the invite up. A signed-out visitor to /invite/{token} gets a 401 here: the SPA keeps the token in sessionStorage, signs them in (and through onboarding), then returns to the accept page. A malformed token is a 404 too, never a 400.
+         */
+        get: operations["previewInvite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/friends/invites/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept a friend invite
+         * @description Uses the invite up and returns the new friend. If the two are already friends it still succeeds, returns the friend, and uses the invite up. A malformed token is a 404 too, never a 400.
+         */
+        post: operations["acceptInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/friends/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a friend
+         * @description Ends the friendship for both people and, in the same transaction, removes each from the other's circles. Always 204, also when the two aren't friends or the user doesn't exist, so it reveals nothing; the documented 404 never happens.
+         */
+        delete: operations["deleteFriend"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -106,17 +369,145 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the people the signed-in user can pick
+         * @description Pickable people (D-011) are the user's friends, plus people who share a Discord server where both of them are discoverable. Never the user themself, and never anyone either of them has blocked. Matches display names and usernames, ignoring case. At most 20 results, sorted by display name.
+         */
+        get: operations["searchPeople"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AudienceEntryRequest: {
+            /** Format: uuid */
+            circleId?: string | null;
+            /** @example 81384788765712384 */
+            guildId?: string | null;
+            /** @enum {string} */
+            type: "GUILD" | "FRIENDS" | "CIRCLE" | "USER";
+            /** Format: uuid */
+            userId?: string | null;
+        };
+        AudienceEntryResponse: {
+            /** Format: uuid */
+            circleId: string | null;
+            /** @example 81384788765712384 */
+            guildId: string | null;
+            /**
+             * @description The server, circle or person name. Null for FRIENDS, and for a server where the host is no longer discoverable, which then reaches no one.
+             * @example Example Con Community
+             */
+            label: string | null;
+            /** @enum {string} */
+            type: "GUILD" | "FRIENDS" | "CIRCLE" | "USER";
+            /** Format: uuid */
+            userId: string | null;
+        };
+        CircleListResponse: {
+            circles: components["schemas"]["CircleResponse"][];
+        };
+        CircleRequest: {
+            /** @example Cosplay crew */
+            name: string;
+        };
+        CircleResponse: {
+            /** Format: uuid */
+            id: string;
+            members: components["schemas"]["PersonResponse"][];
+            /** @example Cosplay crew */
+            name: string;
+        };
         ErrorResponseBodyRecord: {
             /** @example 3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60 */
             correlationId: string;
             /** @example Not Found */
             errorMessage: string;
-            /** @example NOT_FOUND */
+            /**
+             * @description The HTTP status name, or a domain type the operation documents for that status (D-011).
+             * @example NOT_FOUND
+             */
             errorType: string;
+        };
+        EventPageResponse: {
+            events: components["schemas"]["EventResponse"][];
+            nextCursor: string | null;
+        };
+        EventRequest: {
+            /** @description 1 to 50 entries, each at most once. */
+            audience: components["schemas"]["AudienceEntryRequest"][];
+            /** Format: int32 */
+            capacity?: number | null;
+            description?: string | null;
+            /**
+             * Format: date-time
+             * @description After startsAt and at most 7 days later.
+             */
+            endsAt?: string | null;
+            /** @example Hall B fountain */
+            location: string;
+            /** @enum {string} */
+            locationVisibility: "VIEWERS" | "CONFIRMED";
+            /**
+             * Format: date-time
+             * @description Before startsAt and at most a year earlier.
+             */
+            signupOpensAt?: string | null;
+            /**
+             * Format: date-time
+             * @description In the future when creating, and within a year of now either way. An update may keep a start that has passed, but can't move the start into the past.
+             */
+            startsAt: string;
+            /** @example Photoshoot */
+            tag?: string | null;
+            /** @example America/Chicago */
+            timeZone: string;
+            /** @example Cosplay photo walk */
+            title: string;
+        };
+        EventResponse: {
+            /** @description Only the host gets this; it is null for everyone else. */
+            audience: components["schemas"]["AudienceEntryResponse"][] | null;
+            /** Format: int32 */
+            capacity: number | null;
+            description: string | null;
+            /** Format: date-time */
+            endsAt: string | null;
+            host: components["schemas"]["PersonResponse"];
+            /** Format: uuid */
+            id: string;
+            isHost: boolean;
+            /** @example Hall B fountain */
+            location: string | null;
+            locationHidden: boolean;
+            /** @enum {string} */
+            locationVisibility: "VIEWERS" | "CONFIRMED";
+            /** Format: date-time */
+            signupOpensAt: string | null;
+            /** Format: date-time */
+            startsAt: string;
+            /** @enum {string} */
+            status: "PUBLISHED" | "CANCELLED";
+            /** @example Photoshoot */
+            tag: string | null;
+            /** @example America/Chicago */
+            timeZone: string;
+            /** @example Cosplay photo walk */
+            title: string;
         };
         GuildListResponse: {
             guilds: components["schemas"]["GuildResponse"][];
@@ -135,6 +526,23 @@ export interface components {
             /** @example 81384788765712384 */
             guildId: string;
         };
+        InvitePreviewInviter: {
+            /** @example https://cdn.discordapp.com/embed/avatars/0.png */
+            avatarUrl: string;
+            /** @example Con Goer */
+            displayName: string;
+        };
+        InvitePreviewResponse: {
+            /** Format: date-time */
+            expiresAt: string;
+            inviter: components["schemas"]["InvitePreviewInviter"];
+        };
+        InviteResponse: {
+            /** Format: date-time */
+            expiresAt: string;
+            /** @example https://example.com/invite/q3Jx0nV9cY2bT8pL1mR4wA */
+            url: string;
+        };
         MeResponse: {
             /** @example https://cdn.discordapp.com/embed/avatars/0.png */
             avatarUrl: string;
@@ -150,25 +558,76 @@ export interface components {
             /** @example con_goer */
             username: string;
         };
+        PersonListResponse: {
+            people: components["schemas"]["PersonResponse"][];
+        };
+        PersonResponse: {
+            /** @example https://cdn.discordapp.com/embed/avatars/0.png */
+            avatarUrl: string;
+            /** @example Con Goer */
+            displayName: string;
+            /** Format: uuid */
+            id: string;
+        };
+        ResponseRecordCircleListResponse: {
+            body: components["schemas"]["CircleListResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordCircleResponse: {
+            body: components["schemas"]["CircleResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
         ResponseRecordErrorResponseBodyRecord: {
             body: components["schemas"]["ErrorResponseBodyRecord"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordEventPageResponse: {
+            body: components["schemas"]["EventPageResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordEventResponse: {
+            body: components["schemas"]["EventResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordGuildListResponse: {
             body: components["schemas"]["GuildListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordGuildResponse: {
             body: components["schemas"]["GuildResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordInvitePreviewResponse: {
+            body: components["schemas"]["InvitePreviewResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordInviteResponse: {
+            body: components["schemas"]["InviteResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordMeResponse: {
             body: components["schemas"]["MeResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordPersonListResponse: {
+            body: components["schemas"]["PersonListResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordPersonResponse: {
+            body: components["schemas"]["PersonResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         UpdateGuildRequest: {
             discoverable: boolean;
@@ -266,6 +725,1592 @@ export interface operations {
             };
             /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getBlocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordPersonListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    blockUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user to block */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation, or the user ID is the caller's own. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    unblockUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The blocked user */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getCircles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordCircleListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    createCircle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CircleRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordCircleResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The caller already has a circle with this name, ignoring case. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getCircle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The circle's public ID */
+                circleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordCircleResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    deleteCircle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The circle's public ID */
+                circleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    updateCircle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The circle's public ID */
+                circleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CircleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordCircleResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The caller already has a circle with this name, ignoring case. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    addMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The circle's public ID */
+                circleId: string;
+                /** @description The person's user ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The circle isn't one of the caller's, or the person isn't pickable. Both are the same 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    removeMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The circle's public ID */
+                circleId: string;
+                /** @description The person's user ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getEvents: {
+        parameters: {
+            query?: {
+                /** @description feed or hosting */
+                scope?: "feed" | "hosting";
+                /** @description The previous page's nextCursor. Opaque; a cursor that wasn't issued for this scope is a 400. */
+                cursor?: string;
+                /** @description Events per page, 1 to 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordEventPageResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    createEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordEventResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description An audience entry names a server where the host isn't discoverable, a circle that isn't the host's, or a person the host can't pick (D-011). Nothing is saved. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The host already created 20 events in the last 24 hours (errorType EVENT_LIMIT), or is rate limited (errorType TOO_MANY_REQUESTS). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordEventResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    cancelEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    updateEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordEventResponse"];
+                };
+            };
+            /** @description The request failed validation, or it moves the start into the past. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The user isn't the host, or a newly added audience entry can't be used. An audience entry names a server where the host isn't discoverable, a circle that isn't the host's, or a person the host can't pick (D-011). Nothing is saved. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The event is cancelled, so it can't be edited. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getFriends: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordPersonListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    createInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordInviteResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The user already has 20 active invites (errorType INVITE_LIMIT), or is rate limited (errorType TOO_MANY_REQUESTS). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    previewInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The invite token from the link */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordInvitePreviewResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The token is unusable: malformed, unknown, expired, already used, the caller's own, or between two people where either has blocked the other. Every case is the same 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    acceptInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The invite token from the link */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordPersonResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The token is unusable: malformed, unknown, expired, already used, the caller's own, or between two people where either has blocked the other. Every case is the same 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    deleteFriend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The friend's user ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -633,6 +2678,74 @@ export interface operations {
             };
             /** @description Not found, or not visible to the caller. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    searchPeople: {
+        parameters: {
+            query: {
+                /** @description The search text: 2 to 50 characters, with no leading or trailing whitespace */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordPersonListResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

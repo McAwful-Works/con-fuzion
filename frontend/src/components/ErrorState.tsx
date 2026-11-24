@@ -2,6 +2,10 @@ import { ApiError } from '../api/client';
 
 /** Text is chosen from the status, never from server text. */
 function describe(error: unknown): string {
+  // A cap, not a rate limit (D-011): the status is the same 429, the errorType tells them apart.
+  if (error instanceof ApiError && error.code === 'INVITE_LIMIT') {
+    return 'You have a lot of invite links that nobody has used yet. They expire after 24 hours, so try again later.';
+  }
   if (error instanceof ApiError && error.status === 429) {
     return 'Too many requests. Wait a moment and try again.';
   }

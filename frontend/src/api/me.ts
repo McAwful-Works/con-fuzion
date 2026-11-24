@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { api } from './client';
-import type { components, paths } from './schema';
+import { api, type ContractPath } from './client';
+import type { components } from './schema';
 
 type Schemas = components['schemas'];
 export type Me = Schemas['MeResponse'];
@@ -10,8 +10,6 @@ export type Guild = Schemas['GuildResponse'];
 /** Where the browser goes to start Discord sign-in. A full navigation, not an XHR. */
 export const SIGN_IN_URL = '/api/oauth2/authorization/discord';
 
-/** An API path relative to the `/api` root, checked against the generated contract paths. */
-type ContractPath = keyof paths extends infer P ? (P extends `/api${infer R}` ? R : never) : never;
 const SIGN_OUT_PATH = '/auth/logout' satisfies ContractPath;
 const SIGN_OUT_EVERYWHERE_PATH = '/auth/logout-everywhere' satisfies ContractPath;
 

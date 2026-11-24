@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router';
 import { useSignOut } from '../api/me';
 import { ErrorState } from '../components/ErrorState';
+import { BlockedList } from '../features/social/BlockedList';
 import { PrivacyNote, ServerList } from '../features/servers/ServerList';
 
 export function Settings() {
@@ -19,6 +20,17 @@ export function Settings() {
         </h2>
         <PrivacyNote />
         <ServerList />
+      </section>
+
+      <section aria-labelledby="blocked-heading" className="space-y-4">
+        <h2 id="blocked-heading" className="text-xl font-semibold">
+          Blocked
+        </h2>
+        <p className="text-ink-muted text-sm">
+          Blocking cuts you off from each other both ways. Unblocking lifts the block but doesn’t
+          bring back a friendship or a circle membership.
+        </p>
+        <BlockedList />
       </section>
 
       <section aria-labelledby="account-heading" className="space-y-4">

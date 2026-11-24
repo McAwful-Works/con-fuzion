@@ -1,4 +1,16 @@
-import type { components } from './schema';
+import type { components, paths } from './schema';
+
+/** An API path relative to the `/api` root, checked against the generated contract paths. */
+export type ContractPath = keyof paths extends infer P
+  ? P extends `/api${infer R}`
+    ? R
+    : never
+  : never;
+
+/** Fills a contract path template such as `/friends/{userId}`, URL-encoding each value. */
+export function fillPath(template: ContractPath, params: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => encodeURIComponent(params[key] ?? ''));
+}
 
 type ErrorEnvelope = components['schemas']['ResponseRecordErrorResponseBodyRecord'];
 
