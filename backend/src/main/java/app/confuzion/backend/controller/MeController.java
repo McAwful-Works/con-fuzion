@@ -33,9 +33,11 @@ import app.confuzion.backend.model.record.GuildResponse;
 import app.confuzion.backend.model.record.MeResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
 import app.confuzion.backend.model.record.UpdateGuildRequest;
+import app.confuzion.backend.model.record.UpdateGuildsRequest;
 import app.confuzion.backend.model.record.UpdateMeRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
@@ -82,6 +84,23 @@ public class MeController {
 	@GetMapping("/guilds")
 	@Operation(summary = "List the signed-in user's Discord servers", description = "As of the last login sync, sorted by name.")
 	public ResponseRecord<GuildListResponse> getGuilds() {
+		throw notImplemented();
+	}
+
+	/**
+	 * Sets whether the signed-in user is discoverable in several of their servers
+	 * at once, all or nothing.
+	 *
+	 * @param request the {@link UpdateGuildsRequest}
+	 * @return the full, updated {@link GuildListResponse} envelope
+	 */
+	@PutMapping("/guilds")
+	@Operation(summary = "Set whether the signed-in user is discoverable in several of their servers at once", description = "For onboarding's \"select all\". All or nothing, in one transaction, and one request "
+			+ "against the rate limit. Returns the full updated server list.")
+	// Declaring the 404 drops springdoc's inferred 200, so the 200 is declared too.
+	@ApiResponse(responseCode = "200", description = "OK")
+	@ApiResponse(responseCode = "404", description = "A guildId isn't one of the user's synced servers. Nothing is changed.")
+	public ResponseRecord<GuildListResponse> updateGuilds(@Valid @RequestBody UpdateGuildsRequest request) {
 		throw notImplemented();
 	}
 

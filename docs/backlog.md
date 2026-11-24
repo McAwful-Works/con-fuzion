@@ -15,4 +15,3 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | Privacy-respecting analytics | |
 | Convention directory / convention entity | Rejected for the MVP (events are standalone) |
 | Native apps, i18n | |
-| Bulk `PUT /api/me/guilds` for onboarding's "select all" | One PUT per server hits the per-user rate limit (10-token bucket) for users in many servers. Decide before #12 builds onboarding (raised in #10) |

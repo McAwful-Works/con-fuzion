@@ -26,6 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -38,6 +41,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import app.confuzion.backend.aspect.GlobalControllerExceptionHandler;
+import app.confuzion.backend.model.record.UpdateGuildsRequest;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -142,6 +146,41 @@ class MeControllerTest {
 	}
 
 	/**
+	 * Tests that a valid bulk {@code PUT /api/me/guilds} is a 501 stub, at both
+	 * ends of the size limit.
+	 */
+	@Test
+	void testUpdateGuildsIsNotImplemented() throws Exception {
+		assertError(json(put("/api/me/guilds"), bulk(1)), HttpStatus.NOT_IMPLEMENTED);
+		assertError(json(put("/api/me/guilds"), bulk(UpdateGuildsRequest.MAX_GUILDS)), HttpStatus.NOT_IMPLEMENTED);
+	}
+
+	/**
+	 * Tests that bulk {@code PUT /api/me/guilds} rejects a body that is empty, too
+	 * long, repeats a server, or has a bad entry.
+	 *
+	 * @param body the bad JSON body
+	 */
+	@ParameterizedTest
+	@ValueSource(strings = { "{}", "{\"guilds\":null}", "{\"guilds\":[]}", "{\"guilds\":[null]}",
+			"{\"guilds\":[{\"guildId\":\"81384788765712384\"}]}", "{\"guilds\":[{\"discoverable\":true}]}",
+			"{\"guilds\":[{\"guildId\":\"123\",\"discoverable\":true}]}",
+			"{\"guilds\":[{\"guildId\":\"81384788765712384\",\"discoverable\":true},"
+					+ "{\"guildId\":\"81384788765712384\",\"discoverable\":false}]}" })
+	void testUpdateGuildsRejectsBadBody(String body) throws Exception {
+		assertError(json(put("/api/me/guilds"), body), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Tests that bulk {@code PUT /api/me/guilds} rejects more servers than a
+	 * Discord account can be in.
+	 */
+	@Test
+	void testUpdateGuildsRejectsTooManyEntries() throws Exception {
+		assertError(json(put("/api/me/guilds"), bulk(UpdateGuildsRequest.MAX_GUILDS + 1)), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
 	 * Tests that a rejected request value never reaches the log, because client
 	 * errors log the exception type only.
 	 */
@@ -160,6 +199,18 @@ class MeControllerTest {
 
 		assertThat(appender.list).hasSize(2).allSatisfy(
 				event -> assertThat(event.getFormattedMessage()).contains("400 from").doesNotContain(SECRET));
+	}
+
+	/**
+	 * Builds a bulk update body for distinct, valid server IDs.
+	 *
+	 * @param count the number of entries
+	 * @return the JSON body
+	 */
+	private static String bulk(int count) {
+		return IntStream.range(0, count)
+				.mapToObj(i -> "{\"guildId\":\"" + (81384788765712384L + i) + "\",\"discoverable\":true}")
+				.collect(Collectors.joining(",", "{\"guilds\":[", "]}"));
 	}
 
 	/**

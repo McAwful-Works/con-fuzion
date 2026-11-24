@@ -104,7 +104,7 @@ class OpenApiConfigIntegrationTest {
 		assertThat(paths).containsOnlyKeys("/api/me", "/api/me/guilds", "/api/me/guilds/{guildId}",
 				"/api/auth/logout-everywhere");
 		assertThat(paths.get("/api/me")).containsOnlyKeys("get", "patch");
-		assertThat(paths.get("/api/me/guilds")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/me/guilds")).containsOnlyKeys("get", "put");
 		assertThat(paths.get("/api/me/guilds/{guildId}")).containsOnlyKeys("put");
 		assertThat(paths.get("/api/auth/logout-everywhere")).containsOnlyKeys("post");
 	}
@@ -117,6 +117,8 @@ class OpenApiConfigIntegrationTest {
 		assertThat(successRef("/api/me", "get")).isEqualTo("#/components/schemas/ResponseRecordMeResponse");
 		assertThat(successRef("/api/me", "patch")).isEqualTo("#/components/schemas/ResponseRecordMeResponse");
 		assertThat(successRef("/api/me/guilds", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordGuildListResponse");
+		assertThat(successRef("/api/me/guilds", "put"))
 				.isEqualTo("#/components/schemas/ResponseRecordGuildListResponse");
 		assertThat(successRef("/api/me/guilds/{guildId}", "put"))
 				.isEqualTo("#/components/schemas/ResponseRecordGuildResponse");
@@ -131,7 +133,7 @@ class OpenApiConfigIntegrationTest {
 	void everyOperationDocumentsTheErrorEnvelope() {
 		List<Map<String, Map<String, Object>>> responses = document.read("$.paths.*.*.responses");
 
-		assertThat(responses).hasSize(5).allSatisfy(byStatus -> {
+		assertThat(responses).hasSize(6).allSatisfy(byStatus -> {
 			assertThat(byStatus).containsKeys("401", "429", "500", "default");
 			byStatus.forEach((code, response) -> {
 				if (code.startsWith("4") || code.startsWith("5") || code.equals("default"))
@@ -146,6 +148,7 @@ class OpenApiConfigIntegrationTest {
 		assertThat(responses("/api/auth/logout-everywhere", "post")).containsKey("403");
 		assertThat(responses("/api/me", "get")).doesNotContainKey("403");
 		assertThat(responses("/api/me/guilds", "get")).doesNotContainKey("403");
+		assertThat(responses("/api/me/guilds", "put")).containsKeys("400", "403", "404");
 	}
 
 	/**

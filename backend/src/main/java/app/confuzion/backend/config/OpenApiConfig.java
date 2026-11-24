@@ -118,7 +118,7 @@ public class OpenApiConfig {
 
 	/**
 	 * Adds the error responses that apply to one operation, keeping any it already
-	 * declares.
+	 * declares, and gives every error response the envelope as its body.
 	 *
 	 * @param operation    the {@link Operation}
 	 * @param mutation     whether the operation changes state, so it needs the CSRF
@@ -141,6 +141,12 @@ public class OpenApiConfig {
 		responses.putIfAbsent("429", error("Rate limited. Try again later.", content));
 		responses.putIfAbsent("500", error("Unexpected server error.", content));
 		responses.putIfAbsent("default", error("Any other error.", content));
+		// springdoc gives an error declared with @ApiResponse the success body type;
+		// every error is the envelope.
+		responses.forEach((code, response) -> {
+			if (code.startsWith("4") || code.startsWith("5"))
+				response.setContent(content);
+		});
 	}
 
 	/**
