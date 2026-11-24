@@ -19,6 +19,7 @@
 package app.confuzion.backend.config;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,7 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
+import org.springframework.web.util.UriUtils;
 
 /**
  * Serves the built PWA that the {@code bootJar} task copies to
@@ -40,7 +42,8 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
  * matched before any resource handler, and an unmatched {@code /api/**} path
  * resolves to nothing, so it reaches the generic JSON 404. Boot's own static
  * resource handling is switched off in {@code application.properties} so this
- * class is the only one in charge of {@code /**}.
+ * class is the only one in charge of {@code /**}. Client routes must not have a
+ * dot in their last segment, because that reads as a file name and gets a 404.
  *
  * @author mcawful
  */
@@ -76,7 +79,7 @@ public class SpaWebConfig implements WebMvcConfigurer {
 		registry.addResourceHandler("/assets/**").addResourceLocations(STATIC_LOCATION + "assets/")
 				.setCacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable());
 		registry.addResourceHandler("/**").addResourceLocations(STATIC_LOCATION).setCacheControl(CacheControl.noCache())
-				.resourceChain(true).addResolver(new SpaFallbackResolver());
+				.resourceChain(false).addResolver(new SpaFallbackResolver());
 	}
 
 	/**
@@ -111,7 +114,12 @@ public class SpaWebConfig implements WebMvcConfigurer {
 		 * @return {@code true} for a client-side route
 		 */
 		private static boolean isClientRoute(String resourcePath) {
-			var path = "/" + resourcePath;
+			String path;
+			try {
+				path = "/" + UriUtils.decode(resourcePath, StandardCharsets.UTF_8);
+			} catch (IllegalArgumentException e) {
+				return false;
+			}
 			if (path.equals(API_PREFIX) || path.startsWith(API_PREFIX + "/"))
 				return false;
 			return path.indexOf('.', path.lastIndexOf('/')) < 0;

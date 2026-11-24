@@ -123,7 +123,8 @@ class SpaWebConfigTest {
 	 * @param path the request path
 	 */
 	@ParameterizedTest
-	@ValueSource(strings = { "/assets/missing-abc.js", "/missing.js", "/assets/nope/x.css" })
+	@ValueSource(strings = { "/assets/missing-abc.js", "/missing.js", "/assets/nope/x.css", "/application.properties",
+			"/logback.xml", "/db/migration/x.sql", "/static/index.html", "/%2e%2e/application.properties" })
 	void missingFilesAreNotFound(String path) throws Exception {
 		mockMvc.perform(get(path)).andExpect(status().isNotFound());
 	}
@@ -135,7 +136,7 @@ class SpaWebConfigTest {
 	 * @param path the request path
 	 */
 	@ParameterizedTest
-	@ValueSource(strings = { "/api", "/api/", "/api/x", "/api/events/42" })
+	@ValueSource(strings = { "/api", "/api/", "/api/x", "/api/events/42", "/%61pi/x" })
 	void apiPathsAreNeverShadowed(String path) throws Exception {
 		mockMvc.perform(get(path)).andExpect(status().isNotFound()).andExpect(content().string(""));
 	}

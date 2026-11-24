@@ -120,7 +120,7 @@ tasks.named('check') {
 // ./gradlew bootJar -PskipFrontend builds an API-only jar.
 def frontendDir = layout.projectDirectory.dir('../frontend')
 def skipFrontend = providers.gradleProperty('skipFrontend').isPresent()
-def npm = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'npm.cmd' : 'npm'
+def npm = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
 
 def frontendInstall = tasks.register('frontendInstall', Exec) {
     workingDir frontendDir
@@ -134,7 +134,7 @@ def frontendBuild = tasks.register('frontendBuild', Exec) {
     workingDir frontendDir
     commandLine npm, 'run', 'build'
     inputs.files(fileTree(frontendDir) {
-        include 'src/**', 'public/**', 'index.html', 'package-lock.json', 'tsconfig*.json', 'vite.config.ts'
+        include 'src/**', 'public/**', 'index.html', 'package.json', 'package-lock.json', 'tsconfig*.json', 'vite.config.ts'
     })
     outputs.dir frontendDir.dir('dist')
 }
