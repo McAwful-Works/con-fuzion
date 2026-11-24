@@ -62,3 +62,9 @@ util/         stateless helpers
 ./gradlew bootJar -PskipFrontend     # API-only jar; test and check never need Node
 ```
 On Windows use `gradlew.bat`.
+
+**Running the jar needs Java 25.** Gradle builds with its own JDK 25 toolchain, but `java -jar` uses whatever `java`
+is on the PATH. If that's older (this machine's system Java is 17), you'll get `UnsupportedClassVersionError`. Use the
+toolchain JDK instead, for example
+`%USERPROFILE%\.gradle\jdks\eclipse_adoptium-25-amd64-windows.2\bin\java.exe -jar build\libs\backend-0.0.1-SNAPSHOT.jar`,
+or install JDK 25. `bootRun` and the e2e suite (`e2e/README.md`) handle this themselves.

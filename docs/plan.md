@@ -238,6 +238,7 @@ Each change inserts a `notification` row in the same transaction. A `@Scheduled`
   - ECS service with autoscaling, ALB, and CloudFront + WAF. The container uses a JRE 25 base image.
   - **Client IP behind CloudFront:** RemoteIpValve trusts only private-range proxies by default, so behind CloudFront → ALB every anonymous user would appear as a CloudFront edge address and share one rate-limit bucket. Fix it in M6: either add CloudFront's published origin-facing IP ranges to `server.tomcat.remoteip.internal-proxies` (kept current from AWS's managed prefix list), or have CloudFront send `CloudFront-Viewer-Address` and resolve the IP from that header, accepting it only from CloudFront. Test it with an end-to-end check that two clients get separate buckets.
   - ACM, Secrets Manager, CloudWatch alarms.
+  - Disable springdoc in production (`springdoc.api-docs.enabled=false`, `springdoc.swagger-ui.enabled=false` in the prod config). The docs already require a session, but there's no reason to serve them publicly.
   - CD on merge, with staging and prod environments.
 - **M7** Polish + **launch gates**: accessibility, account deletion, donation links, artist asset swap, privacy policy and terms pages, the **load test** and the **security pass** (ZAP + manual review) against staging. Both must pass before launch.
 - **→ MVP launch.** Everything else comes from the backlog, by decision.
