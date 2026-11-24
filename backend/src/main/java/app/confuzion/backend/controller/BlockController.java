@@ -21,6 +21,7 @@ package app.confuzion.backend.controller;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,10 +29,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.PersonListResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.service.BlockService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -39,9 +41,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * The {@link RestController} for the signed-in user's blocks. A block is a full
- * mutual cutoff (D-011). Every method is a contract stub that answers 501 until
- * #36 implements it; request validation already runs, so a bad request is a
- * 400.
+ * mutual cutoff (D-011). The user ID always comes from the session.
  *
  * @author mcawful
  */
@@ -50,21 +50,37 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "blocks", description = "Blocked users")
 public class BlockController {
 	/**
+	 * The {@link BlockService}.
+	 */
+	private final BlockService blockService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param blockService the {@link BlockService}
+	 */
+	public BlockController(BlockService blockService) {
+		this.blockService = blockService;
+	}
+
+	/**
 	 * Returns the users the signed-in user has blocked.
 	 *
+	 * @param authentication the session's {@link Authentication}
 	 * @return the {@link PersonListResponse} envelope
 	 */
 	@GetMapping
 	@Operation(summary = "List the users the signed-in user has blocked", description = "Sorted by display name. "
 			+ "Never shows who has blocked the user.")
-	public ResponseRecord<PersonListResponse> getBlocks() {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public ResponseRecord<PersonListResponse> getBlocks(@Parameter(hidden = true) Authentication authentication) {
+		return new ResponseRecord<>(blockService.getBlocks(HttpUtil.userId(authentication)));
 	}
 
 	/**
 	 * Blocks a user. Repeating it changes nothing.
 	 *
-	 * @param userId the user to block
+	 * @param authentication the session's {@link Authentication}
+	 * @param userId         the user to block
 	 */
 	@PutMapping("/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
@@ -75,21 +91,24 @@ public class BlockController {
 	// Declaring the 400 drops springdoc's inferred 204, so the 204 is declared too.
 	@ApiResponse(responseCode = "204", description = "No Content")
 	@ApiResponse(responseCode = "400", description = "The request failed validation, or the user ID is the caller's own.")
-	public void blockUser(@Parameter(description = "The user to block") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public void blockUser(@Parameter(hidden = true) Authentication authentication,
+			@Parameter(description = "The user to block") @PathVariable UUID userId) {
+		blockService.block(HttpUtil.userId(authentication), userId);
 	}
 
 	/**
 	 * Removes a block the signed-in user made.
 	 *
-	 * @param userId the blocked user
+	 * @param authentication the session's {@link Authentication}
+	 * @param userId         the blocked user
 	 */
 	@DeleteMapping("/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Unblock a user", description = "Removes only the caller's own block; a block the other person "
 			+ "made stays. Friendships and circle memberships aren't restored. Always 204, also when there was no "
 			+ "block or no such user; the documented 404 never happens.")
-	public void unblockUser(@Parameter(description = "The blocked user") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public void unblockUser(@Parameter(hidden = true) Authentication authentication,
+			@Parameter(description = "The blocked user") @PathVariable UUID userId) {
+		blockService.unblock(HttpUtil.userId(authentication), userId);
 	}
 }

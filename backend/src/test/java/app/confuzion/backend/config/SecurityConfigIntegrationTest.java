@@ -47,6 +47,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -84,32 +85,35 @@ class SecurityConfigIntegrationTest {
 			+ "\"locationVisibility\":\"VIEWERS\",\"audience\":[{\"type\":\"FRIENDS\"}]}";
 
 	/**
-	 * One valid request per contract-stub operation, so the security chain is
-	 * checked for every endpoint that has no implementation yet.
+	 * One valid request per social-graph (D-011) and event operation, with the
+	 * status a signed-in user with no friends, circles, blocks or events gets, so
+	 * the security chain is checked for every one of them. The circle, user, event
+	 * and token are unknown. Event endpoints are still contract stubs (501).
 	 */
-	private static final List<Stub> CONTRACT_STUBS = List.of(new Stub("POST", "/api/friends/invites", null),
-			new Stub("GET", "/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA", null),
-			new Stub("POST", "/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA/accept", null),
-			new Stub("GET", "/api/friends", null),
-			new Stub("DELETE", "/api/friends/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null),
-			new Stub("GET", "/api/people?q=con", null), new Stub("GET", "/api/circles", null),
-			new Stub("POST", "/api/circles", "{\"name\":\"Crew\"}"),
-			new Stub("GET", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null),
-			new Stub("PATCH", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", "{\"name\":\"Crew\"}"),
-			new Stub("DELETE", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null),
-			new Stub("PUT",
+	private static final List<Endpoint> ENDPOINTS = List.of(new Endpoint("POST", "/api/friends/invites", null, 201),
+			new Endpoint("GET", "/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA", null, 404),
+			new Endpoint("POST", "/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA/accept", null, 404),
+			new Endpoint("GET", "/api/friends", null, 200),
+			new Endpoint("DELETE", "/api/friends/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 204),
+			new Endpoint("GET", "/api/people?q=con", null, 200), new Endpoint("GET", "/api/circles", null, 200),
+			new Endpoint("POST", "/api/circles", "{\"name\":\"Crew\"}", 201),
+			new Endpoint("GET", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 404),
+			new Endpoint("PATCH", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", "{\"name\":\"Crew\"}", 404),
+			new Endpoint("DELETE", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 404),
+			new Endpoint("PUT",
 					"/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/members/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20",
-					null),
-			new Stub("DELETE",
+					null, 404),
+			new Endpoint("DELETE",
 					"/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/members/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20",
-					null),
-			new Stub("GET", "/api/blocks", null),
-			new Stub("PUT", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null),
-			new Stub("DELETE", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null),
-			new Stub("POST", "/api/events", EVENT_BODY), new Stub("GET", "/api/events?scope=hosting", null),
-			new Stub("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null),
-			new Stub("PATCH", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", EVENT_BODY),
-			new Stub("DELETE", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null));
+					null, 404),
+			new Endpoint("GET", "/api/blocks", null, 200),
+			new Endpoint("PUT", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null, 204),
+			new Endpoint("DELETE", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null, 204),
+			new Endpoint("POST", "/api/events", EVENT_BODY, 501),
+			new Endpoint("GET", "/api/events?scope=hosting", null, 501),
+			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 501),
+			new Endpoint("PATCH", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", EVENT_BODY, 501),
+			new Endpoint("DELETE", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 501));
 
 	/**
 	 * The stub Discord.
@@ -308,23 +312,31 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
-	 * Tests that every contract stub is deny-by-default: a 401 without a session, a
-	 * 403 for a signed-in write without the CSRF token, and through to the stub's
-	 * 501 with both.
+	 * Tests that every social-graph and event endpoint is deny-by-default: a 401
+	 * without a session, a 403 for a signed-in write without the CSRF token, and
+	 * through to the endpoint with both. Error answers are the standard envelope; a
+	 * 204 has no body.
 	 */
 	@Test
-	void contractStubsNeedSessionAndCsrf() throws Exception {
-		DISCORD.reset("100000000000000080", "stub_user", false);
+	void endpointsNeedSessionAndCsrf() throws Exception {
+		DISCORD.reset("100000000000000080", "social_user", false);
 		var session = login().session();
 		// CSRF is checked before authorization, so anonymous writes send a token.
 		var anonymousCsrf = cookie(send("GET", "/api/me", null, null), "XSRF-TOKEN");
 
-		for (var stub : CONTRACT_STUBS) {
-			assertError(send(stub.method(), stub.path(), null, stub.body(), "Cookie", "XSRF-TOKEN=" + anonymousCsrf,
-					"X-XSRF-TOKEN", anonymousCsrf), 401, "UNAUTHORIZED");
-			if (!stub.method().equals("GET"))
-				assertError(send(stub.method(), stub.path(), session, stub.body()), 403, "FORBIDDEN");
-			assertError(sendWithCsrf(stub.method(), stub.path(), session, stub.body()), 501, "NOT_IMPLEMENTED");
+		for (var endpoint : ENDPOINTS) {
+			assertError(send(endpoint.method(), endpoint.path(), null, endpoint.body(), "Cookie",
+					"XSRF-TOKEN=" + anonymousCsrf, "X-XSRF-TOKEN", anonymousCsrf), 401, "UNAUTHORIZED");
+			if (!endpoint.method().equals("GET"))
+				assertError(send(endpoint.method(), endpoint.path(), session, endpoint.body()), 403, "FORBIDDEN");
+			var response = sendWithCsrf(endpoint.method(), endpoint.path(), session, endpoint.body());
+			if (endpoint.status() >= 400)
+				assertError(response, endpoint.status(), HttpStatus.valueOf(endpoint.status()).name());
+			else
+				assertThat(response.statusCode()).as(endpoint.method() + " " + endpoint.path())
+						.isEqualTo(endpoint.status());
+			if (endpoint.status() == 204)
+				assertThat(response.body()).isEmpty();
 		}
 	}
 
@@ -680,14 +692,15 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
-	 * One request to a contract stub.
+	 * One request to a social-graph or event endpoint.
 	 *
 	 * @param method the method
 	 * @param path   the path, with any query
 	 * @param body   the JSON body, or {@code null}
+	 * @param status the status a signed-in caller with the CSRF token gets
 	 * @author mcawful
 	 */
-	private record Stub(String method, String path, String body) {
+	private record Endpoint(String method, String path, String body, int status) {
 	}
 
 	/**

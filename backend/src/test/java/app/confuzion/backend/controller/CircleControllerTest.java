@@ -20,6 +20,7 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -36,11 +37,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 
-import app.confuzion.backend.model.record.CircleRequest;
+import app.confuzion.backend.service.CircleService;
 
 /**
- * Unit tests for the {@link CircleController} contract stubs: every operation
- * answers 501 in the error envelope, and a bad name or ID is a 400.
+ * Unit tests for {@link CircleController} request validation: a bad name or ID
+ * is a 400 in the error envelope.
  *
  * @author mcawful
  */
@@ -53,31 +54,7 @@ class CircleControllerTest {
 	/**
 	 * The {@link MockMvc}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new CircleController());
-
-	/**
-	 * Returns one valid request per operation, with names at both ends of the
-	 * length limit.
-	 *
-	 * @return the requests
-	 */
-	static Stream<RequestBuilder> operations() {
-		var longest = "{\"name\":\"" + "a".repeat(CircleRequest.MAX_NAME) + "\"}";
-		return Stream.of(get("/api/circles"), json(post("/api/circles"), "{\"name\":\"a\"}"),
-				json(post("/api/circles"), longest), get(CIRCLE), json(patch(CIRCLE), longest), delete(CIRCLE),
-				put(CIRCLE + "/members/" + UUID.randomUUID()), delete(CIRCLE + "/members/" + UUID.randomUUID()));
-	}
-
-	/**
-	 * Tests that each stub answers 501 in the error envelope.
-	 *
-	 * @param request the request
-	 */
-	@ParameterizedTest
-	@MethodSource("operations")
-	void testStubsAreNotImplemented(RequestBuilder request) throws Exception {
-		assertError(mockMvc, request, HttpStatus.NOT_IMPLEMENTED);
-	}
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new CircleController(mock(CircleService.class)));
 
 	/**
 	 * Tests that creating or renaming a circle rejects a missing, blank, untrimmed,

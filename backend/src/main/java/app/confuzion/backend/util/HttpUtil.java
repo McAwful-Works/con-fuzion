@@ -19,6 +19,9 @@
 package app.confuzion.backend.util;
 
 import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.security.core.Authentication;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.experimental.UtilityClass;
@@ -56,5 +59,16 @@ public class HttpUtil {
 	public Optional<String> getUserId(HttpServletRequest request) {
 		var principal = request.getUserPrincipal();
 		return principal == null ? Optional.empty() : Optional.ofNullable(principal.getName());
+	}
+
+	/**
+	 * Returns the signed-in user's ID, which is the session's principal name. It
+	 * always comes from the session, never from the request.
+	 *
+	 * @param authentication the session's {@link Authentication}
+	 * @return the user ID
+	 */
+	public UUID userId(Authentication authentication) {
+		return UUID.fromString(authentication.getName());
 	}
 }

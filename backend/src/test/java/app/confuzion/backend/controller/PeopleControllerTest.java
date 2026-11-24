@@ -19,33 +19,56 @@
 package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 
+import app.confuzion.backend.model.record.PersonListResponse;
+import app.confuzion.backend.service.FriendService;
+
 /**
- * Unit tests for the {@link PeopleController} contract stub: a valid query
- * answers 501 in the error envelope, and a bad one is a 400.
+ * Unit tests for {@link PeopleController}: a valid query reaches the service
+ * for the session's user, and a bad one is a 400.
  *
  * @author mcawful
  */
 class PeopleControllerTest {
 	/**
-	 * The {@link MockMvc}.
+	 * The mocked {@link FriendService}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new PeopleController());
+	private final FriendService friendService = mock(FriendService.class);
 
 	/**
-	 * Tests that queries at both ends of the length limit reach the stub.
+	 * The {@link MockMvc}.
+	 */
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new PeopleController(friendService));
+
+	/**
+	 * Tests that queries at both ends of the length limit reach the service, for
+	 * the session's user.
 	 */
 	@Test
-	void testSearchIsNotImplemented() throws Exception {
+	void testSearchReachesServiceForSessionUser() throws Exception {
+		var me = UUID.randomUUID();
+		when(friendService.searchPeople(eq(me), anyString())).thenReturn(new PersonListResponse(List.of()));
 		for (var q : new String[] { "ab", "a".repeat(PeopleController.MAX_QUERY) })
-			assertError(mockMvc, get("/api/people").param("q", q), HttpStatus.NOT_IMPLEMENTED);
+			mockMvc.perform(
+					get("/api/people").param("q", q).principal(new TestingAuthenticationToken(me.toString(), null)))
+					.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("PERSON_LIST"));
 	}
 
 	/**
