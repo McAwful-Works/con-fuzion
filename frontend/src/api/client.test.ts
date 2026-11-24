@@ -42,13 +42,25 @@ describe('api client', () => {
     expect(sentHeaders().has('X-XSRF-TOKEN')).toBe(false);
   });
 
-  it('maps JSON error bodies to ApiError', async () => {
-    fetchMock.mockResolvedValue(json({ code: 'EVENT_FULL', message: 'No spots left' }, 409));
+  it('maps the backend error envelope to ApiError without server text', async () => {
+    fetchMock.mockResolvedValue(
+      json(
+        { responseType: 'ERROR', body: { errorType: 'EventFull', errorMessage: 'server text' } },
+        409,
+      ),
+    );
 
     const error = await api('/events/1/rsvp', { method: 'POST' }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ status: 409, code: 'EVENT_FULL', message: 'No spots left' });
+    expect(error).toMatchObject({ status: 409, code: 'EventFull' });
+    expect((error as ApiError).message).not.toContain('server text');
+  });
+
+  it('treats an empty success body as undefined', async () => {
+    fetchMock.mockResolvedValue(new Response('', { status: 200 }));
+
+    await expect(api('/events/1/rsvp', { method: 'DELETE' })).resolves.toBeUndefined();
   });
 
   it('maps non-JSON error bodies to ApiError with the status only', async () => {

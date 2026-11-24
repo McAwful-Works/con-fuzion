@@ -1,10 +1,14 @@
-/** Thrown for every non-2xx response. `code` and `message` come from the JSON error body when present. */
+/**
+ * Thrown for every non-2xx response. `code` is the backend's `body.errorType` from the error envelope
+ * when present. The server's `errorMessage` is deliberately not exposed: UI text is chosen by `code`
+ * and `status`, never by server text. Revisit when the OpenAPI contract (M1) defines the error shape.
+ */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
 
-  constructor(status: number, code?: string, message?: string) {
-    super(message ?? `Request failed with status ${status}`);
+  constructor(status: number, code?: string) {
+    super(`Request failed with status ${status}`);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
@@ -15,7 +19,12 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 function csrfToken(): string | undefined {
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-  return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+  if (!match?.[1]) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
 }
 
 export interface ApiOptions {
@@ -45,20 +54,18 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
   if (!response.ok) {
     let code: string | undefined;
-    let message: string | undefined;
     try {
-      const error: unknown = await response.json();
-      if (error && typeof error === 'object') {
-        const fields = error as { code?: unknown; message?: unknown };
-        if (typeof fields.code === 'string') code = fields.code;
-        if (typeof fields.message === 'string') message = fields.message;
-      }
+      // Backend envelope: { responseType: 'ERROR', body: { errorType, errorMessage } }
+      const envelope = (await response.json()) as { body?: { errorType?: unknown } } | null;
+      const errorType = envelope?.body?.errorType;
+      if (typeof errorType === 'string') code = errorType;
     } catch {
       // Not a JSON error body; the status alone describes it.
     }
-    throw new ApiError(response.status, code, message);
+    throw new ApiError(response.status, code);
   }
 
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  // Callers receive the backend's response envelope as-is until the OpenAPI types land (M1).
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
