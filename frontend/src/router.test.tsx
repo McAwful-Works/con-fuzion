@@ -32,6 +32,26 @@ describe('auth state', () => {
     expect(link).toHaveAttribute('href', '/api/oauth2/authorization/discord');
   });
 
+  it('shows a plain message after a failed sign-in and removes the parameter', async () => {
+    mockApi(({ path }) => (path === '/api/me' ? jsonResponse(errorEnvelope, 401) : undefined));
+
+    const router = renderApp('/welcome?login=failed');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sign-in didn’t complete');
+    await waitFor(() => expect(router.state.location.search).toBe(''));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(router.state.historyAction).toBe('REPLACE');
+  });
+
+  it('shows no sign-in message on a normal visit', async () => {
+    mockApi(({ path }) => (path === '/api/me' ? jsonResponse(errorEnvelope, 401) : undefined));
+
+    renderApp('/welcome');
+
+    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('shows the app shell with the avatar and name when signed in', async () => {
     mockApi(({ path }) => (path === '/api/me' ? envelope('ME', me) : undefined));
 
