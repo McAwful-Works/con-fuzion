@@ -1,8 +1,10 @@
+import { useIsMutating } from '@tanstack/react-query';
 import { useId } from 'react';
 import {
   useGuilds,
   useSetAllGuildsDiscoverable,
   useSetGuildDiscoverable,
+  singleGuildKey,
   type Guild,
 } from '../../api/me';
 import { ErrorState } from '../../components/ErrorState';
@@ -15,6 +17,8 @@ import { Skeleton } from '../../components/Skeleton';
 export function ServerList() {
   const guilds = useGuilds();
   const bulk = useSetAllGuildsDiscoverable();
+  // Don't let select-all race a toggle that is still saving.
+  const savingOne = useIsMutating({ mutationKey: singleGuildKey }) > 0;
 
   if (guilds.isPending) {
     return (
@@ -44,7 +48,7 @@ export function ServerList() {
       <button
         type="button"
         className="btn btn-secondary"
-        disabled={bulk.isPending}
+        disabled={bulk.isPending || savingOne}
         onClick={() => bulk.mutate({ guilds: list, discoverable: !allOn })}
       >
         {allOn ? 'Turn off for all servers' : 'Select all servers'}
@@ -106,7 +110,7 @@ export function PrivacyNote() {
   return (
     <p className="text-ink-muted">
       People in this server who use Con-Fuzion can invite you to their meetups. We never see your
-      messages or other members. Every server starts off until you turn it on.
+      messages or other members.
     </p>
   );
 }

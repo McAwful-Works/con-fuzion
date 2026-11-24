@@ -199,6 +199,27 @@ describe('servers', () => {
     expect(screen.getByRole('switch', { name: /Example Con Community/ })).not.toBeChecked();
   });
 
+  it('sends a 401 from a toggle save to the landing page', async () => {
+    const target = guilds[0]!;
+    let expired = false;
+    mockApi(({ method, path }) => {
+      if (path === '/api/me') {
+        return expired ? jsonResponse(errorEnvelope, 401) : envelope('ME', me);
+      }
+      if (method === 'GET' && path === '/api/me/guilds') return envelope('GUILD_LIST', { guilds });
+      if (method === 'PUT' && path === `/api/me/guilds/${target.id}`) {
+        expired = true;
+        return jsonResponse(errorEnvelope, 401);
+      }
+      return undefined;
+    });
+
+    const router = renderApp('/settings');
+    fireEvent.click(await screen.findByRole('switch', { name: /Example Con Community/ }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/welcome'));
+  });
+
   it('reuses the same list under Settings → Servers', async () => {
     serverApi();
 

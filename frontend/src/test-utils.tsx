@@ -1,8 +1,9 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { vi } from 'vitest';
+import { createQueryClient } from './api/queryClient';
 import type { components } from './api/schema';
 import { routes } from './router';
 
@@ -75,9 +76,8 @@ export function mockApi(handler: (call: RecordedCall) => Response | undefined) {
 
 export function renderApp(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  const queryClient = createQueryClient();
+  queryClient.setDefaultOptions({ queries: { retry: false }, mutations: { retry: false } });
   render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />

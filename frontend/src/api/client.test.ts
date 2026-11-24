@@ -74,6 +74,14 @@ describe('api client', () => {
     await expect(api('/auth/logout-everywhere', { method: 'POST' })).resolves.toBeUndefined();
   });
 
+  it('treats a non-JSON success (such as a redirect to an HTML page) as no body', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('<html></html>', { status: 200, headers: { 'Content-Type': 'text/html' } }),
+    );
+
+    await expect(api('/auth/logout', { method: 'POST' })).resolves.toBeUndefined();
+  });
+
   it('treats an empty success body as undefined', async () => {
     fetchMock.mockResolvedValue(new Response('', { status: 200 }));
 

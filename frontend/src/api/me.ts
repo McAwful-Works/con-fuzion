@@ -18,6 +18,7 @@ const SIGN_OUT_PATH = '/auth/logout';
 
 const meKey = ['me'] as const;
 const guildsKey = ['guilds'] as const;
+export const singleGuildKey = ['guild'] as const;
 
 export function useMe() {
   return useQuery({
@@ -63,12 +64,16 @@ export function useGuilds() {
 export function useSetGuildDiscoverable(guildId: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: singleGuildKey,
     mutationFn: async (discoverable: boolean) =>
       (
-        await api<Schemas['ResponseRecordGuildResponse']>(`/me/guilds/${guildId}`, {
-          method: 'PUT',
-          body: { discoverable } satisfies Schemas['UpdateGuildRequest'],
-        })
+        await api<Schemas['ResponseRecordGuildResponse']>(
+          `/me/guilds/${encodeURIComponent(guildId)}`,
+          {
+            method: 'PUT',
+            body: { discoverable } satisfies Schemas['UpdateGuildRequest'],
+          },
+        )
       ).body,
     onSuccess: (updated) =>
       queryClient.setQueryData<Guild[]>(guildsKey, (list) =>

@@ -81,6 +81,8 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   }
 
   // A 204 has no body. Otherwise callers receive the D-010 envelope `{ responseType, body }` as-is.
+  // A redirect that ends on an HTML page (Spring's default logout) is a success with nothing to read.
+  if (!response.headers.get('Content-Type')?.includes('json')) return undefined as T;
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
