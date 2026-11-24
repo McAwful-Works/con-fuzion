@@ -42,19 +42,44 @@ describe('api client', () => {
     expect(sentHeaders().has('X-XSRF-TOKEN')).toBe(false);
   });
 
-  it('maps the backend error envelope to ApiError without server text', async () => {
+  it('maps the D-010 error envelope to ApiError, keeping the correlation id but not server text', async () => {
     fetchMock.mockResolvedValue(
       json(
-        { responseType: 'ERROR', body: { errorType: 'EventFull', errorMessage: 'server text' } },
-        409,
+        {
+          responseType: 'ERROR',
+          body: {
+            errorType: 'NOT_FOUND',
+            errorMessage: 'Not Found',
+            correlationId: '3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60',
+          },
+        },
+        404,
       ),
     );
 
-    const error = await api('/events/1/rsvp', { method: 'POST' }).catch((e: unknown) => e);
+    const error = await api('/me/guilds/1', { method: 'PUT' }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ status: 409, code: 'EventFull' });
-    expect((error as ApiError).message).not.toContain('server text');
+    expect(error).toMatchObject({
+      status: 404,
+      code: 'NOT_FOUND',
+      correlationId: '3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60',
+    });
+    expect((error as ApiError).message).not.toContain('Not Found');
+  });
+
+  it('returns undefined for a 204 with no body', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(api('/auth/logout-everywhere', { method: 'POST' })).resolves.toBeUndefined();
+  });
+
+  it('treats a non-JSON success (such as a redirect to an HTML page) as no body', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('<html></html>', { status: 200, headers: { 'Content-Type': 'text/html' } }),
+    );
+
+    await expect(api('/auth/logout', { method: 'POST' })).resolves.toBeUndefined();
   });
 
   it('treats an empty success body as undefined', async () => {
