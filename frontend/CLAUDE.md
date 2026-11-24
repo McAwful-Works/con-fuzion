@@ -4,7 +4,8 @@ Read the root `CLAUDE.md` first. Design reference: `docs/plan.md` section B7. Th
 
 ## Stack
 React Router · TanStack Query · Tailwind · `vite-plugin-pwa` · `openapi-typescript` · `date-fns-tz` · Vitest +
-Testing Library · Playwright (a single smoke test of the core flow). Don't add other libraries without asking.
+Testing Library. End-to-end tests live in `e2e/` (Playwright against the jar and a fake Discord, see
+`e2e/README.md`). Don't add other libraries without asking.
 
 ## Rules
 - **TypeScript strict.** No `any` without a comment explaining why.
