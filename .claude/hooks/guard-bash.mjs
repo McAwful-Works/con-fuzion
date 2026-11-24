@@ -97,7 +97,9 @@ function scan(cmd, startDir, depth = 0) {
 				branchCache.set(gitDir, created);
 				continue;
 			}
-			if (isMain(branch) && ['commit', 'merge', 'cherry-pick', 'revert', 'am', 'rebase', 'pull'].includes(sub)) {
+			// A fast-forward-only pull/merge just syncs main with origin and can't create local commits, so allow it.
+			const ffOnly = ['pull', 'merge'].includes(sub) && args.includes('--ff-only');
+			if (isMain(branch) && !ffOnly && ['commit', 'merge', 'cherry-pick', 'revert', 'am', 'rebase', 'pull'].includes(sub)) {
 				decide('deny', `guard-bash: you are on "${branch}". Never change main locally; create a branch (feat/…, fix/…, chore/…) first.`);
 			}
 			if (sub === 'branch' && args.some((a) => ['-f', '--force', '-M', '-m', '-D'].includes(a)) && args.some((a) => /^(main|master)$/.test(a))) {
