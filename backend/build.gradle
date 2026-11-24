@@ -36,14 +36,21 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.1'
     implementation 'org.codehaus.janino:janino:3.1.12'
-    implementation 'com.bucket4j:bucket4j-core:8.10.1'
+    // Boot 4 ships each auto-configuration in its own module, so Flyway and Spring Session need their starters
+    // (which bring flyway-core and spring-session-data-redis) rather than the bare libraries.
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-session-data-redis'
+    // Distributed rate-limit buckets in Valkey; brings bucket4j_jdk17-core.
+    implementation 'com.bucket4j:bucket4j_jdk17-lettuce:8.23.0'
     annotationProcessor 'org.projectlombok:lombok'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    developmentOnly 'com.h2database:h2'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'com.h2database:h2'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // Project specific dependencies

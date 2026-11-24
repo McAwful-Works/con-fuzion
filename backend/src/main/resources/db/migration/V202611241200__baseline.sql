@@ -1,0 +1,2 @@
+-- Baseline migration. Intentionally empty: it gives Flyway a starting version, and the first domain tables arrive in
+-- M1. gen_random_uuid() is built into Postgres 13+, so no extension is needed yet.

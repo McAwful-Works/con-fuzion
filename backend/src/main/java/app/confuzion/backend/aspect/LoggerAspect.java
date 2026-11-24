@@ -18,45 +18,33 @@
  */
 package app.confuzion.backend.aspect;
 
-import java.util.Arrays;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
-import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.AfterThrowing;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
-import org.aspectj.lang.reflect.MethodSignature;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.HandlerMapping;
 
 import app.confuzion.backend.util.HttpUtil;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.Generated;
-import tools.jackson.databind.ObjectMapper;
 
 /**
- * Logger aspect.
+ * Logger aspect. Logs one line of request metadata per controller call: HTTP
+ * method, route pattern, status, latency and user ID. It never logs bodies,
+ * arguments, headers, cookies, tokens or query strings.
  *
  * @author mcawful
  */
 @Aspect
 @Component
 public class LoggerAspect {
-	/**
-	 * Predicate wrapper method.
-	 *
-	 * @param <T>       the generic class type
-	 * @param predicate the {@link Predicate} to be wrapped
-	 * @return a wrapped {@link Predicate}
-	 */
-	private static <T> Predicate<T> predicate(Predicate<T> predicate) {
-		return predicate;
-	}
-
 	/**
 	 * The controller pointcut.
 	 */
@@ -68,6 +56,12 @@ public class LoggerAspect {
 
 	/**
 	 * Around advice logger for controller methods.
+	 * <p>
+	 * The path is the matched route pattern (for example {@code /api/events/{id}}),
+	 * not the request URI, so IDs and tokens in the path never reach the log. When
+	 * the controller throws, the exception type is logged in place of the status;
+	 * {@link GlobalControllerExceptionHandler} logs the status and details under a
+	 * correlation ID.
 	 *
 	 * @param pjp the {@link ProceedingJoinPoint}
 	 * @return the result of proceeding
@@ -75,87 +69,38 @@ public class LoggerAspect {
 	 */
 	@Around("controllerPointcut()")
 	public Object logAroundController(ProceedingJoinPoint pjp) throws Throwable {
-		final Logger logger = LoggerFactory.getLogger(pjp.getTarget().getClass());
-
-		var methodName = getMethodName(pjp);
-		var methodArgs = getArgs(pjp);
-		var remoteAddr = getRemoteAddr(pjp);
-		var headers = getHeaders(pjp);
-
-		logger.info("Method '{}{}' called from the following IP address '{}' with the following headers - {}",
-				methodName, methodArgs, remoteAddr, headers);
-		var objectMapper = new ObjectMapper();
-		var proceed = pjp.proceed();
-		var json = objectMapper.writeValueAsString(proceed);
-		logger.info("Method '{}{}' returned the following response: {}", methodName, methodArgs, json);
-		return proceed;
+		var logger = LoggerFactory.getLogger(pjp.getTarget().getClass());
+		var attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+		var request = attributes.getRequest();
+		var start = System.nanoTime();
+		var outcome = "threw";
+		try {
+			var result = pjp.proceed();
+			outcome = String.valueOf(getStatus(result, attributes));
+			return result;
+		} catch (Throwable t) {
+			outcome = "threw " + t.getClass().getSimpleName();
+			throw t;
+		} finally {
+			logger.info("{} {} -> {} in {} ms (user {})", request.getMethod(),
+					Objects.toString(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE), "unknown"),
+					outcome, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
+					HttpUtil.getUserId(request).orElse("anonymous"));
+		}
 	}
 
 	/**
-	 * After throwing advice logger for controller methods.
+	 * Returns the HTTP status of a controller result: the status of a returned
+	 * {@link ResponseEntity}, otherwise the status already set on the response.
 	 *
-	 * @param jp the {@link JoinPoint}
-	 * @param e  the {@link Exception}
+	 * @param result     the controller method's return value
+	 * @param attributes the current {@link ServletRequestAttributes}
+	 * @return the HTTP status code
 	 */
-	@AfterThrowing(pointcut = "controllerPointcut()", throwing = "e")
-	public void logExceptionController(JoinPoint jp, Exception e) {
-		final Logger logger = LoggerFactory.getLogger(jp.getTarget().getClass());
-		var methodName = getMethodName(jp);
-		var args = getArgs(jp);
-		logger.error("Exception during method '{}{}' with the following exception - {}: {}", methodName, args,
-				e.getClass().getSimpleName(), e.getMessage());
-	}
-
-	/**
-	 * Gets and returns the method name of a {@link JoinPoint} as a string.
-	 *
-	 * @param jp the {@link JoinPoint}
-	 * @return the method name as a string
-	 */
-	private String getMethodName(JoinPoint jp) {
-		return ((MethodSignature) jp.getSignature()).getMethod().getName();
-	}
-
-	/**
-	 * Gets and returns the parameter arguments of a {@link JoinPoint} as a string.
-	 *
-	 * @param jp the {@link JoinPoint}
-	 * @return the parameter arguments as a string
-	 */
-	private String getArgs(JoinPoint jp) {
-		return Arrays.stream(jp.getArgs()).filter(predicate(HttpServletRequest.class::isInstance).negate())
-				.map(String::valueOf).collect(Collectors.joining(",", "(", ")"));
-	}
-
-	/**
-	 * Gets and returns the request headers of a {@link JoinPoint} as a string if an
-	 * {@link HttpServletRequest} is given in the method parameters.
-	 *
-	 * @param jp The {@link JoinPoint}
-	 * @return the headers as a string
-	 */
-	private String getHeaders(JoinPoint jp) {
-		var headerOptional = Arrays.stream(jp.getArgs()).filter(HttpServletRequest.class::isInstance).findFirst();
-
-		if (headerOptional.isPresent())
-			return HttpUtil.getRequestHeaders((HttpServletRequest) headerOptional.get());
-
-		return "Headers not provided in this method's parameters";
-	}
-
-	/**
-	 * Gets and returns the remote IP address of a {@link JoinPoint} as a string if
-	 * an {@link HttpServletRequest} is given in the method parameters.
-	 *
-	 * @param jp The {@link JoinPoint}
-	 * @return the remote IP address string
-	 */
-	private String getRemoteAddr(JoinPoint jp) {
-		var headerOptional = Arrays.stream(jp.getArgs()).filter(HttpServletRequest.class::isInstance).findFirst();
-
-		if (headerOptional.isPresent())
-			return HttpUtil.getRemoteAddr((HttpServletRequest) headerOptional.get());
-
-		return "Remote IP address not provided in this method's parameters";
+	private static int getStatus(Object result, ServletRequestAttributes attributes) {
+		if (result instanceof ResponseEntity<?> entity)
+			return entity.getStatusCode().value();
+		var response = attributes.getResponse();
+		return response == null ? 200 : response.getStatus();
 	}
 }

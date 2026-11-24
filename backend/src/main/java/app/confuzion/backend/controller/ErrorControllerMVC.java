@@ -19,10 +19,10 @@
 package app.confuzion.backend.controller;
 
 import org.springframework.boot.webmvc.error.ErrorController;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import app.confuzion.backend.exception.EndpointNotFoundException;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
 import app.confuzion.backend.model.record.ResponseRecord;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,7 +43,7 @@ public class ErrorControllerMVC implements ErrorController {
 	 */
 	@RequestMapping(path = "/error")
 	public ResponseRecord handleError(HttpServletRequest request) {
-		var errorResponseBody = new ErrorResponseBodyRecord(new EndpointNotFoundException());
+		var errorResponseBody = ErrorResponseBodyRecord.of(HttpStatus.NOT_FOUND, null);
 		return new ResponseRecord(errorResponseBody);
 	}
 }

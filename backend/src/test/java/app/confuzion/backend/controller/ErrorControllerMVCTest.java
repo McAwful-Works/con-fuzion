@@ -19,58 +19,33 @@
 package app.confuzion.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-import app.confuzion.backend.exception.EndpointNotFoundException;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
-import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.model.record.ResponseType;
 
 /**
  * Unit tests for the {@link ErrorControllerMVC} class.
  *
  * @author mcawful
  */
-@SpringBootTest
 class ErrorControllerMVCTest {
 	/**
-	 * The {@link MockHttpServletRequest}.
+	 * The {@link ErrorControllerMVC} to test.
 	 */
-	private static final MockHttpServletRequest MOCK_REQUEST = new MockHttpServletRequest();
-
-	/**
-	 * The expected response.
-	 */
-	private static final ResponseRecord EXPECTED = new ResponseRecord(
-			new ErrorResponseBodyRecord(new EndpointNotFoundException()));
-
-	/**
-	 * The {@link ErrorControllerMVC} component to test.
-	 */
-	@Autowired
-	private ErrorControllerMVC errorControllerMVC;
-
-	/**
-	 * Tests that the {@link ErrorControllerMVC} has loaded. Asserts that the
-	 * {@link ErrorControllerMVC} is not {@code null}.
-	 */
-	@Test
-	void contextLoads() {
-		assertThat(errorControllerMVC).isNotNull();
-	}
+	private final ErrorControllerMVC errorControllerMVC = new ErrorControllerMVC();
 
 	/**
 	 * Tests that the {@code handleError} method of the {@link ErrorControllerMVC}
-	 * returns the string 'Page not found'. Asserts that the returned result equals
-	 * what is expected.
+	 * returns the generic not-found error envelope.
 	 */
 	@Test
 	void testHandleErrorWithDefaultRequest() {
-		var actual = errorControllerMVC.handleError(MOCK_REQUEST);
-		assertEquals(EXPECTED, actual);
+		var actual = errorControllerMVC.handleError(new MockHttpServletRequest());
+
+		assertThat(actual.responseType()).isEqualTo(ResponseType.ERROR);
+		assertThat(actual.body()).isEqualTo(new ErrorResponseBodyRecord("NOT_FOUND", "Not Found", null));
 	}
 }

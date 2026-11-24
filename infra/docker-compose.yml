@@ -1,0 +1,42 @@
+# Local development services for the backend: docker compose -f infra/docker-compose.yml up -d
+#
+# No .env file needed. The credentials below are local-only dev defaults, and backend/src/main/resources/
+# application.properties falls back to the same values when the CONFUZION_* environment variables are unset:
+#   Postgres  localhost:5432  db=confuzion  user=confuzion  password=confuzion   (CONFUZION_DB_*)
+#   Valkey    localhost:6379  password=confuzion                                 (CONFUZION_REDIS_*)
+# Ports bind to 127.0.0.1 only. Deployed environments get their credentials from Secrets Manager, never from here.
+name: confuzion
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: confuzion
+      POSTGRES_USER: confuzion
+      POSTGRES_PASSWORD: confuzion
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U confuzion -d confuzion"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--requirepass", "confuzion", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-a", "confuzion", "--no-auth-warning", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  valkey-data:

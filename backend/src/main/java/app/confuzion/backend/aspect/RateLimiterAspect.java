@@ -26,15 +26,21 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import app.confuzion.backend.exception.RateLimitException;
+import app.confuzion.backend.util.HttpUtil;
 import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
-import jakarta.annotation.PostConstruct;
+import io.github.bucket4j.BucketConfiguration;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Generated;
 
 /**
- * Rate limiter aspect.
+ * Rate limiter aspect. Each authenticated user gets their own bucket, and
+ * anonymous requests share a bucket per client IP. Buckets live in Valkey, so
+ * every app instance enforces the same limit.
  *
  * @author mcawful
  */
@@ -52,36 +58,36 @@ public class RateLimiterAspect {
 	private static final String CONTROLLER_POINTCUT_EXCLUDE = "!within(app.confuzion.backend.controller.ErrorControllerMVC)";
 
 	/**
-	 * The token capacity for the bucket.
+	 * The Valkey key prefix for rate-limit buckets.
 	 */
-	@Value("${con-fuzion.rate-limiter.token.capacity:10}")
-	Integer tokenCapacity;
+	private static final String KEY_PREFIX = "con-fuzion:rate-limit:";
 
 	/**
-	 * The token refill amount for the bucket.
+	 * The {@link ProxyManager} that stores the buckets in Valkey.
 	 */
-	@Value("${con-fuzion.rate-limiter.token.refill-amount:5}")
-	Integer tokenRefillAmount;
+	private final ProxyManager<String> proxyManager;
 
 	/**
-	 * The bucket refill rate in seconds.
+	 * The configuration every bucket is created with.
 	 */
-	@Value("${con-fuzion.rate-limiter.refill-rate-seconds:1}")
-	Integer refillRateInSeconds;
+	private final BucketConfiguration bucketConfiguration;
 
 	/**
-	 * The rate limit {@link Bucket}.
+	 * Creates the aspect.
+	 *
+	 * @param proxyManager        the {@link ProxyManager} that stores the buckets
+	 * @param tokenCapacity       the token capacity for each bucket
+	 * @param tokenRefillAmount   the token refill amount for each bucket
+	 * @param refillRateInSeconds the bucket refill interval in seconds
 	 */
-	private Bucket bucket;
-
-	/**
-	 * The post construct initializer.
-	 */
-	@PostConstruct
-	private void init() {
+	public RateLimiterAspect(ProxyManager<String> proxyManager,
+			@Value("${con-fuzion.rate-limiter.token.capacity:10}") int tokenCapacity,
+			@Value("${con-fuzion.rate-limiter.token.refill-amount:5}") int tokenRefillAmount,
+			@Value("${con-fuzion.rate-limiter.refill-rate-seconds:1}") int refillRateInSeconds) {
+		this.proxyManager = proxyManager;
 		var bandwidth = Bandwidth.builder().capacity(tokenCapacity)
 				.refillIntervally(tokenRefillAmount, Duration.ofSeconds(refillRateInSeconds)).build();
-		bucket = Bucket.builder().addLimit(bandwidth).build();
+		this.bucketConfiguration = BucketConfiguration.builder().addLimit(bandwidth).build();
 	}
 
 	/**
@@ -99,12 +105,25 @@ public class RateLimiterAspect {
 	 * @param pjp the {@link ProceedingJoinPoint}
 	 * @return the result of proceeding
 	 * @throws Throwable          When the invoked proceed throws anything
-	 * @throws RateLimitException When the API endpoint method is rate limited
+	 * @throws RateLimitException When the caller's bucket is empty
 	 */
 	@Around("controllerPointcut()")
 	public Object rateLimit(ProceedingJoinPoint pjp) throws Throwable {
-		if (bucket.tryConsume(1))
+		var request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+		if (proxyManager.getProxy(bucketKey(request), () -> bucketConfiguration).tryConsume(1))
 			return pjp.proceed();
 		throw new RateLimitException();
+	}
+
+	/**
+	 * Returns the bucket key for a request: the user ID when the caller is
+	 * authenticated, otherwise the client IP.
+	 *
+	 * @param request the {@link HttpServletRequest}
+	 * @return the Valkey key of the caller's bucket
+	 */
+	private static String bucketKey(HttpServletRequest request) {
+		return HttpUtil.getUserId(request).map(userId -> KEY_PREFIX + "user:" + userId)
+				.orElseGet(() -> KEY_PREFIX + "ip:" + HttpUtil.getRemoteAddr(request));
 	}
 }

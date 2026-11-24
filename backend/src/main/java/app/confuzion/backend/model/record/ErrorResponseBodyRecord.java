@@ -18,23 +18,35 @@
  */
 package app.confuzion.backend.model.record;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+
 import app.confuzion.backend.model.ResponseBodyObject;
 
 /**
- * The response body object for errors.
- * 
- * @param errorType    the error type
- * @param errorMessage the error message
- * 
+ * The response body object for errors. It carries only generic, per-status
+ * text: never an exception message, root cause, class name or SQL.
+ *
+ * @param errorType     the HTTP status name, for example {@code CONFLICT}
+ * @param errorMessage  the generic HTTP reason phrase, for example
+ *                      {@code Conflict}
+ * @param correlationId the ID that ties this response to the server-side log
+ *                      entry, or {@code null} when nothing was logged
  * @author mcawful
  */
-public record ErrorResponseBodyRecord(String errorType, String errorMessage) implements ResponseBodyObject {
+public record ErrorResponseBodyRecord(String errorType, String errorMessage, String correlationId)
+		implements ResponseBodyObject {
 	/**
-	 * Constructor to create a record directly from the provided {@link Exception}.
-	 * 
-	 * @param e the {@link Exception}
+	 * Creates the generic error body for the given status.
+	 *
+	 * @param status        the response {@link HttpStatusCode}
+	 * @param correlationId the correlation ID, or {@code null}
+	 * @return an {@link ErrorResponseBodyRecord}
 	 */
-	public ErrorResponseBodyRecord(Exception e) {
-		this(e.getClass().getSimpleName(), e.getMessage());
+	public static ErrorResponseBodyRecord of(HttpStatusCode status, String correlationId) {
+		var httpStatus = HttpStatus.resolve(status.value());
+		if (httpStatus == null)
+			return new ErrorResponseBodyRecord("ERROR", "Error", correlationId);
+		return new ErrorResponseBodyRecord(httpStatus.name(), httpStatus.getReasonPhrase(), correlationId);
 	}
 }

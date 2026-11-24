@@ -18,13 +18,11 @@
  */
 package app.confuzion.backend.util;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.*;
-
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 /**
@@ -32,128 +30,41 @@ import org.springframework.mock.web.MockHttpServletRequest;
  *
  * @author mcawful
  */
-@SpringBootTest
 class HttpUtilTest {
 	/**
-	 * The {@link List} of header names.
+	 * Tests that the {@code getRemoteAddr} method ignores client-supplied
+	 * forwarding headers and returns the request's remote address.
+	 *
+	 * @param header a header that older code trusted for the client IP
 	 */
-	private static final List<String> HEADER_NAME_LIST = new LinkedList<>();
+	@ParameterizedTest
+	@ValueSource(strings = { "X-Forwarded-For", "Proxy-Client-IP", "WL-Proxy-Client-IP", "HTTP_CLIENT_IP",
+			"HTTP_X_FORWARDED_FOR", "Forwarded" })
+	void testGetRemoteAddrIgnoresForwardingHeaders(String header) {
+		var mockRequest = new MockHttpServletRequest();
+		mockRequest.setRemoteAddr("198.51.100.1");
+		mockRequest.addHeader(header, "203.0.113.66");
 
-	/**
-	 * The {@link Map} of header names with their values.
-	 */
-	private static final Map<String, String> HEADER_NAME_VALUE_MAP = new HashMap<>();
-
-	/**
-	 * The known IP address header string.
-	 */
-	private static final String KNOWN_ADDR_HEADER = "X-Forwarded-For";
-
-	/**
-	 * Initializes required test data.
-	 */
-	@BeforeAll
-	static void setup() {
-		HEADER_NAME_LIST.addAll(Arrays.asList("host", "connection", "accept", "user-agent", "dnt", "referer",
-				"accept-encoding", "accept-language"));
-
-		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(0), "localhost:8080");
-		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(1), "keep-alive");
-		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(2), "text/plain");
-		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(3), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-				+ "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36");
-		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(4), "1");
-		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(5), "http://localhost:8080/api/v1/swagger-ui/index.html");
-		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(6), "gzip, deflate");
-		HEADER_NAME_VALUE_MAP.put(HEADER_NAME_LIST.get(7), "en-US,en;q=0.9");
+		assertThat(HttpUtil.getRemoteAddr(mockRequest)).isEqualTo("198.51.100.1");
 	}
 
 	/**
-	 * Tests that the {@code getRequestHeaders} method of the {@link HttpUtil} class
-	 * returns the expected response given the headers. Asserts that the actual
-	 * response equals the expected response.
+	 * Tests that the {@code getUserId} method returns the principal name.
 	 */
 	@Test
-	void testGetRequestHeadersTestWithGivenHeaders() {
+	void testGetUserIdWithPrincipal() {
 		var mockRequest = new MockHttpServletRequest();
-		var sb = new StringBuilder("[");
-		HEADER_NAME_LIST.forEach(ele -> {
-			mockRequest.addHeader(ele, HEADER_NAME_VALUE_MAP.get(ele));
-			sb.append(ele).append(":\"").append(HEADER_NAME_VALUE_MAP.get(ele)).append("\", ");
-		});
-		sb.delete(sb.length() - 2, sb.length());
-		sb.append("]");
+		mockRequest.setUserPrincipal(() -> "1234567890");
 
-		var response = HttpUtil.getRequestHeaders(mockRequest);
-
-		assertEquals(sb.toString(), response);
+		assertThat(HttpUtil.getUserId(mockRequest)).contains("1234567890");
 	}
 
 	/**
-	 * Tests that the {@code getRemoteAddr} method of the {@link HttpUtil} class
-	 * returns the expected response given the IP address with a known header key.
-	 * Asserts that the actual response equals the expected response.
+	 * Tests that the {@code getUserId} method returns empty for an anonymous
+	 * request.
 	 */
 	@Test
-	void testGetRemoteAddrTestWithGivenHeaders() {
-		var addrStr = "127.0.0.1";
-		var mockRequest = new MockHttpServletRequest();
-		mockRequest.addHeader(KNOWN_ADDR_HEADER, addrStr);
-
-		var response = HttpUtil.getRemoteAddr(mockRequest);
-
-		assertEquals(addrStr, response);
-	}
-
-	/**
-	 * Tests that the {@code getRemoteAddr} method of the {@link HttpUtil} class
-	 * returns the expected response given an empty IP address with a known header
-	 * key. Asserts that the actual response equals the expected response.
-	 */
-	@Test
-	void testGetRemoteAddrTestWithEmptyAddress() {
-		var addrStr = "";
-		var mockRequest = new MockHttpServletRequest();
-		mockRequest.setRemoteAddr(addrStr);
-		mockRequest.addHeader(KNOWN_ADDR_HEADER, addrStr);
-
-		var response = HttpUtil.getRemoteAddr(mockRequest);
-
-		assertEquals(addrStr, response);
-	}
-
-	/**
-	 * Tests that the {@code getRemoteAddr} method of the {@link HttpUtil} class
-	 * returns the expected response given an IP address with a value of
-	 * {@code unknown} with a known header key. Asserts that the actual response
-	 * equals the expected response.
-	 */
-	@Test
-	void testGetRemoteAddrTestWithUnknownAddress() {
-		var addrStr = "unknown";
-		var mockRequest = new MockHttpServletRequest();
-		mockRequest.setRemoteAddr(addrStr);
-		mockRequest.addHeader(KNOWN_ADDR_HEADER, addrStr);
-
-		var response = HttpUtil.getRemoteAddr(mockRequest);
-
-		assertEquals(addrStr, response);
-	}
-
-	/**
-	 * Tests that the {@code getRemoteAddr} method of the {@link HttpUtil} class
-	 * returns the expected response given the IP address with an unknown header
-	 * key. Asserts that the actual response equals the expected response.
-	 */
-	@Test
-	void testGetRemoteAddrWithUnknownHeader() {
-		var addrStr = "127.0.0.1";
-		var mockRequest = new MockHttpServletRequest();
-		mockRequest.setRemoteAddr(addrStr);
-		mockRequest.addHeader("UnknownHeader", addrStr);
-
-		var response = HttpUtil.getRemoteAddr(mockRequest);
-
-		assertEquals(addrStr, response);
+	void testGetUserIdAnonymous() {
+		assertThat(HttpUtil.getUserId(new MockHttpServletRequest())).isEmpty();
 	}
 }

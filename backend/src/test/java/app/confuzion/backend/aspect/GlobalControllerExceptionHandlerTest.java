@@ -23,128 +23,150 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.RateLimitException;
+import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
 
 /**
- * Unit tests for the {@link GlobalControllerExceptionHandler} class.
- * 
+ * Unit tests for the {@link GlobalControllerExceptionHandler} class. Every
+ * exception here carries a {@link #SECRET} that must never reach the body.
+ *
  * @author mcawful
  */
-@SpringBootTest
 class GlobalControllerExceptionHandlerTest {
+	/**
+	 * Text that stands in for SQL, constraint names or other internals.
+	 */
+	private static final String SECRET = "constraint uk_secret_internal on table app_user";
+
 	/**
 	 * The {@link GlobalControllerExceptionHandler} to test.
 	 */
-	@Autowired
-	private GlobalControllerExceptionHandler handler;
+	private final GlobalControllerExceptionHandler handler = new GlobalControllerExceptionHandler();
 
 	/**
-	 * Tests that the {@link GlobalControllerExceptionHandler} has loaded. Asserts
-	 * that the {@link GlobalControllerExceptionHandler} is not {@code null}.
-	 */
-	@Test
-	void contextLoads() {
-		assertThat(handler).isNotNull();
-	}
-
-	/**
-	 * Tests the {@code handleTooManyRequests} method of the
-	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 429
-	 * with the expected field values.
+	 * Tests the {@code handleTooManyRequests} method. Asserts a generic 429.
 	 */
 	@Test
 	void testHandleTooManyRequests() {
-		var exception = new RateLimitException("Too many requests");
-
-		var response = handler.handleTooManyRequests(exception);
-
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
-		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
-		assertThat(response.getBody()).isNotNull();
-		assertThat(response.getBody().errorType()).isEqualTo("RateLimitException");
-		assertThat(response.getBody().errorMessage()).isEqualTo("Too many requests");
+		assertGeneric(handler.handleTooManyRequests(new RateLimitException(SECRET)), HttpStatus.TOO_MANY_REQUESTS);
 	}
 
 	/**
-	 * Tests the {@code handleConflict} method of the
-	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 409
-	 * with the expected field values.
+	 * Tests the {@code handleConflict} method with a nested root cause. Asserts a
+	 * generic 409 that contains neither message.
 	 */
 	@Test
 	void testHandleConflict() {
-		var exception = new DataIntegrityViolationException("Conflict occurred");
+		var exception = new DataIntegrityViolationException("could not execute statement",
+				new IllegalStateException(SECRET));
 
-		var response = handler.handleConflict(exception);
-
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
-		assertThat(response.getBody()).isNotNull();
-		assertThat(response.getBody().errorType()).isEqualTo("DataIntegrityViolationException");
-		assertThat(response.getBody().errorMessage()).isEqualTo("Conflict occurred");
+		assertGeneric(handler.handleConflict(exception), HttpStatus.CONFLICT);
 	}
 
 	/**
-	 * Tests the {@code handleMethodNotAllowed} method of the
-	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 405
-	 * with the expected field values.
+	 * Tests the {@code handleMethodNotAllowed} method. Asserts a generic 405.
 	 */
 	@Test
 	void testHandleMethodNotAllowed() {
-		var methodName = "testMethod(testArg)";
-		var exception = new HttpRequestMethodNotSupportedException(methodName);
+		var exception = new HttpRequestMethodNotSupportedException(SECRET);
 
-		var response = handler.handleMethodNotAllowed(exception);
-
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
-		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
-		assertThat(response.getBody()).isNotNull();
-		assertThat(response.getBody().errorType()).isEqualTo("HttpRequestMethodNotSupportedException");
-		assertThat(response.getBody().errorMessage())
-				.isEqualTo(String.format("Request method '%s' is not supported", methodName));
+		assertGeneric(handler.handleMethodNotAllowed(exception), HttpStatus.METHOD_NOT_ALLOWED);
 	}
 
 	/**
-	 * Tests the {@code handleNotFound} method of the
-	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 404
-	 * with the expected field values.
+	 * Tests the {@code handleNotFound} method. Asserts a generic 404.
 	 */
 	@Test
 	void testHandleNotFound() {
-		var exception = new NoSuchElementException("Resource not found");
-
-		var response = handler.handleNotFound(exception);
-
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
-		assertThat(response.getBody()).isNotNull();
-		assertThat(response.getBody().errorType()).isEqualTo("NoSuchElementException");
-		assertThat(response.getBody().errorMessage()).isEqualTo("Resource not found");
+		assertGeneric(handler.handleNotFound(new NoSuchElementException(SECRET)), HttpStatus.NOT_FOUND);
 	}
 
 	/**
-	 * Tests the {@code handleBadRequest} method of the
-	 * {@link GlobalControllerExceptionHandler}. Asserts that the response is a 400
-	 * with the expected field values.
+	 * Tests the {@code handleBadRequest} method with a nested root cause. Asserts a
+	 * generic 400.
 	 */
 	@Test
 	void testHandleBadRequest() {
-		var rootMessage = "Input is not a number";
-		var innerException = new NumberFormatException(rootMessage);
-		var exception = new InvalidInputException("Invalid input provided", innerException);
+		var exception = new InvalidInputException("Invalid input\r\nforged log line",
+				new NumberFormatException(SECRET));
 
-		var response = handler.handleBadRequest(exception);
+		assertGeneric(handler.handleBadRequest(exception), HttpStatus.BAD_REQUEST);
+	}
 
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
+	/**
+	 * Tests the catch-all with an unexpected exception. Asserts a generic 500.
+	 */
+	@Test
+	void testHandleUnexpectedServerError() {
+		assertGeneric(handler.handleUnexpected(new IllegalStateException(SECRET)), HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * Tests the catch-all with Spring MVC exceptions that carry their own status.
+	 * Asserts the status is kept.
+	 */
+	@Test
+	void testHandleUnexpectedKeepsErrorResponseStatus() {
+		assertGeneric(handler.handleUnexpected(new NoResourceFoundException(HttpMethod.GET, "/api/x", SECRET)),
+				HttpStatus.NOT_FOUND);
+		assertGeneric(handler.handleUnexpected(new HttpMediaTypeNotSupportedException(SECRET)),
+				HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+	}
+
+	/**
+	 * Tests the catch-all with a status that {@link HttpStatus} doesn't know.
+	 * Asserts the generic fallback body.
+	 */
+	@Test
+	void testHandleUnexpectedUnknownStatus() {
+		var response = handler.handleUnexpected(new ResponseStatusException(HttpStatusCode.valueOf(499), SECRET));
+
+		assertThat(response.getStatusCode().value()).isEqualTo(499);
 		assertThat(response.getBody()).isNotNull();
-		assertThat(response.getBody().errorType()).isEqualTo("InvalidInputException");
-		assertThat(response.getBody().errorMessage()).isEqualTo(rootMessage);
+		assertThat(response.getBody().errorType()).isEqualTo("ERROR");
+		assertThat(response.getBody().errorMessage()).isEqualTo("Error");
+	}
+
+	/**
+	 * Tests that every response gets its own correlation ID.
+	 */
+	@Test
+	void testCorrelationIdsAreUnique() {
+		var first = handler.handleNotFound(new NoSuchElementException());
+		var second = handler.handleNotFound(new NoSuchElementException());
+
+		assertThat(first.getBody()).isNotNull();
+		assertThat(second.getBody()).isNotNull();
+		assertThat(first.getBody().correlationId()).isNotEqualTo(second.getBody().correlationId());
+	}
+
+	/**
+	 * Asserts a response has the given status, a JSON content type, the generic
+	 * body for that status, and a correlation ID that matches its header.
+	 *
+	 * @param response the {@link ResponseEntity}
+	 * @param status   the expected {@link HttpStatus}
+	 */
+	private static void assertGeneric(ResponseEntity<ErrorResponseBodyRecord> response, HttpStatus status) {
+		assertThat(response.getStatusCode()).isEqualTo(status);
+		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
+		var body = response.getBody();
+		assertThat(body).isNotNull();
+		assertThat(body.errorType()).isEqualTo(status.name());
+		assertThat(body.errorMessage()).isEqualTo(status.getReasonPhrase());
+		assertThat(body.correlationId()).isNotBlank()
+				.isEqualTo(response.getHeaders().getFirst(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER));
+		assertThat(body.toString()).doesNotContain(SECRET).doesNotContain("Exception");
 	}
 }
