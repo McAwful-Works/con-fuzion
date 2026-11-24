@@ -42,6 +42,7 @@ import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.TestcontainersConfiguration;
+import app.confuzion.backend.exception.LimitExceededException;
 
 /**
  * Exports the OpenAPI document to {@value #DOCUMENT} and checks the contract in
@@ -160,6 +161,8 @@ class OpenApiConfigIntegrationTest {
 		assertThat(responses("/api/friends/invites/{token}", "get")).containsKeys("200", "404");
 		assertThat(responses("/api/friends/invites/{token}/accept", "post")).containsKeys("200", "403", "404");
 		assertThat(responses("/api/people", "get")).containsKey("400").doesNotContainKey("403");
+		assertThat(document.<String>read("$.paths['/api/friends/invites'].post.responses['429'].description"))
+				.contains(LimitExceededException.Limit.INVITE_LIMIT.name());
 	}
 
 	/**

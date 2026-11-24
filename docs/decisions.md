@@ -112,7 +112,7 @@ Context · Decision · Consequences · Trigger to revisit
   - Every unusable token is the **same 404**, with no way to tell the cases apart: malformed, unknown, expired,
     already used, the caller's own, or between two people where either has blocked the other.
   - Accepting when the two are already friends succeeds, returns the friend and uses the invite up.
-- **Rules this contract adds (for the owner to confirm):**
+- **Rules this contract adds (confirmed by the owner, 2026-11-24):**
   - **Signing in from an invite link:** the preview is a 401 for a signed-out visitor. The SPA keeps the token in
     `sessionStorage`, signs them in (through onboarding if it's their first time) and returns to the accept page.
     There is no server-side return URL, so there is no open redirect to defend.
@@ -127,7 +127,10 @@ Context · Decision · Consequences · Trigger to revisit
     members aren't told, and circle URLs use `circle.public_id`. A circle ID that isn't the caller's is a 404.
   - Removing a friend, a block or a circle member, and blocking an unknown user ID, are all a 204, so they reveal
     nothing about the other user.
-- **For the implementation (#36):**
+- **For the implementation (#36, and #37 for events):**
+  - Throw `LimitExceededException` with a `LimitExceededException.Limit` (`INVITE_LIMIT`; #35 adds `EVENT_LIMIT`)
+    for a cap. `GlobalControllerExceptionHandler` turns it into the 429 with that errorType, the generic message and
+    a correlation ID. New caps add a `Limit` value, never a free string.
   - Accept with one statement, so two accepts can't both win: `UPDATE friend_invite SET used_at = now(),
     accepted_by = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > now() RETURNING inviter_id`, with the
     block and own-invite checks in the same transaction.

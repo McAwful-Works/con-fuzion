@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.MethodParameter;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpMethod;
@@ -39,10 +40,15 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import app.confuzion.backend.exception.InvalidInputException;
+import app.confuzion.backend.exception.LimitExceededException;
 import app.confuzion.backend.exception.RateLimitException;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
 import app.confuzion.backend.model.record.ResponseRecord;
 import app.confuzion.backend.model.record.ResponseType;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 /**
  * Unit tests for the {@link GlobalControllerExceptionHandler} class. Every
@@ -67,6 +73,40 @@ class GlobalControllerExceptionHandlerTest {
 	@Test
 	void testHandleTooManyRequests() {
 		assertGeneric(handler.handleTooManyRequests(new RateLimitException(SECRET)), HttpStatus.TOO_MANY_REQUESTS);
+	}
+
+	/**
+	 * Tests the {@code handleLimitExceeded} method. Asserts a 429 whose errorType
+	 * is the cap's name, with the generic message and a correlation ID, logged at
+	 * debug like the rate limit's 429s.
+	 */
+	@Test
+	void testHandleLimitExceeded() {
+		var appender = new ListAppender<ILoggingEvent>();
+		appender.start();
+		var logger = (Logger) LoggerFactory.getLogger(GlobalControllerExceptionHandler.class);
+		var level = logger.getLevel();
+		logger.setLevel(Level.DEBUG);
+		logger.addAppender(appender);
+		try {
+			for (var limit : LimitExceededException.Limit.values()) {
+				var response = handler.handleLimitExceeded(new LimitExceededException(limit));
+
+				assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+				assertThat(response.getBody().responseType()).isEqualTo(ResponseType.ERROR);
+				var body = response.getBody().body();
+				assertThat(body.errorType()).isEqualTo(limit.name());
+				assertThat(body.errorMessage()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase());
+				assertThat(body.correlationId()).isNotBlank().isEqualTo(
+						response.getHeaders().getFirst(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER));
+			}
+		} finally {
+			logger.detachAppender(appender);
+			logger.setLevel(level);
+		}
+
+		assertThat(appender.list).hasSize(LimitExceededException.Limit.values().length)
+				.allSatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.DEBUG));
 	}
 
 	/**

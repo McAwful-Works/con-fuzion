@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import app.confuzion.backend.exception.InvalidInputException;
+import app.confuzion.backend.exception.LimitExceededException;
 import app.confuzion.backend.exception.RateLimitException;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
 import app.confuzion.backend.model.record.ResponseRecord;
@@ -78,6 +79,20 @@ public class GlobalControllerExceptionHandler {
 	@ExceptionHandler(RateLimitException.class)
 	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleTooManyRequests(Exception e) {
 		return respond(HttpStatus.TOO_MANY_REQUESTS, e);
+	}
+
+	/**
+	 * Handles a user hitting a documented cap: a 429 whose errorType is the cap's
+	 * {@link LimitExceededException.Limit} name instead of the status name (D-011).
+	 * The message stays generic, and it is logged like any other 429.
+	 *
+	 * @param e the {@link LimitExceededException}
+	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
+	 *         {@code TOO MANY REQUESTS}
+	 */
+	@ExceptionHandler(LimitExceededException.class)
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleLimitExceeded(LimitExceededException e) {
+		return respond(HttpStatus.TOO_MANY_REQUESTS, e, e.getLimit().name());
 	}
 
 	/**
@@ -170,6 +185,23 @@ public class GlobalControllerExceptionHandler {
 	 *         envelope
 	 */
 	public static ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> respond(HttpStatusCode status, Throwable e) {
+		return respond(status, e, null);
+	}
+
+	/**
+	 * Builds the generic error response as
+	 * {@link #respond(HttpStatusCode, Throwable)} does, with a documented domain
+	 * errorType in place of the status name.
+	 *
+	 * @param status    the response {@link HttpStatusCode}
+	 * @param e         the failure, or {@code null} when there is none to log
+	 * @param errorType the domain errorType, or {@code null} for the status name
+	 * @return a {@link ResponseEntity} with a generic
+	 *         {@link ErrorResponseBodyRecord} in the {@link ResponseRecord}
+	 *         envelope
+	 */
+	private static ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> respond(HttpStatusCode status, Throwable e,
+			String errorType) {
 		var correlationId = UUID.randomUUID().toString();
 		var type = e == null ? "an error dispatch" : e.getClass().getName();
 		if (status.is5xxServerError())
@@ -184,7 +216,9 @@ public class GlobalControllerExceptionHandler {
 			headers.addAll(errorResponse.getHeaders());
 		headers.set(CORRELATION_ID_HEADER, correlationId);
 		headers.setContentType(MediaType.APPLICATION_JSON);
-		return ResponseEntity.status(status).headers(headers)
-				.body(new ResponseRecord<>(ErrorResponseBodyRecord.of(status, correlationId)));
+		var body = ErrorResponseBodyRecord.of(status, correlationId);
+		if (errorType != null)
+			body = new ErrorResponseBodyRecord(errorType, body.errorMessage(), correlationId);
+		return ResponseEntity.status(status).headers(headers).body(new ResponseRecord<>(body));
 	}
 }
