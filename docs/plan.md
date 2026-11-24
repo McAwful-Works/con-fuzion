@@ -295,7 +295,7 @@ The full threat model and per-PR checklist live in `docs/security.md`. This is t
   - **Admin:** a bootstrap ID gets ADMIN on login. A moderator without MFA has no admin access. A banned Discord ID is rejected at login and its sessions are purged. A role change invalidates sessions. Every admin action writes an `audit_log` row.
   - **Errors:** a forced constraint violation returns a generic 409 body with no SQL or Hibernate text.
   - **Headers:** CSP, HSTS, nosniff, and frame-ancestors are present on the SPA and `/api` responses.
-- **Security scans:** gitleaks and Dependabot are green (CodeQL is pending, see decisions.md D-007), and the ZAP baseline against staging has no high findings.
+- **Security scans:** CodeQL, secret scanning, gitleaks and Dependabot are green, and the ZAP baseline against staging has no high findings.
 - **Manual end-to-end:**
   1. `docker compose -f infra/docker-compose.yml up -d` (Postgres + Valkey) and `./gradlew bootRun`, plus `npm run dev`.
   2. Sign in with a Discord test app at `localhost:5173`.
