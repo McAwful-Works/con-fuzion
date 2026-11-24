@@ -234,7 +234,7 @@ class SecurityConfigIntegrationTest {
 
 		var login = login();
 
-		assertThat(login.location()).isEqualTo(SecurityConfig.LOGIN_FAILURE_URL);
+		assertThat(login.location()).isEqualTo("/welcome?login=failed");
 		assertThat(send("GET", "/api/me", login.session(), null).statusCode()).isEqualTo(401);
 	}
 

@@ -88,9 +88,9 @@ public class SecurityConfig {
 	public static final String LOGOUT_URL = "/api/auth/logout";
 
 	/**
-	 * Where a failed sign-in lands. The SPA shows the sign-in page with an error.
+	 * Where a failed sign-in lands: the SPA sign-in page, which shows an error.
 	 */
-	public static final String LOGIN_FAILURE_URL = "/?login=failed";
+	public static final String LOGIN_FAILURE_URL = "/welcome?login=failed";
 
 	/**
 	 * The Content-Security-Policy.
