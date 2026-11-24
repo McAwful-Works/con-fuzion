@@ -21,8 +21,14 @@ docs/       plan, roadmap, decisions, security, runbooks, research
 - **Work session**: exactly one GitHub issue, one branch, one PR. Start with the `start-issue` skill and finish with `pr-ready`.
 - **Research session**: answers one bounded question in a `docs/research/<topic>.md` PR. No code.
 - A human merges every PR. **Claude never merges**, never commits to `main`, and never runs `terraform apply`.
+- **Stop what you start** (every session). Before reporting done, stop every dev server, watcher, `bootRun` or
+  other long-running process you started (`npm run dev`, `vite`, `vite preview`, `gradlew bootRun`, `java -jar`).
+  Stop `docker compose` services too, unless the owner started them. Say in the PR which ones you ran and stopped.
+  Never stop a process you didn't start.
 - **Clean up after every merge** (coordinator):
   - Fast-forward local `main` (`git pull --ff-only`).
+  - Before archiving a session, check that nothing is still running from its worktree (for example a listener on
+    `:5173` or `:8080`). If something is, ask the owner before stopping it.
   - Delete the merged local branch and any `claude/*` placeholder branch.
   - Confirm the remote branch was auto-deleted.
   - Archive the finished work session, which removes its worktree, with the owner's OK.
