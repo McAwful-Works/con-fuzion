@@ -1,0 +1,99 @@
+name: E2E
+
+# Playwright drives the built jar (backend plus the bundled PWA) against a fake Discord (e2e/fake-discord.mjs).
+# The backend is pointed at the fake by e2e/application-e2e.properties, passed at startup; it is not in the jar.
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'e2e/**'
+      - '.github/workflows/e2e.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'e2e/**'
+      - '.github/workflows/e2e.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      # The same databases and local-only credentials as infra/docker-compose.yml, which the backend defaults to.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: confuzion
+          POSTGRES_USER: confuzion
+          POSTGRES_PASSWORD: confuzion
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U confuzion -d confuzion"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      valkey:
+        image: valkey/valkey:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      # A service container can't take the compose file's --requirepass, so this one runs without a password.
+      CONFUZION_REDIS_PASSWORD: ''
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: gradle/actions/wrapper-validation@v6
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+          cache-dependency-path: |
+            backend/*.gradle
+            backend/gradle/wrapper/gradle-wrapper.properties
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      # bootJar runs `npm ci` and `npm run build` in frontend/ and bundles dist/ into the jar.
+      - name: Build the jar
+        working-directory: backend
+        run: ./gradlew bootJar --console=plain
+
+      - name: Install the e2e dependencies and Chromium
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run the end-to-end tests
+        working-directory: e2e
+        run: npm test
+
+      # Only on failure: the traces and HTML report, and the backend's log (metadata only, never tokens or bodies).
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            e2e/.run/backend.log
+          retention-days: 7
