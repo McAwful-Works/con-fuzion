@@ -103,6 +103,8 @@ export default async function globalSetup() {
         `--spring.config.additional-location=file:${join(here, 'application-e2e.properties')}`,
       ],
       {
+        // Run from .run/ so the backend's own logs/ folder lands in the ignored directory.
+        cwd: runDir,
         stdio: ['ignore', log, log],
         env: { ...process.env, E2E_STUB_PORT: String(STUB_PORT) },
       },
