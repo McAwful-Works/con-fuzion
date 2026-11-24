@@ -268,15 +268,30 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
-	 * Tests that logout ends the session.
+	 * Tests that logout ends the session with a bodiless 204 (never a redirect),
+	 * needs the CSRF token, and is also a 204 without a session, as the contract
+	 * documents.
 	 */
 	@Test
 	void logoutEndsSession() throws Exception {
 		DISCORD.reset("100000000000000060", "leaver", false);
 		var session = login().session();
 
-		assertThat(sendWithCsrf("POST", SecurityConfig.LOGOUT_URL, session, null).statusCode()).isEqualTo(204);
+		assertError(send("POST", SecurityConfig.LOGOUT_URL, session, null), 403, "FORBIDDEN");
+		assertThat(send("GET", "/api/me", session, null).statusCode()).isEqualTo(200);
+
+		var logout = sendWithCsrf("POST", SecurityConfig.LOGOUT_URL, session, null);
+		assertThat(logout.statusCode()).isEqualTo(204);
+		assertThat(logout.body()).isEmpty();
+		assertThat(logout.headers().firstValue("Location")).isEmpty();
 		assertThat(send("GET", "/api/me", session, null).statusCode()).isEqualTo(401);
+
+		var csrf = cookie(send("GET", "/api/me", null, null), "XSRF-TOKEN");
+		var anonymous = http
+				.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + SecurityConfig.LOGOUT_URL))
+						.POST(BodyPublishers.noBody()).header("Cookie", "XSRF-TOKEN=" + csrf)
+						.header("X-XSRF-TOKEN", csrf).build(), BodyHandlers.ofString());
+		assertThat(anonymous.statusCode()).isEqualTo(204);
 	}
 
 	/**

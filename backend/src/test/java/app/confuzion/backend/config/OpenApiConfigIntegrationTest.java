@@ -101,11 +101,12 @@ class OpenApiConfigIntegrationTest {
 	void documentHasTheContractOperations() {
 		Map<String, Map<String, Object>> paths = document.read("$.paths");
 
-		assertThat(paths).containsOnlyKeys("/api/me", "/api/me/guilds", "/api/me/guilds/{guildId}",
+		assertThat(paths).containsOnlyKeys("/api/me", "/api/me/guilds", "/api/me/guilds/{guildId}", "/api/auth/logout",
 				"/api/auth/logout-everywhere");
 		assertThat(paths.get("/api/me")).containsOnlyKeys("get", "patch");
 		assertThat(paths.get("/api/me/guilds")).containsOnlyKeys("get", "put");
 		assertThat(paths.get("/api/me/guilds/{guildId}")).containsOnlyKeys("put");
+		assertThat(paths.get("/api/auth/logout")).containsOnlyKeys("post");
 		assertThat(paths.get("/api/auth/logout-everywhere")).containsOnlyKeys("post");
 	}
 
@@ -123,6 +124,7 @@ class OpenApiConfigIntegrationTest {
 		assertThat(successRef("/api/me/guilds/{guildId}", "put"))
 				.isEqualTo("#/components/schemas/ResponseRecordGuildResponse");
 		assertThat(responses("/api/auth/logout-everywhere", "post")).containsKey("204");
+		assertThat(responses("/api/auth/logout", "post")).containsOnlyKeys("204", "403", "500", "default");
 	}
 
 	/**
@@ -133,8 +135,8 @@ class OpenApiConfigIntegrationTest {
 	void everyOperationDocumentsTheErrorEnvelope() {
 		List<Map<String, Map<String, Object>>> responses = document.read("$.paths.*.*.responses");
 
-		assertThat(responses).hasSize(6).allSatisfy(byStatus -> {
-			assertThat(byStatus).containsKeys("401", "429", "500", "default");
+		assertThat(responses).hasSize(7).allSatisfy(byStatus -> {
+			assertThat(byStatus).containsKeys("500", "default");
 			byStatus.forEach((code, response) -> {
 				if (code.startsWith("4") || code.startsWith("5") || code.equals("default"))
 					assertThat(JsonPath.<String>read(response, "$.content['application/json'].schema.$ref"))
@@ -149,6 +151,11 @@ class OpenApiConfigIntegrationTest {
 		assertThat(responses("/api/me", "get")).doesNotContainKey("403");
 		assertThat(responses("/api/me/guilds", "get")).doesNotContainKey("403");
 		assertThat(responses("/api/me/guilds", "put")).containsKeys("400", "403", "404");
+		document.<Map<String, Map<String, Map<String, Object>>>>read("$.paths").forEach((path, item) -> {
+			if (!path.equals("/api/auth/logout"))
+				item.values().forEach(operation -> assertThat((Map<String, Object>) operation.get("responses"))
+						.containsKeys("401", "429"));
+		});
 	}
 
 	/**

@@ -36,6 +36,7 @@ import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.responses.ApiResponse;
+import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
@@ -43,7 +44,9 @@ import io.swagger.v3.oas.models.servers.Server;
 /**
  * The OpenAPI document that springdoc serves and {@code docs/api/openapi.json}
  * commits. It adds what annotations can't express once: the session cookie and
- * CSRF header, and the error envelope on every operation (D-010).
+ * CSRF header, the error envelope on every operation (D-010), and the
+ * single-session logout, which Spring Security's logout filter serves rather
+ * than a controller.
  *
  * @author mcawful
  */
@@ -113,7 +116,29 @@ public class OpenApiConfig {
 					.forEach((path, pathItem) -> pathItem.readOperationsMap()
 							.forEach((method, operation) -> addErrorResponses(operation,
 									method != PathItem.HttpMethod.GET, path.contains("{"), content)));
+			openApi.getPaths().addPathItem(SecurityConfig.LOGOUT_URL, new PathItem().post(logoutOperation(content)));
 		};
+	}
+
+	/**
+	 * Describes {@code POST /api/auth/logout}. The logout filter runs before
+	 * authorization and the rate limiter, so it has no 401 or 429: signing out
+	 * without a session is also a 204.
+	 *
+	 * @param content the error envelope {@link Content}
+	 * @return the {@link Operation}
+	 */
+	private static Operation logoutOperation(Content content) {
+		var responses = new ApiResponses().addApiResponse("204", new ApiResponse().description("Signed out."))
+				.addApiResponse("403",
+						error("CSRF token missing or invalid. Send the " + CSRF_COOKIE + " cookie's value in the "
+								+ CSRF_HEADER + " header.", content))
+				.addApiResponse("500", error("Unexpected server error.", content))
+				.addApiResponse("default", error("Any other error.", content));
+		return new Operation().operationId("logout").addTagsItem("auth").summary("Sign the user out on this device")
+				.description("Ends this session and clears the " + CSRF_COOKIE + " cookie. Answers 204 even when "
+						+ "no one is signed in.")
+				.responses(responses);
 	}
 
 	/**
