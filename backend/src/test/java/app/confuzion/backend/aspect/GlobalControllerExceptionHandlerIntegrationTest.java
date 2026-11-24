@@ -124,8 +124,8 @@ class GlobalControllerExceptionHandlerIntegrationTest {
 	}
 
 	/**
-	 * Asserts the body is the generic one and its correlation ID matches the
-	 * header.
+	 * Asserts the body is the generic one in the standard envelope and its
+	 * correlation ID matches the header.
 	 *
 	 * @param result       the {@link MvcResult}
 	 * @param errorType    the expected error type
@@ -134,9 +134,10 @@ class GlobalControllerExceptionHandlerIntegrationTest {
 	private void assertGenericBody(MvcResult result, String errorType, String errorMessage) throws Exception {
 		var correlationId = result.getResponse().getHeader(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER);
 		assertThat(correlationId).isNotBlank();
-		jsonPath("$.errorType").value(errorType).match(result);
-		jsonPath("$.errorMessage").value(errorMessage).match(result);
-		jsonPath("$.correlationId").value(correlationId).match(result);
+		jsonPath("$.responseType").value("ERROR").match(result);
+		jsonPath("$.body.errorType").value(errorType).match(result);
+		jsonPath("$.body.errorMessage").value(errorMessage).match(result);
+		jsonPath("$.body.correlationId").value(correlationId).match(result);
 		header().string("Content-Type", "application/json").match(result);
 	}
 }

@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import app.confuzion.backend.aspect.GlobalControllerExceptionHandler;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
+import app.confuzion.backend.model.record.ResponseRecord;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -48,7 +49,7 @@ public class ErrorControllerMVC implements ErrorController {
 	 *         the container gave none
 	 */
 	@RequestMapping(path = "/error")
-	public ResponseEntity<ErrorResponseBodyRecord> handleError(HttpServletRequest request) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleError(HttpServletRequest request) {
 		var status = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE) instanceof Integer code
 				? HttpStatusCode.valueOf(code)
 				: HttpStatus.INTERNAL_SERVER_ERROR;

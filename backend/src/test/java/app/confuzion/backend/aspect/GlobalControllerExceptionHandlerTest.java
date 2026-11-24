@@ -41,6 +41,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.RateLimitException;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
+import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.model.record.ResponseType;
 
 /**
  * Unit tests for the {@link GlobalControllerExceptionHandler} class. Every
@@ -172,8 +174,8 @@ class GlobalControllerExceptionHandlerTest {
 
 		assertThat(response.getStatusCode().value()).isEqualTo(499);
 		assertThat(response.getBody()).isNotNull();
-		assertThat(response.getBody().errorType()).isEqualTo("ERROR");
-		assertThat(response.getBody().errorMessage()).isEqualTo("Error");
+		assertThat(response.getBody().body().errorType()).isEqualTo("ERROR");
+		assertThat(response.getBody().body().errorMessage()).isEqualTo("Error");
 	}
 
 	/**
@@ -186,7 +188,7 @@ class GlobalControllerExceptionHandlerTest {
 
 		assertThat(first.getBody()).isNotNull();
 		assertThat(second.getBody()).isNotNull();
-		assertThat(first.getBody().correlationId()).isNotEqualTo(second.getBody().correlationId());
+		assertThat(first.getBody().body().correlationId()).isNotEqualTo(second.getBody().body().correlationId());
 	}
 
 	/**
@@ -196,11 +198,13 @@ class GlobalControllerExceptionHandlerTest {
 	 * @param response the {@link ResponseEntity}
 	 * @param status   the expected {@link HttpStatus}
 	 */
-	private static void assertGeneric(ResponseEntity<ErrorResponseBodyRecord> response, HttpStatus status) {
+	private static void assertGeneric(ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> response,
+			HttpStatus status) {
 		assertThat(response.getStatusCode()).isEqualTo(status);
 		assertThat(response.getHeaders().getContentType()).hasToString("application/json");
-		var body = response.getBody();
-		assertThat(body).isNotNull();
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().responseType()).isEqualTo(ResponseType.ERROR);
+		var body = response.getBody().body();
 		assertThat(body.errorType()).isEqualTo(status.name());
 		assertThat(body.errorMessage()).isEqualTo(status.getReasonPhrase());
 		assertThat(body.correlationId()).isNotBlank()

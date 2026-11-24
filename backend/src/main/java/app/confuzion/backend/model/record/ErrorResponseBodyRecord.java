@@ -22,19 +22,27 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 
 import app.confuzion.backend.model.ResponseBodyObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 
 /**
  * The response body object for errors. It carries only generic, per-status
- * text: never an exception message, root cause, class name or SQL.
+ * text: never an exception message, root cause, class name or SQL. It is always
+ * sent inside a {@link ResponseRecord} envelope with {@link ResponseType#ERROR}
+ * (D-010).
  *
  * @param errorType     the HTTP status name, for example {@code CONFLICT}
  * @param errorMessage  the generic HTTP reason phrase, for example
  *                      {@code Conflict}
  * @param correlationId the ID that ties this response to the server-side log
- *                      entry, or {@code null} when nothing was logged
+ *                      entry; the {@code X-Correlation-Id} header carries the
+ *                      same value
  * @author mcawful
  */
-public record ErrorResponseBodyRecord(String errorType, String errorMessage, String correlationId)
+public record ErrorResponseBodyRecord(
+		@Schema(requiredMode = RequiredMode.REQUIRED, example = "NOT_FOUND") String errorType,
+		@Schema(requiredMode = RequiredMode.REQUIRED, example = "Not Found") String errorMessage,
+		@Schema(requiredMode = RequiredMode.REQUIRED, example = "3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60") String correlationId)
 		implements ResponseBodyObject {
 	/**
 	 * Creates the generic error body for the given status.

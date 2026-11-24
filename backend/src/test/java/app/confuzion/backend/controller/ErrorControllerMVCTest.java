@@ -51,8 +51,8 @@ class ErrorControllerMVCTest {
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(response.getBody()).isNotNull();
-		assertThat(response.getBody().errorType()).isEqualTo("NOT_FOUND");
-		assertThat(response.getBody().correlationId()).isNotBlank()
+		assertThat(response.getBody().body().errorType()).isEqualTo("NOT_FOUND");
+		assertThat(response.getBody().body().correlationId()).isNotBlank()
 				.isEqualTo(response.getHeaders().getFirst(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER));
 	}
 
@@ -69,7 +69,7 @@ class ErrorControllerMVCTest {
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 		assertThat(response.getBody()).isNotNull();
-		assertThat(response.getBody().errorMessage()).isEqualTo("Internal Server Error");
+		assertThat(response.getBody().body().errorMessage()).isEqualTo("Internal Server Error");
 		assertThat(response.getBody().toString()).doesNotContain("valkey");
 	}
 }

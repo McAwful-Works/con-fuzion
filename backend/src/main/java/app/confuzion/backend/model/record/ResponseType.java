@@ -30,6 +30,21 @@ public enum ResponseType {
 	ERROR,
 
 	/**
+	 * Indicates a {@link MeResponse} body.
+	 */
+	ME,
+
+	/**
+	 * Indicates a {@link GuildResponse} body.
+	 */
+	GUILD,
+
+	/**
+	 * Indicates a {@link GuildListResponse} body.
+	 */
+	GUILD_LIST,
+
+	/**
 	 * Indicates the response body is unknown.
 	 */
 	UNKNOWN
