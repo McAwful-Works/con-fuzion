@@ -4,10 +4,11 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { registerSW } from 'virtual:pwa-register';
+import { shouldRetry } from './api/client';
 import { routes } from './router';
 import './index.css';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetry } } });
 const router = createBrowserRouter(routes);
 
 // registerType is 'prompt': the new version waits until the user accepts it (UI arrives in M4).

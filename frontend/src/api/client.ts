@@ -1,18 +1,31 @@
+import type { components } from './schema';
+
+type ErrorEnvelope = components['schemas']['ResponseRecordErrorResponseBodyRecord'];
+
 /**
- * Thrown for every non-2xx response. `code` is the backend's `body.errorType` from the error envelope
- * when present. The server's `errorMessage` is deliberately not exposed: UI text is chosen by `code`
- * and `status`, never by server text. Revisit when the OpenAPI contract (M1) defines the error shape.
+ * Thrown for every non-2xx response. `code` is the backend's `body.errorType` from the D-010 error
+ * envelope when present. The server's `errorMessage` is deliberately not exposed: UI text is chosen by
+ * `code` and `status`, never by server text. `correlationId` is for support and logs; the UI doesn't
+ * show it by default.
  */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
+  readonly correlationId: string | undefined;
 
-  constructor(status: number, code?: string) {
+  constructor(status: number, code?: string, correlationId?: string) {
     super(`Request failed with status ${status}`);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.correlationId = correlationId;
   }
+}
+
+/** Retry server hiccups a couple of times, but never a 4xx (a 401 must reach the sign-in redirect). */
+export function shouldRetry(failureCount: number, error: unknown): boolean {
+  if (error instanceof ApiError && error.status < 500) return false;
+  return failureCount < 2;
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -54,18 +67,20 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
   if (!response.ok) {
     let code: string | undefined;
+    let correlationId: string | undefined;
     try {
-      // Backend envelope: { responseType: 'ERROR', body: { errorType, errorMessage } }
-      const envelope = (await response.json()) as { body?: { errorType?: unknown } } | null;
-      const errorType = envelope?.body?.errorType;
+      // D-010: { responseType: 'ERROR', body: { errorType, errorMessage, correlationId } }
+      const envelope = (await response.json()) as Partial<ErrorEnvelope> | null;
+      const { errorType, correlationId: id } = envelope?.body ?? {};
       if (typeof errorType === 'string') code = errorType;
+      if (typeof id === 'string') correlationId = id;
     } catch {
       // Not a JSON error body; the status alone describes it.
     }
-    throw new ApiError(response.status, code);
+    throw new ApiError(response.status, code, correlationId);
   }
 
-  // Callers receive the backend's response envelope as-is until the OpenAPI types land (M1).
+  // A 204 has no body. Otherwise callers receive the D-010 envelope `{ responseType, body }` as-is.
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }

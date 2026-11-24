@@ -17,6 +17,9 @@
   --color-line: #e4e4e7;
   --color-accent: #4f46e5;
   --color-accent-ink: #ffffff;
+  /* Discord brand blurple with white text, per Discord's brand guidelines. */
+  --color-discord: #5865f2;
+  --color-discord-ink: #ffffff;
 
   --radius-control: 0.5rem;
   --radius-card: 0.75rem;
@@ -24,4 +27,16 @@
 
 body {
   @apply bg-surface text-ink font-sans antialiased;
+}
+
+/* Shared 44px-minimum controls. Colors come from the theme tokens above. */
+@utility btn {
+  @apply rounded-control inline-flex min-h-11 items-center justify-center px-4 font-medium;
+  @apply focus-visible:outline-accent focus-visible:outline-2 focus-visible:outline-offset-2;
+}
+@utility btn-primary {
+  @apply bg-accent text-accent-ink;
+}
+@utility btn-secondary {
+  @apply border-line bg-surface-raised border;
 }
