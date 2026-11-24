@@ -1,8 +1,9 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.3.5'
-    id 'io.spring.dependency-management' version '1.1.6'
+    id 'org.springframework.boot' version '4.2.0'
+    id 'io.spring.dependency-management' version '1.1.7'
     id 'jacoco'
+    id 'com.diffplug.spotless' version '8.12.0'
 }
 
 group = 'app.confuzion'
@@ -10,12 +11,13 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
 jacoco {
-    toolVersion = "0.8.12"
+    // 0.8.14 is the first release that can instrument Java 25 class files.
+    toolVersion = "0.8.16"
 }
 
 repositories {
@@ -25,12 +27,14 @@ repositories {
 dependencies {
     // Application dependencies
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    // TODO: Add security dependency when oauth2 implementation begins
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // Boot 4 no longer pulls AOP in through the JPA starter; the aspect/ package needs it.
+    implementation 'org.springframework.boot:spring-boot-starter-aspectj'
+    // TODO: Add security dependencies when oauth2 implementation begins (versions come from the Boot BOM)
 //    implementation 'org.springframework.boot:spring-boot-starter-security'
-//    implementation 'org.springframework.security:spring-security-oauth2-client:6.4.2'
+//    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.1'
     implementation 'org.codehaus.janino:janino:3.1.12'
     implementation 'com.bucket4j:bucket4j-core:8.10.1'
     annotationProcessor 'org.projectlombok:lombok'
@@ -46,15 +50,28 @@ dependencies {
     implementation 'org.postgresql:postgresql'
 }
 
+spotless {
+    java {
+        target 'src/*/java/**/*.java'
+        // Pinned so local and CI runs format identically whatever JDK runs Gradle.
+        eclipse('4.31').configFile('config/spotless/eclipse-formatter.xml')
+        licenseHeaderFile 'config/spotless/license-header.txt'
+    }
+}
+
 tasks.named('bootBuildImage') {
     builder = 'paketobuildpacks/builder-jammy-base:latest'
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
-}
+def excludedTags = providers.gradleProperty('excludeTags')
 
-test {
+tasks.named('test') {
+    useJUnitPlatform {
+        // ./gradlew test -PexcludeTags=integration[,slow]
+        if (excludedTags.isPresent()) {
+            excludeTags(*excludedTags.get().split(',')*.trim())
+        }
+    }
     finalizedBy jacocoTestReport
 }
 
@@ -63,6 +80,7 @@ jacocoTestReport {
 }
 
 jacocoTestCoverageVerification {
+    dependsOn test
     violationRules {
         rule {
             limit {
@@ -82,4 +100,8 @@ jacocoTestCoverageVerification {
             }
         }
     }
+}
+
+tasks.named('check') {
+    dependsOn jacocoTestCoverageVerification
 }

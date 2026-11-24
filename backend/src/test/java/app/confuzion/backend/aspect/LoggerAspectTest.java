@@ -24,9 +24,10 @@ import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import app.confuzion.backend.util.HttpUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,7 +37,7 @@ import jakarta.servlet.http.HttpServletRequest;
  * 
  * @author mcawful
  */
-@SpringBootTest
+@ExtendWith(MockitoExtension.class)
 class LoggerAspectTest {
 	/**
 	 * The mock {@link ProceedingJoinPoint}.

@@ -25,9 +25,10 @@ import static org.mockito.Mockito.*;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import app.confuzion.backend.exception.RateLimitException;
@@ -38,7 +39,7 @@ import io.github.bucket4j.Bucket;
  * 
  * @author mcawful
  */
-@SpringBootTest
+@ExtendWith(MockitoExtension.class)
 class RateLimiterAspectTest {
 	/**
 	 * The mock {@link ProceedingJoinPoint}.
