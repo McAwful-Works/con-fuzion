@@ -13,7 +13,7 @@ import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorState } from '../components/ErrorState';
 import { Skeleton } from '../components/Skeleton';
 import { CircleForm } from '../features/social/CircleForm';
-import { PeopleSearch } from '../features/social/PeopleSearch';
+import { CirclePeopleSearch } from '../features/social/PeopleSearch';
 import { BlockConfirm } from '../features/social/PersonActions';
 import { PersonRow } from '../features/social/PersonRow';
 
@@ -153,7 +153,7 @@ export function CircleDetail() {
         <h2 id="add-heading" className="text-xl font-semibold">
           Add people
         </h2>
-        <PeopleSearch circle={data} />
+        <CirclePeopleSearch circle={data} />
       </section>
 
       <section aria-label="Delete this circle">

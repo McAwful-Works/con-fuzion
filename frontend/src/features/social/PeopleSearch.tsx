@@ -5,6 +5,7 @@ import {
   useAddCircleMember,
   usePeopleSearch,
   type Circle,
+  type Person,
 } from '../../api/social';
 import { ApiError } from '../../api/client';
 import { ErrorState } from '../../components/ErrorState';
@@ -20,13 +21,28 @@ function useDebounced(value: string, ms: number) {
   return debounced;
 }
 
+interface Props {
+  /** People already chosen; they show `chosenLabel` instead of an Add button. */
+  chosenIds: ReadonlySet<string>;
+  chosenLabel: string;
+  onPick: (person: Person) => void;
+  /** Disables Add while a pick is being saved. */
+  pending?: boolean;
+  /** A failed pick, shown above the results. */
+  pickError?: unknown;
+}
+
 /** Search the people you can pick (friends, and people you share a discoverable server with). */
-export function PeopleSearch({ circle }: { circle: Circle }) {
+export function PeopleSearch({
+  chosenIds,
+  chosenLabel,
+  onPick,
+  pending = false,
+  pickError,
+}: Props) {
   const [text, setText] = useState('');
   const query = useDebounced(text, 250).trim();
   const results = usePeopleSearch(query);
-  const add = useAddCircleMember(circle.id);
-  const memberIds = new Set(circle.members.map((m) => m.id));
   const tooShort = text.trim().length < PEOPLE_QUERY_MIN;
 
   return (
@@ -38,6 +54,8 @@ export function PeopleSearch({ circle }: { circle: Circle }) {
           value={text}
           maxLength={PEOPLE_QUERY_MAX}
           onChange={(e) => setText(e.target.value)}
+          // This search sits inside forms (the event audience); Enter must not submit them.
+          onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
           className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3"
         />
       </label>
@@ -45,13 +63,14 @@ export function PeopleSearch({ circle }: { circle: Circle }) {
         Type at least {PEOPLE_QUERY_MIN} characters. You can add friends and people who are in a
         server with you where you’re both discoverable.
       </p>
-      {add.isError &&
-        (add.error instanceof ApiError && add.error.status === 404 ? (
+      {pickError !== undefined &&
+        pickError !== null &&
+        (pickError instanceof ApiError && pickError.status === 404 ? (
           <p role="alert" className="text-sm">
             Couldn’t add them. They may not be available to add any more.
           </p>
         ) : (
-          <ErrorState error={add.error} />
+          <ErrorState error={pickError} />
         ))}
       {!tooShort && results.isError && (
         <ErrorState error={results.error} onRetry={() => void results.refetch()} />
@@ -63,15 +82,15 @@ export function PeopleSearch({ circle }: { circle: Circle }) {
         <ul aria-label="Search results" className="space-y-2">
           {results.data.map((person) => (
             <PersonRow key={person.id} person={person}>
-              {memberIds.has(person.id) ? (
-                <span className="text-ink-muted px-2 text-sm">In this circle</span>
+              {chosenIds.has(person.id) ? (
+                <span className="text-ink-muted px-2 text-sm">{chosenLabel}</span>
               ) : (
                 <button
                   type="button"
                   className="btn btn-secondary"
                   aria-label={`Add ${person.displayName}`}
-                  disabled={add.isPending}
-                  onClick={() => add.mutate(person.id)}
+                  disabled={pending}
+                  onClick={() => onPick(person)}
                 >
                   Add
                 </button>
@@ -81,5 +100,19 @@ export function PeopleSearch({ circle }: { circle: Circle }) {
         </ul>
       )}
     </div>
+  );
+}
+
+/** The circle screen's search: picking someone adds them to the circle. */
+export function CirclePeopleSearch({ circle }: { circle: Circle }) {
+  const add = useAddCircleMember(circle.id);
+  return (
+    <PeopleSearch
+      chosenIds={new Set(circle.members.map((m) => m.id))}
+      chosenLabel="In this circle"
+      onPick={(person) => add.mutate(person.id)}
+      pending={add.isPending}
+      pickError={add.error}
+    />
   );
 }
