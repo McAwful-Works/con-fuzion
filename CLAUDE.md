@@ -21,6 +21,13 @@ docs/       plan, roadmap, decisions, security, runbooks, research
 - **Work session**: exactly one GitHub issue, one branch, one PR. Start with the `start-issue` skill and finish with `pr-ready`.
 - **Research session**: answers one bounded question in a `docs/research/<topic>.md` PR. No code.
 - A human merges every PR. **Claude never merges**, never commits to `main`, and never runs `terraform apply`.
+- **Clean up after every merge** (coordinator):
+  - Fast-forward local `main` (`git pull --ff-only`).
+  - Delete the merged local branch and any `claude/*` placeholder branch.
+  - Confirm the remote branch was auto-deleted.
+  - Archive the finished work session, which removes its worktree, with the owner's OK.
+  - Update `docs/roadmap.md` in the next docs PR.
+  - Never delete a branch, worktree or session that has unmerged commits or uncommitted changes.
 
 ## Golden rules
 1. **Stay inside the issue.** Build only what the acceptance criteria need. Anything else, however good, goes in
