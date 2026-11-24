@@ -53,10 +53,14 @@ Context · Decision · Consequences · Trigger to revisit
 - **Open:** The owner chooses between enabling GitHub Code Security, adding Semgrep CE (free) as a SAST step,
   or deferring SAST until the M7 security pass.
 
-## D-008 Spring Boot 4.x, not 3.5 (2026-11-24) — Accepted
+## D-008 Spring Boot 4.x on Java 25 LTS, not Boot 3.5 on Java 21 (2026-11-24) — Accepted
 - **Context:** The plan said "upgrade to Boot 3.5". By now 3.5's open-source support has ended, and Dependabot is
   already proposing Boot 4.2, Gradle 9 and springdoc 3.
 - **Decision:** M0 (#7) upgrades straight to Spring Boot 4.x (latest 4.2.x), with Gradle 9.x and springdoc 3.x,
-  following the official migration guide. The `feature/add-discord-oauth` Boot 3.5.3 bump is dropped.
+  following the official migration guide, and moves the toolchain to **Java 25 LTS** (CI uses Temurin 25; M6 uses a
+  JRE 25 base image). The `feature/add-discord-oauth` Boot 3.5.3 bump is dropped.
+- **Why Java 25:** since JDK 24, `synchronized` no longer pins virtual threads to their carrier (JEP 491), and we rely
+  on virtual threads. It's also the longest LTS runway, and Boot 4 supports it.
 - **Consequences:** Jackson 3, Spring Framework 7, Jakarta EE 11 and some starter renames land before any domain
-  code exists, which is the cheapest time to absorb them. Dependabot PRs #3–#6 close once #7 merges.
+  code exists, which is the cheapest time to absorb them. Java 25 needs JaCoCo 0.8.14 or later (the 0.8.13 pin is
+  bumped in #7) and Lombok 1.18.40 or later. Dependabot PRs #3–#6 close once #7 merges.

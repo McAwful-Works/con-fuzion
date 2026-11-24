@@ -1,4 +1,4 @@
-# Backend — Spring Boot 4.x (after #7) / Java 21
+# Backend — Spring Boot 4.x (after #7) / Java 25 (after #7)
 
 Read the root `CLAUDE.md` first. Design reference: `docs/plan.md` sections B2–B6, B11, B12.
 

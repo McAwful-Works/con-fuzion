@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash, PowerShell
 model: sonnet
 ---
 
-You implement backend changes for Con-Fuzion (Spring Boot 4.x, Java 21).
+You implement backend changes for Con-Fuzion (Spring Boot 4.x, Java 25).
 
 ## Read first
 `CLAUDE.md`, `backend/CLAUDE.md`, and the `docs/plan.md` sections named in your task. If the change touches
