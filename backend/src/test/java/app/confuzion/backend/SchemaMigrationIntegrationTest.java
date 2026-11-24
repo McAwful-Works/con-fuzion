@@ -21,21 +21,29 @@ package app.confuzion.backend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
+import javax.sql.DataSource;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Integration tests for the {@code app_user} and {@code user_guild} migration
- * on Testcontainers Postgres. Each test rolls back.
+ * Integration tests for the migrations on Testcontainers Postgres: M1's
+ * {@code app_user} and {@code user_guild}, and M2's social graph. Each test
+ * rolls back.
  *
  * @author mcawful
  */
@@ -51,12 +59,128 @@ class SchemaMigrationIntegrationTest {
 	private JdbcTemplate jdbcTemplate;
 
 	/**
+	 * The {@link DataSource}, for savepoints on the test's connection.
+	 */
+	@Autowired
+	private DataSource dataSource;
+
+	/**
 	 * Tests that Flyway applied the migration.
 	 */
 	@Test
 	void migrationApplied() {
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT success FROM flyway_schema_history WHERE version = '202611241300'", Boolean.class)).isTrue();
+	}
+
+	/**
+	 * Tests that Flyway applied the social graph migration, with the planned
+	 * columns.
+	 */
+	@Test
+	void socialGraphMigrationApplied() {
+		assertThat(jdbcTemplate.queryForObject(
+				"SELECT success FROM flyway_schema_history WHERE version = '202611241700'", Boolean.class)).isTrue();
+		assertThat(columns("friendship")).containsExactlyInAnyOrder("user_a", "user_b", "created_at");
+		assertThat(columns("friend_invite")).containsExactlyInAnyOrder("token_hash", "inviter_id", "created_at",
+				"expires_at", "used_at", "accepted_by");
+		assertThat(columns("circle")).containsExactlyInAnyOrder("id", "public_id", "owner_id", "name", "created_at");
+		assertThat(columns("circle_member")).containsExactlyInAnyOrder("circle_id", "user_id");
+		assertThat(columns("block")).containsExactlyInAnyOrder("blocker_id", "blocked_id", "created_at");
+	}
+
+	/**
+	 * Tests that a friendship is stored once, smaller ID first, and goes when
+	 * either user is deleted.
+	 */
+	@Test
+	void friendshipIsOrderedAndCascades() throws SQLException {
+		var ids = sortedUsers();
+
+		assertRejected(() -> befriend(ids.get(1), ids.get(0)), DataIntegrityViolationException.class);
+		assertRejected(() -> befriend(ids.get(0), ids.get(0)), DataIntegrityViolationException.class);
+		befriend(ids.get(0), ids.get(1));
+		assertRejected(() -> befriend(ids.get(0), ids.get(1)), DuplicateKeyException.class);
+
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", ids.get(1));
+
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM friendship", Integer.class)).isZero();
+	}
+
+	/**
+	 * Tests that an invite stores a 32-byte hash, can't be accepted without being
+	 * used, and stays used when the accepting account is deleted.
+	 */
+	@Test
+	void friendInviteStoresHashAndKeepsUse() throws SQLException {
+		var inviter = insertUser(81384788765712384L);
+		var friend = insertUser(81384788765712385L);
+		var insert = "INSERT INTO friend_invite (token_hash, inviter_id, expires_at, used_at, accepted_by) "
+				+ "VALUES (?, ?, now() + interval '24 hours', ?, ?)";
+
+		assertRejected(() -> jdbcTemplate.update(insert, new byte[16], inviter, null, null),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, new byte[32], inviter, null, friend),
+				DataIntegrityViolationException.class);
+		jdbcTemplate.update(insert, new byte[32], inviter, Timestamp.from(Instant.now()), friend);
+
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", friend);
+
+		assertThat(jdbcTemplate.queryForObject("SELECT used_at IS NOT NULL AND accepted_by IS NULL FROM friend_invite",
+				Boolean.class)).isTrue();
+	}
+
+	/**
+	 * Tests that a circle gets a public ID, that names are unique per owner
+	 * ignoring case but free across owners, and that deleting a circle removes its
+	 * members.
+	 */
+	@Test
+	void circleNamesAndMembers() throws SQLException {
+		var owner = insertUser(81384788765712384L);
+		var other = insertUser(81384788765712385L);
+		var circleId = insertCircle(owner, "Cosplay crew");
+
+		assertThat(jdbcTemplate.queryForObject("SELECT public_id FROM circle WHERE id = ?", UUID.class, circleId))
+				.isNotNull();
+		assertRejected(() -> insertCircle(owner, "COSPLAY CREW"), DuplicateKeyException.class);
+		assertRejected(() -> insertCircle(owner, "  "), DataIntegrityViolationException.class);
+		insertCircle(other, "Cosplay crew");
+
+		jdbcTemplate.update("INSERT INTO circle_member (circle_id, user_id) VALUES (?, ?)", circleId, other);
+		jdbcTemplate.update("DELETE FROM circle WHERE id = ?", circleId);
+
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM circle_member", Integer.class)).isZero();
+	}
+
+	/**
+	 * Tests that a user can't block themself.
+	 */
+	@Test
+	void blockIsNeverSelf() throws SQLException {
+		var ids = sortedUsers();
+		jdbcTemplate.update("INSERT INTO block (blocker_id, blocked_id) VALUES (?, ?)", ids.get(1), ids.get(0));
+
+		assertRejected(() -> jdbcTemplate.update("INSERT INTO block (blocker_id, blocked_id) VALUES (?, ?)", ids.get(0),
+				ids.get(0)), DataIntegrityViolationException.class);
+	}
+
+	/**
+	 * Tests the social graph's indexes.
+	 */
+	@Test
+	void socialGraphIndexes() {
+		assertThat(indexDefinition("friendship_pkey")).endsWith("(user_a, user_b)");
+		assertThat(indexDefinition("friendship_user_b_idx")).endsWith("(user_b)");
+		assertThat(indexDefinition("friend_invite_inviter_unused_idx"))
+				.endsWith("(inviter_id, expires_at) WHERE (used_at IS NULL)");
+		assertThat(indexDefinition("circle_public_id_key")).startsWith("CREATE UNIQUE INDEX").endsWith("(public_id)");
+		assertThat(indexDefinition("circle_owner_name_key")).startsWith("CREATE UNIQUE INDEX")
+				.endsWith("(owner_id, lower((name)::text))");
+		assertThat(indexDefinition("circle_member_pkey")).endsWith("(circle_id, user_id)");
+		assertThat(indexDefinition("circle_member_user_idx")).endsWith("(user_id)");
+		assertThat(indexDefinition("block_pkey")).endsWith("(blocker_id, blocked_id)");
+		assertThat(indexDefinition("block_blocked_idx")).endsWith("(blocked_id)");
 	}
 
 	/**
@@ -133,6 +257,55 @@ class SchemaMigrationIntegrationTest {
 	private UUID insertUser(long discordId) {
 		return jdbcTemplate.queryForObject("INSERT INTO app_user (discord_id, username) VALUES (?, ?) RETURNING id",
 				UUID.class, discordId, "con_goer");
+	}
+
+	/**
+	 * Asserts that the database rejects a statement. It runs in a savepoint, so the
+	 * test's transaction stays usable afterwards.
+	 *
+	 * @param statement the statement
+	 * @param type      the expected exception type
+	 */
+	private void assertRejected(Runnable statement, Class<? extends Throwable> type) throws SQLException {
+		var connection = DataSourceUtils.getConnection(dataSource);
+		var savepoint = connection.setSavepoint();
+		try {
+			assertThatThrownBy(statement::run).isInstanceOf(type);
+		} finally {
+			connection.rollback(savepoint);
+		}
+	}
+
+	/**
+	 * Inserts two users.
+	 *
+	 * @return their IDs, smaller first
+	 */
+	private List<UUID> sortedUsers() {
+		return jdbcTemplate.queryForList("SELECT id FROM app_user WHERE id IN (?, ?) ORDER BY id", UUID.class,
+				insertUser(81384788765712384L), insertUser(81384788765712385L));
+	}
+
+	/**
+	 * Inserts a friendship.
+	 *
+	 * @param userA the first user
+	 * @param userB the second user
+	 */
+	private void befriend(UUID userA, UUID userB) {
+		jdbcTemplate.update("INSERT INTO friendship (user_a, user_b) VALUES (?, ?)", userA, userB);
+	}
+
+	/**
+	 * Inserts a circle.
+	 *
+	 * @param owner the owner
+	 * @param name  the name
+	 * @return the circle's internal ID
+	 */
+	private long insertCircle(UUID owner, String name) {
+		return jdbcTemplate.queryForObject("INSERT INTO circle (owner_id, name) VALUES (?, ?) RETURNING id", Long.class,
+				owner, name);
 	}
 
 	/**
