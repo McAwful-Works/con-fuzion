@@ -33,9 +33,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     // Boot 4 no longer pulls AOP in through the JPA starter; the aspect/ package needs it.
     implementation 'org.springframework.boot:spring-boot-starter-aspectj'
-    // TODO: Add security dependencies when oauth2 implementation begins (versions come from the Boot BOM)
-//    implementation 'org.springframework.boot:spring-boot-starter-security'
-//    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
+    // Discord sign-in (plan B5). Versions come from the Boot BOM.
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.1'
     implementation 'org.codehaus.janino:janino:3.1.12'

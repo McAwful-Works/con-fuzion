@@ -18,39 +18,53 @@
  */
 package app.confuzion.backend.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import app.confuzion.backend.aspect.GlobalControllerExceptionHandler;
+import app.confuzion.backend.service.SessionService;
 
 /**
- * Unit tests for the contract stub in {@link AuthController}.
+ * Unit tests for {@link AuthController}.
  *
  * @author mcawful
  */
 class AuthControllerTest {
 	/**
+	 * The mocked {@link SessionService}.
+	 */
+	private final SessionService sessionService = mock(SessionService.class);
+
+	/**
 	 * The {@link MockMvc}, with the real exception handler.
 	 */
-	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AuthController())
+	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(sessionService))
 			.setControllerAdvice(new GlobalControllerExceptionHandler()).build();
 
 	/**
-	 * Tests that {@code POST /api/auth/logout-everywhere} is a 501 stub that
-	 * answers in the error envelope.
+	 * Tests that {@code POST /api/auth/logout-everywhere} ends the user's sessions
+	 * and answers 204 with no body.
 	 */
 	@Test
-	void testLogoutEverywhereIsNotImplemented() throws Exception {
-		mockMvc.perform(post("/api/auth/logout-everywhere")).andExpect(status().isNotImplemented())
-				.andExpect(header().exists(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER))
-				.andExpect(jsonPath("$.responseType").value("ERROR"))
-				.andExpect(jsonPath("$.body.errorType").value("NOT_IMPLEMENTED"))
-				.andExpect(jsonPath("$.body.correlationId").isNotEmpty());
+	void testLogoutEverywhere() throws Exception {
+		var authentication = UsernamePasswordAuthenticationToken.authenticated("user-id", null,
+				List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+		mockMvc.perform(post("/api/auth/logout-everywhere").principal(authentication)).andExpect(status().isNoContent())
+				.andExpect(content().string(""));
+		verify(sessionService).logoutEverywhere(any(), any(), eq(authentication));
 	}
 }
