@@ -6,9 +6,10 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | Milestone | Work package | Status | Issue / PR |
 |---|---|---|---|
 | **Setup** | Dev workflow: CLAUDE.md files, agents, skills, hooks, docs, CI checks | done | McAwful-Works/con-fuzion#1 |
-| **M0** Foundation | Backend build tooling: wrapper jar, Spring Boot 4, Gradle 9, JDK 25 toolchain, Spotless, coverage gate, backend CI | todo | #7 |
-| | Backend runtime foundation: Flyway, Valkey sessions, per-user rate limits, safe error bodies, docker-compose (after #7) | todo | #8 |
-| | Frontend scaffold: Vite + React + TS PWA, Tailwind, Vitest, lint, asset check, frontend CI | in progress | #9 |
+| | Repo public, `main`/release rulesets, CodeQL, trunk-based releases (D-007, D-009) | done | #14, #16, #20 |
+| **M0** Foundation | Backend build tooling: wrapper jar, Spring Boot 4, Gradle 9, JDK 25 toolchain, Spotless, coverage gate, backend CI | done | #7 → #19 |
+| | Backend runtime foundation: Flyway, Valkey sessions, per-user rate limits, safe error bodies, docker-compose (after #7) | in review | #8 → #21 |
+| | Frontend scaffold: Vite + React + TS PWA, Tailwind, Vitest, lint, asset check, frontend CI | done | #9 → #15 |
 | **M1** Discord auth | API contract for `/api/me` and `/api/me/guilds` (after #8) | todo | #10 |
 | | Discord sign-in, user upsert, guild sync, CSRF, sessions (after #10) | todo | #11 |
 | | Sign-in and onboarding screens (after #9 and #10) | todo | #12 |
@@ -17,5 +18,5 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | **M3** FCFS RSVP | atomic claim, waitlist, offers + expiry, `/spots` polling, My schedule | todo | — |
 | **M4** Notifications | inbox, Web Push sender, reminders, PWA install flow | todo | — |
 | **M5** Safety & admin | reports, admin area, roles + MFA gate, suspend/ban, audit log, maintenance mode | todo | — |
-| **M6** AWS deploy | Terraform (VPC, Aurora Serverless v2, ElastiCache Serverless, ECS, ALB, CloudFront+WAF), CD, staging/prod | todo | — |
+| **M6** AWS deploy | Terraform (VPC, Aurora Serverless v2, ElastiCache Serverless, ECS, ALB, CloudFront+WAF), CD, staging/prod, client IP behind CloudFront | todo | — |
 | **M7** Polish + launch gates | accessibility, account deletion, donation links, artist assets, legal pages, load test, security pass | todo | — |
