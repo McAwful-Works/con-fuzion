@@ -54,3 +54,4 @@ frontend/dist/
 # Claude Code: personal settings and hook state
 .claude/settings.local.json
 .claude/.stop-checks-ok
+.claude/worktrees/

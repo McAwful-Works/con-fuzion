@@ -5,7 +5,7 @@
 ## Context
 Con-Fuzion is a free mobile + desktop web app for convention-goers to host meetups and open them to **audiences the host picks**, with **limited first-come-first-served spots** and an auto-promoting waitlist. Discord is the login and the source of social data.
 
-Starting point (Nov 2026): Spring Boot 3.3 / Java 21 scaffold (Boot 3.5.3 bump waiting on `feature/add-discord-oauth`) with a global exception handler, logging and rate-limit aspects, a `ResponseRecord` envelope, and a half-configured Discord OAuth2 client. There's no domain code and no frontend.
+Starting point (Nov 2026): Spring Boot 3.3 / Java 21 scaffold, being upgraded to Boot 4.x in M0 (D-008) with a global exception handler, logging and rate-limit aspects, a `ResponseRecord` envelope, and a half-configured Discord OAuth2 client. There's no domain code and no frontend.
 
 **Guiding principles:**
 - **Small footprint, built to scale out.** The app is stateless and deployed as one container image that scales horizontally.

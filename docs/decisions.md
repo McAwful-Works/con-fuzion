@@ -52,3 +52,11 @@ Context · Decision · Consequences · Trigger to revisit
 - **Decision for now:** Dependabot (free), plus the gitleaks binary (pinned and checksum-verified) in CI.
 - **Open:** The owner chooses between enabling GitHub Code Security, adding Semgrep CE (free) as a SAST step,
   or deferring SAST until the M7 security pass.
+
+## D-008 Spring Boot 4.x, not 3.5 (2026-11-24) — Accepted
+- **Context:** The plan said "upgrade to Boot 3.5". By now 3.5's open-source support has ended, and Dependabot is
+  already proposing Boot 4.2, Gradle 9 and springdoc 3.
+- **Decision:** M0 (#7) upgrades straight to Spring Boot 4.x (latest 4.2.x), with Gradle 9.x and springdoc 3.x,
+  following the official migration guide. The `feature/add-discord-oauth` Boot 3.5.3 bump is dropped.
+- **Consequences:** Jackson 3, Spring Framework 7, Jakarta EE 11 and some starter renames land before any domain
+  code exists, which is the cheapest time to absorb them. Dependabot PRs #3–#6 close once #7 merges.

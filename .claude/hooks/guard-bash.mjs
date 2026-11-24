@@ -89,6 +89,14 @@ function scan(cmd, startDir, depth = 0) {
 			const branch = branchAt(gitDir);
 			const s = firstWord(tokens, idx + 1, ['-C', '-c', '--git-dir', '--work-tree']);
 			const [sub, ...args] = tokens.slice(s);
+			// `git switch -c X` / `git checkout -b X` earlier in the same command line moves later segments off main.
+			const nb = sub === 'switch' ? args.findIndex((a) => ['-c', '-C', '--create'].includes(a)) : -1;
+			const cb = sub === 'checkout' ? args.findIndex((a) => ['-b', '-B'].includes(a)) : -1;
+			const created = nb >= 0 ? args[nb + 1] : cb >= 0 ? args[cb + 1] : undefined;
+			if (created) {
+				branchCache.set(gitDir, created);
+				continue;
+			}
 			if (isMain(branch) && ['commit', 'merge', 'cherry-pick', 'revert', 'am', 'rebase', 'pull'].includes(sub)) {
 				decide('deny', `guard-bash: you are on "${branch}". Never change main locally; create a branch (feat/…, fix/…, chore/…) first.`);
 			}
