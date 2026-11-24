@@ -18,27 +18,42 @@
  */
 package app.confuzion.backend.aspect;
 
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
-import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.reflect.MethodSignature;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.HandlerMapping;
 
-import app.confuzion.backend.util.HttpUtil;
-import jakarta.servlet.http.HttpServletRequest;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 /**
- * Unit tests for the {@link LoggerAspect} class.
- * 
+ * Unit tests for the {@link LoggerAspect} class: one metadata line per call,
+ * with nothing sensitive in it.
+ *
  * @author mcawful
  */
 @ExtendWith(MockitoExtension.class)
 class LoggerAspectTest {
+	/**
+	 * A value that must never be logged.
+	 */
+	private static final String SECRET = "invite-token-abc123";
+
 	/**
 	 * The mock {@link ProceedingJoinPoint}.
 	 */
@@ -46,90 +61,118 @@ class LoggerAspectTest {
 	private ProceedingJoinPoint proceedingJoinPoint;
 
 	/**
-	 * The mock {@link JoinPoint}.
+	 * The current request.
 	 */
-	@Mock
-	private JoinPoint joinPoint;
+	private MockHttpServletRequest request;
 
 	/**
-	 * The mock {@link MethodSignature}.
+	 * The current response.
 	 */
-	@Mock
-	private MethodSignature methodSignature;
+	private MockHttpServletResponse response;
 
 	/**
-	 * The mock {@link HttpServletRequest}.
+	 * Captures this class's log events; the aspect logs as the target class.
 	 */
-	@Mock
-	private HttpServletRequest httpServletRequest;
+	private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
 	/**
 	 * The {@link LoggerAspect} to test.
 	 */
-	@InjectMocks
-	private LoggerAspect loggerAspect;
+	private final LoggerAspect loggerAspect = new LoggerAspect();
 
 	/**
-	 * Tests the {@code logAroundController} method of the {@link LoggerAspect}.
-	 * Verifies that the expected {@link ProceedingJoinPoint} methods were called
-	 * the expected number of times.
+	 * Binds a request carrying sensitive data and attaches the appender.
 	 */
-	@Test
-	void testLogAroundController() throws Throwable {
+	@BeforeEach
+	void setup() {
+		request = new MockHttpServletRequest("POST", "/api/friends/invites/" + SECRET + "/accept");
+		request.setQueryString("code=" + SECRET);
+		request.addHeader("Cookie", "SESSION=" + SECRET);
+		request.addHeader("Authorization", "Bearer " + SECRET);
+		request.setContent(SECRET.getBytes());
+		request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/friends/invites/{token}/accept");
+		response = new MockHttpServletResponse();
+		RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request, response));
 		when(proceedingJoinPoint.getTarget()).thenReturn(this);
-		when(proceedingJoinPoint.getSignature()).thenReturn(methodSignature);
-		when(methodSignature.getMethod()).thenReturn(this.getClass().getDeclaredMethod("testLogAroundController"));
-		when(proceedingJoinPoint.getArgs()).thenReturn(new Object[] { httpServletRequest, "testArg" });
-		when(httpServletRequest.getHeader("host")).thenReturn("localhost");
-		when(HttpUtil.getRequestHeaders(httpServletRequest)).thenReturn("[host:\"localhost\"]");
-		when(HttpUtil.getRemoteAddr(httpServletRequest)).thenReturn("192.168.1.1");
-
-		loggerAspect.logAroundController(proceedingJoinPoint);
-
-		verify(proceedingJoinPoint, times(1)).getTarget();
-		verify(proceedingJoinPoint, times(1)).getSignature();
-		verify(proceedingJoinPoint, times(3)).getArgs();
-		verify(proceedingJoinPoint, times(1)).proceed();
+		appender.start();
+		((Logger) LoggerFactory.getLogger(LoggerAspectTest.class)).addAppender(appender);
 	}
 
 	/**
-	 * Tests the {@code logExceptionController} method of the {@link LoggerAspect}.
-	 * Verifies that the expected {@link JoinPoint} methods were called the expected
-	 * number of times.
+	 * Detaches the appender and unbinds the request.
 	 */
-	@Test
-	void testLogExceptionController() throws NoSuchMethodException {
-		when(joinPoint.getTarget()).thenReturn(this);
-		when(joinPoint.getSignature()).thenReturn(methodSignature);
-		when(methodSignature.getMethod()).thenReturn(this.getClass().getDeclaredMethod("testLogExceptionController"));
-		when(joinPoint.getArgs()).thenReturn(new Object[] { httpServletRequest });
-
-		var exception = new IllegalArgumentException("Test exception");
-
-		loggerAspect.logExceptionController(joinPoint, exception);
-
-		verify(joinPoint, times(1)).getTarget();
-		verify(joinPoint, times(1)).getSignature();
-		verify(joinPoint, times(1)).getArgs();
+	@AfterEach
+	void tearDown() {
+		((Logger) LoggerFactory.getLogger(LoggerAspectTest.class)).detachAppender(appender);
+		RequestContextHolder.resetRequestAttributes();
 	}
 
 	/**
-	 * Tests the {@code logAroundController} method of the {@link LoggerAspect} when
-	 * no {@link HttpServletRequest} is given. Verifies that the expected
-	 * {@link ProceedingJoinPoint} methods were called the expected number of times.
+	 * Tests that a returned {@link ResponseEntity}'s status, the route pattern and
+	 * the user ID are logged, and the arguments and response body aren't.
 	 */
 	@Test
-	void testLogAroundControllerWithoutHttpServletRequest() throws Throwable {
-		when(proceedingJoinPoint.getTarget()).thenReturn(this);
-		when(proceedingJoinPoint.getSignature()).thenReturn(methodSignature);
-		when(methodSignature.getMethod()).thenReturn(this.getClass().getDeclaredMethod("testLogAroundController"));
-		when(proceedingJoinPoint.getArgs()).thenReturn(new Object[] { "testArg" });
+	void testLogAroundControllerWithResponseEntity() throws Throwable {
+		request.setUserPrincipal(() -> "1234567890");
+		when(proceedingJoinPoint.proceed()).thenReturn(ResponseEntity.status(201).body(SECRET));
 
 		loggerAspect.logAroundController(proceedingJoinPoint);
 
-		verify(proceedingJoinPoint, times(1)).getTarget();
-		verify(proceedingJoinPoint, times(1)).getSignature();
-		verify(proceedingJoinPoint, times(3)).getArgs();
-		verify(proceedingJoinPoint, times(1)).proceed();
+		assertThat(singleLine()).startsWith("POST /api/friends/invites/{token}/accept -> 201 in ")
+				.endsWith("(user 1234567890)");
+	}
+
+	/**
+	 * Tests that a plain return value logs the response's status and an anonymous
+	 * user.
+	 */
+	@Test
+	void testLogAroundControllerWithPlainResult() throws Throwable {
+		response.setStatus(202);
+		when(proceedingJoinPoint.proceed()).thenReturn(SECRET);
+
+		assertThat(loggerAspect.logAroundController(proceedingJoinPoint)).isEqualTo(SECRET);
+
+		assertThat(singleLine()).contains("-> 202 in ").endsWith("(user anonymous)");
+	}
+
+	/**
+	 * Tests that an exception is rethrown and logged by type only, without its
+	 * message.
+	 */
+	@Test
+	void testLogAroundControllerWhenControllerThrows() throws Throwable {
+		when(proceedingJoinPoint.proceed()).thenThrow(new IllegalStateException(SECRET));
+
+		assertThatThrownBy(() -> loggerAspect.logAroundController(proceedingJoinPoint))
+				.isInstanceOf(IllegalStateException.class);
+
+		assertThat(singleLine()).contains("-> threw IllegalStateException in ");
+	}
+
+	/**
+	 * Tests that a request without a matched route logs {@code unknown} rather than
+	 * the raw URI.
+	 */
+	@Test
+	void testLogAroundControllerWithoutRoutePattern() throws Throwable {
+		request.removeAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+
+		loggerAspect.logAroundController(proceedingJoinPoint);
+
+		assertThat(singleLine()).startsWith("POST unknown -> 200 in ");
+	}
+
+	/**
+	 * Asserts exactly one line was logged, that it holds no sensitive value, and
+	 * returns it.
+	 *
+	 * @return the formatted log line
+	 */
+	private String singleLine() {
+		assertThat(appender.list).hasSize(1);
+		var line = appender.list.getFirst().getFormattedMessage();
+		assertThat(line).doesNotContain(SECRET);
+		return line;
 	}
 }

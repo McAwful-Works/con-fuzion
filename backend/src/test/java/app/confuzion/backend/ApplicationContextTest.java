@@ -20,16 +20,30 @@ package app.confuzion.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
+
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationInfo;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.session.SessionRepository;
+
+import app.confuzion.backend.controller.IntegrationProbeController;
 
 /**
- * Unit tests for the {@link ApplicationContext} class.
- * 
+ * Integration smoke test: the full context starts against Postgres and Valkey,
+ * and Flyway applies the baseline migration.
+ *
  * @author mcawful
  */
+@Tag("integration")
 @SpringBootTest
+@Import(TestcontainersConfiguration.class)
+@ActiveProfiles(IntegrationProbeController.PROFILE)
 class ApplicationContextTest {
 	/**
 	 * The {@link ApplicationContext} to test.
@@ -38,11 +52,32 @@ class ApplicationContextTest {
 	private ApplicationContext applicationContext;
 
 	/**
-	 * Tests that the {@link ApplicationContext} has loaded. Asserts that the
-	 * {@link ApplicationContext} is not {@code null}.
+	 * The auto-configured {@link Flyway}.
+	 */
+	@Autowired
+	private Flyway flyway;
+
+	/**
+	 * The Spring Session {@link SessionRepository}.
+	 */
+	@Autowired
+	private SessionRepository<?> sessionRepository;
+
+	/**
+	 * Tests that the context loads and Flyway has applied the baseline migration.
 	 */
 	@Test
-	void contextLoads() {
+	void contextLoadsAndFlywayAppliesBaseline() {
 		assertThat(applicationContext).isNotNull();
+		assertThat(flyway.info().applied()).extracting(MigrationInfo::getScript)
+				.contains("V202611241200__baseline.sql");
+	}
+
+	/**
+	 * Tests that sessions are stored by Spring Session with a 14-day idle timeout.
+	 */
+	@Test
+	void sessionsHaveFourteenDayIdleTimeout() {
+		assertThat(sessionRepository.createSession().getMaxInactiveInterval()).isEqualTo(Duration.ofDays(14));
 	}
 }
