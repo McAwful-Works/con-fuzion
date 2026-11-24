@@ -26,15 +26,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.RateLimitException;
@@ -123,7 +126,8 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code BAD REQUEST}
 	 */
 	@ExceptionHandler({ IllegalArgumentException.class, MissingServletRequestParameterException.class,
-			PropertyValueException.class, InvalidInputException.class })
+			PropertyValueException.class, InvalidInputException.class, HttpMessageNotReadableException.class,
+			MethodArgumentTypeMismatchException.class })
 	public ResponseEntity<ErrorResponseBodyRecord> handleBadRequest(Exception e) {
 		return respond(HttpStatus.BAD_REQUEST, e);
 	}
@@ -146,25 +150,38 @@ public class GlobalControllerExceptionHandler {
 	}
 
 	/**
-	 * Logs the exception under a new correlation ID and builds the generic error
-	 * response. Server errors are logged with the stack trace; client errors are
-	 * logged as one line with the exception type and message.
+	 * Builds the generic error response for a status and logs the failure under a
+	 * new correlation ID. {@code ErrorControllerMVC} uses it too, so errors raised
+	 * outside Spring MVC (in filters or the container) look the same.
+	 * <p>
+	 * Server errors are logged with the stack trace. Client errors are logged as
+	 * one line with the exception type and message, and 429s only at debug, so a
+	 * flood of throttled requests doesn't flood the log. Status headers that a
+	 * Spring {@link ErrorResponse} carries (such as {@code Allow} on a 405) are
+	 * kept.
 	 *
 	 * @param status the response {@link HttpStatusCode}
-	 * @param e      the base {@link Exception}
+	 * @param e      the failure, or {@code null} when there is none to log
 	 * @return a {@link ResponseEntity} with a generic
 	 *         {@link ErrorResponseBodyRecord}
 	 */
-	private static ResponseEntity<ErrorResponseBodyRecord> respond(HttpStatusCode status, Exception e) {
+	public static ResponseEntity<ErrorResponseBodyRecord> respond(HttpStatusCode status, Throwable e) {
 		var correlationId = UUID.randomUUID().toString();
+		var type = e == null ? "an error dispatch" : e.getClass().getName();
 		if (status.is5xxServerError())
-			LOGGER.error("[{}] {} from {}", correlationId, status.value(), e.getClass().getName(), e);
+			LOGGER.error("[{}] {} from {}", correlationId, status.value(), type, e);
+		else if (status.value() == HttpStatus.TOO_MANY_REQUESTS.value())
+			LOGGER.debug("[{}] {} from {}", correlationId, status.value(), type);
 		else
-			LOGGER.warn("[{}] {} from {}: {}", correlationId, status.value(), e.getClass().getName(),
-					singleLine(e.getMessage()));
+			LOGGER.warn("[{}] {} from {}: {}", correlationId, status.value(), type,
+					e == null ? null : singleLine(e.getMessage()));
 
-		return ResponseEntity.status(status).header(CORRELATION_ID_HEADER, correlationId)
-				.contentType(MediaType.APPLICATION_JSON).body(ErrorResponseBodyRecord.of(status, correlationId));
+		var headers = new HttpHeaders();
+		if (e instanceof ErrorResponse errorResponse)
+			headers.addAll(errorResponse.getHeaders());
+		headers.set(CORRELATION_ID_HEADER, correlationId);
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		return ResponseEntity.status(status).headers(headers).body(ErrorResponseBodyRecord.of(status, correlationId));
 	}
 
 	/**

@@ -18,6 +18,7 @@
  */
 package app.confuzion.backend.controller;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,13 +30,21 @@ import jakarta.servlet.http.HttpSession;
  * Test-only controller that integration tests call to exercise the runtime
  * foundation (rate limits, sessions, error bodies) before any real endpoint
  * exists. It lives in the controller package so both aspects apply to it, and
- * it exists only on the test classpath.
+ * it exists only on the test classpath, and only under the {@value #PROFILE}
+ * profile, so other test contexts (such as a future endpoint matrix) never see
+ * it.
  *
  * @author mcawful
  */
 @RestController
+@Profile(IntegrationProbeController.PROFILE)
 @RequestMapping("/api/test-probe")
 public class IntegrationProbeController {
+	/**
+	 * The profile that enables this controller.
+	 */
+	public static final String PROFILE = "integration-probe";
+
 	/**
 	 * A detail that must never reach a client.
 	 */

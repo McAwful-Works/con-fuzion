@@ -20,16 +20,21 @@ package app.confuzion.backend.aspect;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -102,6 +107,39 @@ class GlobalControllerExceptionHandlerTest {
 				new NumberFormatException(SECRET));
 
 		assertGeneric(handler.handleBadRequest(exception), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Tests that unreadable bodies and mistyped arguments are 400s, not 500s.
+	 */
+	@Test
+	void testHandleBadRequestForMalformedInput() throws NoSuchMethodException {
+		var unreadable = new HttpMessageNotReadableException(SECRET, new MockHttpInputMessage(new byte[0]));
+		var parameter = new MethodParameter(Object.class.getMethod("equals", Object.class), 0);
+		var mismatch = new MethodArgumentTypeMismatchException(SECRET, Integer.class, "page", parameter, null);
+
+		assertGeneric(handler.handleBadRequest(unreadable), HttpStatus.BAD_REQUEST);
+		assertGeneric(handler.handleBadRequest(mismatch), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Tests that status headers a Spring exception carries are kept.
+	 */
+	@Test
+	void testRespondKeepsErrorResponseHeaders() {
+		var exception = new HttpRequestMethodNotSupportedException("DELETE", List.of("GET", "POST"));
+
+		var response = handler.handleMethodNotAllowed(exception);
+
+		assertThat(response.getHeaders().getAllow()).containsExactlyInAnyOrder(HttpMethod.GET, HttpMethod.POST);
+	}
+
+	/**
+	 * Tests a response built without an exception, as for a bare error dispatch.
+	 */
+	@Test
+	void testRespondWithoutException() {
+		assertGeneric(GlobalControllerExceptionHandler.respond(HttpStatus.NOT_FOUND, null), HttpStatus.NOT_FOUND);
 	}
 
 	/**

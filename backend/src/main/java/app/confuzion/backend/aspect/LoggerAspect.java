@@ -92,6 +92,9 @@ public class LoggerAspect {
 	/**
 	 * Returns the HTTP status of a controller result: the status of a returned
 	 * {@link ResponseEntity}, otherwise the status already set on the response.
+	 * Spring applies a method's {@code @ResponseStatus} only after the method
+	 * returns, so such methods should return a {@link ResponseEntity} to be logged
+	 * with the right status.
 	 *
 	 * @param result     the controller method's return value
 	 * @param attributes the current {@link ServletRequestAttributes}

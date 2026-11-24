@@ -21,10 +21,11 @@ package app.confuzion.backend.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
-import app.confuzion.backend.model.record.ResponseType;
+import app.confuzion.backend.aspect.GlobalControllerExceptionHandler;
+import jakarta.servlet.RequestDispatcher;
 
 /**
  * Unit tests for the {@link ErrorControllerMVC} class.
@@ -38,14 +39,37 @@ class ErrorControllerMVCTest {
 	private final ErrorControllerMVC errorControllerMVC = new ErrorControllerMVC();
 
 	/**
-	 * Tests that the {@code handleError} method of the {@link ErrorControllerMVC}
-	 * returns the generic not-found error envelope.
+	 * Tests that a dispatched status, such as a filter's {@code sendError(404)}, is
+	 * kept and gets a generic body with a correlation ID.
 	 */
 	@Test
-	void testHandleErrorWithDefaultRequest() {
-		var actual = errorControllerMVC.handleError(new MockHttpServletRequest());
+	void testHandleErrorKeepsDispatchedStatus() {
+		var request = new MockHttpServletRequest();
+		request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 404);
 
-		assertThat(actual.responseType()).isEqualTo(ResponseType.ERROR);
-		assertThat(actual.body()).isEqualTo(new ErrorResponseBodyRecord("NOT_FOUND", "Not Found", null));
+		var response = errorControllerMVC.handleError(request);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().errorType()).isEqualTo("NOT_FOUND");
+		assertThat(response.getBody().correlationId()).isNotBlank()
+				.isEqualTo(response.getHeaders().getFirst(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER));
+	}
+
+	/**
+	 * Tests that a filter exception without a status becomes a generic 500 that
+	 * doesn't carry the exception's message.
+	 */
+	@Test
+	void testHandleErrorWithExceptionAndNoStatus() {
+		var request = new MockHttpServletRequest();
+		request.setAttribute(RequestDispatcher.ERROR_EXCEPTION, new IllegalStateException("valkey host 10.0.0.9"));
+
+		var response = errorControllerMVC.handleError(request);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().errorMessage()).isEqualTo("Internal Server Error");
+		assertThat(response.getBody().toString()).doesNotContain("valkey");
 	}
 }

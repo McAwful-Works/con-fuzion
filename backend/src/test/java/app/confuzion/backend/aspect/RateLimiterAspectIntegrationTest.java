@@ -29,11 +29,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import app.confuzion.backend.TestcontainersConfiguration;
+
+import app.confuzion.backend.controller.IntegrationProbeController;
 
 /**
  * Integration tests for the {@link RateLimiterAspect} against a real Valkey:
@@ -44,6 +47,7 @@ import app.confuzion.backend.TestcontainersConfiguration;
 @Tag("integration")
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
+@ActiveProfiles(IntegrationProbeController.PROFILE)
 class RateLimiterAspectIntegrationTest {
 	/**
 	 * More requests than the default capacity plus any refills during a test.

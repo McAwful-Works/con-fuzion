@@ -39,8 +39,11 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import app.confuzion.backend.controller.IntegrationProbeController;
 
 /**
  * Runs two app instances on real Tomcat ports against one Postgres and one
@@ -54,6 +57,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Tag("integration")
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = TwoInstancesIntegrationTest.NO_REFILL)
 @Import(TestcontainersConfiguration.class)
+@ActiveProfiles(IntegrationProbeController.PROFILE)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class TwoInstancesIntegrationTest {
 	/**
@@ -107,6 +111,7 @@ class TwoInstancesIntegrationTest {
 	@BeforeAll
 	void startInstanceB() {
 		instanceB = new SpringApplicationBuilder(ApplicationContext.class).run("--server.port=0", "--" + NO_REFILL,
+				"--spring.profiles.active=" + IntegrationProbeController.PROFILE,
 				"--spring.datasource.url=" + postgres.getJdbcUrl(),
 				"--spring.datasource.username=" + postgres.getUsername(),
 				"--spring.datasource.password=" + postgres.getPassword(),
@@ -169,7 +174,10 @@ class TwoInstancesIntegrationTest {
 	@Test
 	void healthIsPublicAndMetricsIsLoopbackOnly() throws Exception {
 		assertThat(get(portA, "/api/actuator/health", "X-Forwarded-For", "203.0.113.50").statusCode()).isEqualTo(200);
-		assertThat(get(portA, "/api/actuator/metrics", "X-Forwarded-For", "203.0.113.50").statusCode()).isEqualTo(404);
+		var blocked = get(portA, "/api/actuator/metrics", "X-Forwarded-For", "203.0.113.50");
+		assertThat(blocked.statusCode()).isEqualTo(404);
+		assertThat(blocked.headers().firstValue("X-Correlation-Id")).isPresent();
+		assertThat(blocked.body()).contains("\"errorType\":\"NOT_FOUND\"");
 		assertThat(get(portA, "/api/actuator/%6detrics", "X-Forwarded-For", "203.0.113.50").statusCode())
 				.isEqualTo(404);
 		assertThat(get(portA, "/api/actuator/metrics").statusCode()).isEqualTo(200);

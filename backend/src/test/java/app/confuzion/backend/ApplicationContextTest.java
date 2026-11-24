@@ -29,7 +29,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.session.SessionRepository;
+
+import app.confuzion.backend.controller.IntegrationProbeController;
 
 /**
  * Integration smoke test: the full context starts against Postgres and Valkey,
@@ -40,6 +43,7 @@ import org.springframework.session.SessionRepository;
 @Tag("integration")
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
+@ActiveProfiles(IntegrationProbeController.PROFILE)
 class ApplicationContextTest {
 	/**
 	 * The {@link ApplicationContext} to test.
