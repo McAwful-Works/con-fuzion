@@ -30,6 +30,7 @@ import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
 import app.confuzion.backend.model.record.ResponseRecord;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * The {@link RestController} for the {@code /error} fallback endpoint, which
@@ -44,16 +45,19 @@ public class ErrorControllerMVC implements ErrorController {
 	/**
 	 * The error handling controller method.
 	 *
-	 * @param request the {@link HttpServletRequest}
+	 * @param request  the {@link HttpServletRequest}
+	 * @param response the {@link HttpServletResponse}
 	 * @return the generic error response for the dispatched status, or a 500 when
-	 *         the container gave none
+	 *         the container gave none; {@code null} when the response is already
+	 *         committed
 	 */
 	@RequestMapping(path = "/error")
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleError(HttpServletRequest request) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleError(HttpServletRequest request,
+			HttpServletResponse response) {
 		var status = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE) instanceof Integer code
 				? HttpStatusCode.valueOf(code)
 				: HttpStatus.INTERNAL_SERVER_ERROR;
 		var exception = request.getAttribute(RequestDispatcher.ERROR_EXCEPTION) instanceof Throwable t ? t : null;
-		return GlobalControllerExceptionHandler.respond(status, exception);
+		return GlobalControllerExceptionHandler.respond(status, exception, response);
 	}
 }

@@ -44,6 +44,7 @@ import app.confuzion.backend.exception.LimitExceededException;
 import app.confuzion.backend.exception.RateLimitException;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
 import app.confuzion.backend.model.record.ResponseRecord;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Global REST Controller advice exception handling.
@@ -72,13 +73,15 @@ public class GlobalControllerExceptionHandler {
 	 * Method to handle exceptions that should lead to an HTTP status response code
 	 * of 429 {@code (TOO MANY REQUESTS)}.
 	 *
-	 * @param e the base {@link Exception}
+	 * @param e        the base {@link Exception}
+	 * @param response the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
 	 *         {@code TOO MANY REQUESTS}
 	 */
 	@ExceptionHandler(RateLimitException.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleTooManyRequests(Exception e) {
-		return respond(HttpStatus.TOO_MANY_REQUESTS, e);
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleTooManyRequests(Exception e,
+			HttpServletResponse response) {
+		return respond(HttpStatus.TOO_MANY_REQUESTS, e, response);
 	}
 
 	/**
@@ -86,67 +89,77 @@ public class GlobalControllerExceptionHandler {
 	 * {@link LimitExceededException.Limit} name instead of the status name (D-011).
 	 * The message stays generic, and it is logged like any other 429.
 	 *
-	 * @param e the {@link LimitExceededException}
+	 * @param e        the {@link LimitExceededException}
+	 * @param response the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
 	 *         {@code TOO MANY REQUESTS}
 	 */
 	@ExceptionHandler(LimitExceededException.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleLimitExceeded(LimitExceededException e) {
-		return respond(HttpStatus.TOO_MANY_REQUESTS, e, e.getLimit().name());
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleLimitExceeded(LimitExceededException e,
+			HttpServletResponse response) {
+		return respond(HttpStatus.TOO_MANY_REQUESTS, e, e.getLimit().name(), response);
 	}
 
 	/**
 	 * Method to handle exceptions that should lead to an HTTP status response code
 	 * of 409 {@code (CONFLICT)}.
 	 *
-	 * @param e the base {@link Exception}
+	 * @param e        the base {@link Exception}
+	 * @param response the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
 	 *         {@code CONFLICT}
 	 */
 	@ExceptionHandler(DataIntegrityViolationException.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleConflict(Exception e) {
-		return respond(HttpStatus.CONFLICT, e);
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleConflict(Exception e,
+			HttpServletResponse response) {
+		return respond(HttpStatus.CONFLICT, e, response);
 	}
 
 	/**
 	 * Method to handle exceptions that should lead to an HTTP status response code
 	 * of 405 {@code (METHOD NOT ALLOWED)}.
 	 *
-	 * @param e the base {@link Exception}
+	 * @param e        the base {@link Exception}
+	 * @param response the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
 	 *         {@code METHOD NOT ALLOWED}
 	 */
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleMethodNotAllowed(Exception e) {
-		return respond(HttpStatus.METHOD_NOT_ALLOWED, e);
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleMethodNotAllowed(Exception e,
+			HttpServletResponse response) {
+		return respond(HttpStatus.METHOD_NOT_ALLOWED, e, response);
 	}
 
 	/**
 	 * Method to handle exceptions that should lead to an HTTP status response code
 	 * of 404 {@code (NOT FOUND)}.
 	 *
-	 * @param e the base {@link Exception}
+	 * @param e        the base {@link Exception}
+	 * @param response the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
 	 *         {@code NOT FOUND}
 	 */
 	@ExceptionHandler({ NoSuchElementException.class, EmptyResultDataAccessException.class })
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleNotFound(Exception e) {
-		return respond(HttpStatus.NOT_FOUND, e);
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleNotFound(Exception e,
+			HttpServletResponse response) {
+		return respond(HttpStatus.NOT_FOUND, e, response);
 	}
 
 	/**
 	 * Method to handle exceptions that should lead to an HTTP status response code
 	 * of 400 {@code (BAD REQUEST)}.
 	 *
-	 * @param e the base {@link Exception}
+	 * @param e        the base {@link Exception}
+	 * @param response the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
 	 *         {@code BAD REQUEST}
 	 */
 	@ExceptionHandler({ IllegalArgumentException.class, MissingServletRequestParameterException.class,
 			PropertyValueException.class, InvalidInputException.class, HttpMessageNotReadableException.class,
 			MethodArgumentTypeMismatchException.class })
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleBadRequest(Exception e) {
-		return respond(HttpStatus.BAD_REQUEST, e);
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleBadRequest(Exception e,
+			HttpServletResponse response) {
+		return respond(HttpStatus.BAD_REQUEST, e, response);
 	}
 
 	/**
@@ -155,15 +168,17 @@ public class GlobalControllerExceptionHandler {
 	 * unsupported media type's 415) keep it; anything else is a 500
 	 * {@code (INTERNAL SERVER ERROR)}.
 	 *
-	 * @param e the base {@link Exception}
+	 * @param e        the base {@link Exception}
+	 * @param response the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with the exception's own status, or
 	 *         {@code INTERNAL SERVER ERROR}
 	 */
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleUnexpected(Exception e) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleUnexpected(Exception e,
+			HttpServletResponse response) {
 		var status = e instanceof ErrorResponse errorResponse ? errorResponse.getStatusCode()
 				: HttpStatus.INTERNAL_SERVER_ERROR;
-		return respond(status, e);
+		return respond(status, e, response);
 	}
 
 	/**
@@ -177,31 +192,41 @@ public class GlobalControllerExceptionHandler {
 	 * are never logged. 429s are logged only at debug, so a flood of throttled
 	 * requests doesn't flood the log. Status headers that a Spring
 	 * {@link ErrorResponse} carries (such as {@code Allow} on a 405) are kept.
+	 * <p>
+	 * The failing handler may already have described its own body (a static file's
+	 * content type, length and year-long cache headers, say). The JSON envelope
+	 * can't be written under that content type and must never be cached, so the
+	 * buffer and those headers are reset first. When the response is already
+	 * committed, nothing more can be sent: the failure is logged and {@code null}
+	 * is returned, which Spring MVC treats as handled (#44).
 	 *
-	 * @param status the response {@link HttpStatusCode}
-	 * @param e      the failure, or {@code null} when there is none to log
+	 * @param status   the response {@link HttpStatusCode}
+	 * @param e        the failure, or {@code null} when there is none to log
+	 * @param response the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with a generic
 	 *         {@link ErrorResponseBodyRecord} in the {@link ResponseRecord}
-	 *         envelope
+	 *         envelope, or {@code null} when the response is already committed
 	 */
-	public static ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> respond(HttpStatusCode status, Throwable e) {
-		return respond(status, e, null);
+	public static ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> respond(HttpStatusCode status, Throwable e,
+			HttpServletResponse response) {
+		return respond(status, e, null, response);
 	}
 
 	/**
 	 * Builds the generic error response as
-	 * {@link #respond(HttpStatusCode, Throwable)} does, with a documented domain
-	 * errorType in place of the status name.
+	 * {@link #respond(HttpStatusCode, Throwable, HttpServletResponse)} does, with a
+	 * documented domain errorType in place of the status name.
 	 *
 	 * @param status    the response {@link HttpStatusCode}
 	 * @param e         the failure, or {@code null} when there is none to log
 	 * @param errorType the domain errorType, or {@code null} for the status name
+	 * @param response  the {@link HttpServletResponse}
 	 * @return a {@link ResponseEntity} with a generic
 	 *         {@link ErrorResponseBodyRecord} in the {@link ResponseRecord}
-	 *         envelope
+	 *         envelope, or {@code null} when the response is already committed
 	 */
 	private static ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> respond(HttpStatusCode status, Throwable e,
-			String errorType) {
+			String errorType, HttpServletResponse response) {
 		var correlationId = UUID.randomUUID().toString();
 		var type = e == null ? "an error dispatch" : e.getClass().getName();
 		if (status.is5xxServerError())
@@ -210,6 +235,17 @@ public class GlobalControllerExceptionHandler {
 			LOGGER.debug("[{}] {} from {}", correlationId, status.value(), type);
 		else
 			LOGGER.warn("[{}] {} from {}", correlationId, status.value(), type);
+
+		if (response.isCommitted()) {
+			LOGGER.warn("[{}] The response was already committed, so no error body was sent", correlationId);
+			return null;
+		}
+		response.resetBuffer();
+		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		response.setContentLengthLong(-1);
+		response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+		response.setHeader(HttpHeaders.ETAG, null);
+		response.setHeader(HttpHeaders.LAST_MODIFIED, null);
 
 		var headers = new HttpHeaders();
 		if (e instanceof ErrorResponse errorResponse)

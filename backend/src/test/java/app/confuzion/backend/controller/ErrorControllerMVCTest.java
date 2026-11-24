@@ -19,13 +19,21 @@
 package app.confuzion.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import app.confuzion.backend.aspect.GlobalControllerExceptionHandler;
 import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Unit tests for the {@link ErrorControllerMVC} class.
@@ -47,7 +55,7 @@ class ErrorControllerMVCTest {
 		var request = new MockHttpServletRequest();
 		request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 404);
 
-		var response = errorControllerMVC.handleError(request);
+		var response = errorControllerMVC.handleError(request, new MockHttpServletResponse());
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(response.getBody()).isNotNull();
@@ -65,11 +73,38 @@ class ErrorControllerMVCTest {
 		var request = new MockHttpServletRequest();
 		request.setAttribute(RequestDispatcher.ERROR_EXCEPTION, new IllegalStateException("valkey host 10.0.0.9"));
 
-		var response = errorControllerMVC.handleError(request);
+		var response = errorControllerMVC.handleError(request, new MockHttpServletResponse());
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().body().errorMessage()).isEqualTo("Internal Server Error");
 		assertThat(response.getBody().toString()).doesNotContain("valkey");
+	}
+
+	/**
+	 * Tests the path that failed in #44: a filter fails after a static file had set
+	 * its content type and cache headers, and the container forwards to
+	 * {@code /error} with those still on the response (Tomcat resets only the
+	 * buffer and length). The envelope must still be written, as JSON, and not be
+	 * cacheable.
+	 */
+	@Test
+	void testHandleErrorOverPresetStaticFileHeaders() throws Exception {
+		var mockMvc = MockMvcBuilders.standaloneSetup(errorControllerMVC).addFilter((request, response, chain) -> {
+			var httpResponse = (HttpServletResponse) response;
+			httpResponse.setContentType("application/octet-stream");
+			httpResponse.setHeader("Cache-Control", "max-age=31536000, public, immutable");
+			httpResponse.getOutputStream().write(new byte[] { 1, 2, 3 });
+			chain.doFilter(request, response);
+		}).build();
+
+		mockMvc.perform(get("/error").requestAttr(RequestDispatcher.ERROR_STATUS_CODE, 500)
+				.requestAttr(RequestDispatcher.ERROR_EXCEPTION, new IllegalStateException("valkey host 10.0.0.9")))
+				.andExpect(status().isInternalServerError())
+				.andExpect(content().contentTypeCompatibleWith("application/json"))
+				.andExpect(header().string("Cache-Control", "no-store"))
+				.andExpect(jsonPath("$.responseType").value("ERROR"))
+				.andExpect(jsonPath("$.body.errorType").value("INTERNAL_SERVER_ERROR"))
+				.andExpect(jsonPath("$.body.correlationId").isNotEmpty());
 	}
 }

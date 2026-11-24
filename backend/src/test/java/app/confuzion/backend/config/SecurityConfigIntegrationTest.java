@@ -30,9 +30,11 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
@@ -45,6 +47,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -114,6 +117,11 @@ class SecurityConfigIntegrationTest {
 	private static final DiscordStub DISCORD = new DiscordStub();
 
 	/**
+	 * The Valkey key prefix of a session hash (the default namespace).
+	 */
+	private static final String SESSION_KEY_PREFIX = "spring:session:sessions:";
+
+	/**
 	 * The {@link HttpClient}. It never follows redirects.
 	 */
 	private final HttpClient http = HttpClient.newHttpClient();
@@ -129,6 +137,12 @@ class SecurityConfigIntegrationTest {
 	 */
 	@Autowired
 	private RedisConnectionFactory redisConnectionFactory;
+
+	/**
+	 * The session repository, to stand in for an in-flight request.
+	 */
+	@Autowired
+	private RedisIndexedSessionRepository sessionRepository;
 
 	/**
 	 * Points the Discord provider at the stub.
@@ -381,6 +395,98 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
+	 * Tests that a session hash that lost its required fields is treated as no
+	 * session: the request is an ordinary 401, the damaged hash and its expiry key
+	 * are deleted, and the same client can sign in again (#44).
+	 */
+	@Test
+	void damagedSessionIsTreatedAsMissing() throws Exception {
+		var id = UUID.randomUUID().toString();
+		var operations = sessionRepository.getSessionRedisOperations();
+		operations.opsForHash().put(SESSION_KEY_PREFIX + id, "lastAccessedTime", Instant.now().toEpochMilli());
+		operations.opsForValue().set(SESSION_KEY_PREFIX + "expires:" + id, "", Duration.ofMinutes(5));
+
+		assertError(send("GET", "/api/me", cookieValue(id), null), 401, "UNAUTHORIZED");
+
+		assertThat(operations.hasKey(SESSION_KEY_PREFIX + id)).isFalse();
+		assertThat(operations.hasKey(SESSION_KEY_PREFIX + "expires:" + id)).isFalse();
+		DISCORD.reset("100000000000000080", "damaged", false);
+		var again = login(cookieValue(id));
+		assertThat(again.location()).isEqualTo("/onboarding");
+		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(200);
+	}
+
+	/**
+	 * Tests the race behind #44, step by step. A request with the pre-login session
+	 * loads it; meanwhile the sign-in callback rotates the session ID, renaming the
+	 * hash away; then the request saves its last-accessed time, and {@code HSET}
+	 * recreates the old key without {@code creationTime}. That old cookie must then
+	 * get a 401, not a 500, and the new session is unaffected.
+	 */
+	@Test
+	void signInRacingAnInFlightRequestLeavesNoBrokenSession() throws Exception {
+		DISCORD.reset("100000000000000090", "racer", false);
+		var start = send("GET", SecurityConfig.AUTHORIZATION_BASE_URI + "/discord", null, null);
+		var preLogin = cookie(start, "SESSION");
+		var state = query(URI.create(start.headers().firstValue("Location").orElseThrow()).getRawQuery()).get("state");
+		var inFlight = sessionRepository.findById(sessionId(preLogin));
+
+		var callback = send("GET", "/api/login/oauth2/code/discord?code=stub-code&state="
+				+ java.net.URLEncoder.encode(state, StandardCharsets.UTF_8), preLogin, null);
+		var session = cookie(callback, "SESSION");
+		assertThat(session).isNotNull().isNotEqualTo(preLogin);
+		inFlight.setLastAccessedTime(Instant.now());
+		sessionRepository.save(inFlight);
+		var operations = sessionRepository.getSessionRedisOperations();
+		var preLoginKey = SESSION_KEY_PREFIX + sessionId(preLogin);
+		assertThat(operations.opsForHash().keys(preLoginKey)).isNotEmpty().doesNotContain("creationTime");
+
+		assertError(send("GET", "/api/me", preLogin, null), 401, "UNAUTHORIZED");
+		assertThat(operations.hasKey(preLoginKey)).isFalse();
+		assertThat(operations.hasKey(SESSION_KEY_PREFIX + "expires:" + sessionId(preLogin))).isFalse();
+		assertThat(send("GET", "/api/me", session, null).statusCode()).isEqualTo(200);
+	}
+
+	/**
+	 * Tests that a request still in flight during sign-out can't bring the session
+	 * back. Sign-out marks the hash expired rather than deleting it, so the late
+	 * save leaves an expired session: a 401, and the client can sign in again.
+	 */
+	@Test
+	void signOutRacingAnInFlightRequestStaysSignedOut() throws Exception {
+		DISCORD.reset("100000000000000095", "late_saver", false);
+		var session = login().session();
+		var inFlight = sessionRepository.findById(sessionId(session));
+
+		assertThat(sendWithCsrf("POST", SecurityConfig.LOGOUT_URL, session, null).statusCode()).isEqualTo(204);
+		inFlight.setLastAccessedTime(Instant.now());
+		sessionRepository.save(inFlight);
+
+		assertError(send("GET", "/api/me", session, null), 401, "UNAUTHORIZED");
+		var again = login(session);
+		assertThat(again.location()).isEqualTo("/");
+		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(200);
+	}
+
+	/**
+	 * Tests that logging out everywhere skips and deletes a damaged session that is
+	 * still in the user's principal index, and still ends the healthy ones.
+	 */
+	@Test
+	void logoutEverywhereSkipsDamagedSession() throws Exception {
+		DISCORD.reset("100000000000000100", "half_broken", false);
+		var phone = login().session();
+		var laptop = sessionId(login().session());
+		var operations = sessionRepository.getSessionRedisOperations();
+		operations.opsForHash().delete(SESSION_KEY_PREFIX + laptop, "creationTime");
+
+		assertThat(sendWithCsrf("POST", "/api/auth/logout-everywhere", phone, null).statusCode()).isEqualTo(204);
+
+		assertThat(send("GET", "/api/me", phone, null).statusCode()).isEqualTo(401);
+		assertThat(operations.hasKey(SESSION_KEY_PREFIX + laptop)).isFalse();
+	}
+
+	/**
 	 * Tests that a bootstrap admin gets ADMIN only with Discord MFA on.
 	 */
 	@Test
@@ -398,7 +504,17 @@ class SecurityConfigIntegrationTest {
 	 * @return the {@link Login}
 	 */
 	private Login login() throws Exception {
-		var start = send("GET", SecurityConfig.AUTHORIZATION_BASE_URI + "/discord", null, null);
+		return login(null);
+	}
+
+	/**
+	 * Signs in through the stub from a client that already has a session cookie.
+	 *
+	 * @param existing the client's {@code SESSION} cookie value, or {@code null}
+	 * @return the {@link Login}
+	 */
+	private Login login(String existing) throws Exception {
+		var start = send("GET", SecurityConfig.AUTHORIZATION_BASE_URI + "/discord", existing, null);
 		assertThat(start.statusCode()).isEqualTo(302);
 		var authorizeUri = start.headers().firstValue("Location").orElseThrow();
 		var params = query(URI.create(authorizeUri).getRawQuery());
@@ -410,6 +526,27 @@ class SecurityConfigIntegrationTest {
 		var session = cookie(callback, "SESSION");
 		return new Login(authorizeUri, params, preLogin, session == null ? preLogin : session,
 				callback.headers().firstValue("Location").orElseThrow());
+	}
+
+	/**
+	 * Returns the session ID a {@code SESSION} cookie value carries (it is Base64
+	 * encoded).
+	 *
+	 * @param cookie the cookie value
+	 * @return the session ID
+	 */
+	private static String sessionId(String cookie) {
+		return new String(Base64.getDecoder().decode(cookie), StandardCharsets.UTF_8);
+	}
+
+	/**
+	 * Returns the {@code SESSION} cookie value for a session ID.
+	 *
+	 * @param id the session ID
+	 * @return the cookie value
+	 */
+	private static String cookieValue(String id) {
+		return Base64.getEncoder().encodeToString(id.getBytes(StandardCharsets.UTF_8));
 	}
 
 	/**
