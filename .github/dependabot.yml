@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /backend
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      gradle-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+      include: scope
+
+  # Enabled by the frontend-scaffold PR (M0), once frontend/package.json exists:
+  # - package-ecosystem: npm
+  #   directory: /frontend
+  #   schedule: { interval: weekly }
+  #   commit-message: { prefix: build, include: scope }

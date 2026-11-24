@@ -1,0 +1,26 @@
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  conventional-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title is a Conventional Commit
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|refactor|test|docs|chore|ci|build|perf)(\((auth|events|rsvp|social|notify|admin|web|infra|deps|deps-dev|docs|ci)\))?!?: [^ ].{2,}$'
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "OK: $TITLE"
+          else
+            echo "::error::PR title must be a Conventional Commit, e.g. 'feat(rsvp): add waitlist auto-promotion'."
+            echo "Types: feat fix refactor test docs chore ci build perf"
+            echo "Scopes (optional): auth events rsvp social notify admin web infra deps deps-dev docs ci"
+            echo "Got: $TITLE"
+            exit 1
+          fi
