@@ -155,8 +155,7 @@ class BlockControllerIntegrationTest {
 
 	/**
 	 * Tests that unblocking removes only the caller's own block and restores
-	 * nothing, not even an invite the blocker made before blocking, and is a 204
-	 * when there was no block. The blocked user's invites stay usable for others.
+	 * nothing, and is a 204 when there was no block.
 	 */
 	@Test
 	void unblockRestoresNothing() throws Exception {
@@ -164,8 +163,6 @@ class BlockControllerIntegrationTest {
 		var them = fixtures.user("them", null);
 		fixtures.friends(me, them);
 		var circle = fixtures.circle(me, them);
-		var shownToThem = fixtures.invite(me, "1 day", false);
-		var theirs = fixtures.invite(them, "1 day", false);
 		mockMvc.perform(put("/api/blocks/" + them).with(login(me)).with(csrf())).andExpect(status().isNoContent());
 		fixtures.block(them, me);
 
@@ -176,8 +173,36 @@ class BlockControllerIntegrationTest {
 		assertThat(blocked(them)).containsExactly(me.toString());
 		assertThat(fixtures.areFriends(me, them)).isFalse();
 		assertThat(fixtures.members(circle)).isEmpty();
-		assertThat(unused(shownToThem)).isFalse();
+	}
+
+	/**
+	 * Tests that a block voids no invite (D-011): the blocked user can't accept the
+	 * blocker's invites nor the other way round, and the refused attempt doesn't
+	 * use them up, while a third user can still accept the blocker's other invite.
+	 */
+	@Test
+	void blockKeepsOtherInvitesUsable() throws Exception {
+		var me = fixtures.user("me", null);
+		var them = fixtures.user("them", null);
+		var third = fixtures.user("third", null);
+		var mine = fixtures.invite(me, "1 day", false);
+		var myOther = fixtures.invite(me, "1 day", false);
+		var theirs = fixtures.invite(them, "1 day", false);
+
+		mockMvc.perform(put("/api/blocks/" + them).with(login(me)).with(csrf())).andExpect(status().isNoContent());
+
+		mockMvc.perform(post("/api/friends/invites/" + mine + "/accept").with(login(them)).with(csrf()))
+				.andExpect(status().isNotFound());
+		mockMvc.perform(post("/api/friends/invites/" + theirs + "/accept").with(login(me)).with(csrf()))
+				.andExpect(status().isNotFound());
+		assertThat(unused(mine)).isTrue();
+		assertThat(unused(myOther)).isTrue();
 		assertThat(unused(theirs)).isTrue();
+		mockMvc.perform(get("/api/friends/invites/" + myOther).with(login(third))).andExpect(status().isOk());
+		mockMvc.perform(post("/api/friends/invites/" + myOther + "/accept").with(login(third)).with(csrf()))
+				.andExpect(status().isOk());
+		assertThat(fixtures.areFriends(me, third)).isTrue();
+		assertThat(fixtures.areFriends(me, them)).isFalse();
 	}
 
 	/**
