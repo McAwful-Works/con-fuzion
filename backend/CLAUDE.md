@@ -29,8 +29,10 @@ util/         stateless helpers
 - Every service method that touches an event, RSVP, circle, report, or user checks authorization explicitly.
   Return 404 (not 403) for resources the caller isn't allowed to know exist.
 - Validate every request DTO with Bean Validation.
-- The client IP comes from `request.getRemoteAddr()`, which `forward-headers-strategy=framework` resolves behind
-  the ALB. Don't read `X-Forwarded-For` directly, because clients can spoof it.
+- The client IP comes from `request.getRemoteAddr()`, which `forward-headers-strategy=native` resolves behind
+  the ALB. Tomcat's RemoteIpValve reads `X-Forwarded-For` right to left, past trusted proxies only. Don't switch to
+  `framework`: Spring's `ForwardedHeaderFilter` takes the left-most value, which the client controls. Don't read
+  `X-Forwarded-For` directly either, because clients can spoof it.
 - Logging: metadata only (method, status, latency, user ID). Never log bodies, cookies, tokens, or emails.
 
 ## Database
