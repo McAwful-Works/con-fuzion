@@ -14,6 +14,9 @@
     "description" : "Blocked users",
     "name" : "blocks"
   }, {
+    "description" : "Meetups, who they're for, and the feed",
+    "name" : "events"
+  }, {
     "description" : "Sessions",
     "name" : "auth"
   }, {
@@ -1035,6 +1038,508 @@
         "tags" : [ "circles" ]
       }
     },
+    "/api/events" : {
+      "get" : {
+        "description" : "Upcoming means the end (or, without one, the start plus 3 hours) is still in the future. feed: published events visible to the user, their own included. hosting: the user's own events, cancelled ones included. Sorted by start time, then ID.",
+        "operationId" : "getEvents",
+        "parameters" : [ {
+          "description" : "feed or hosting",
+          "in" : "query",
+          "name" : "scope",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "feed",
+            "enum" : [ "feed", "hosting" ],
+            "pattern" : "^(feed|hosting)$"
+          }
+        }, {
+          "description" : "The previous page's nextCursor. Opaque; a cursor that wasn't issued for this scope is a 400.",
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "pattern" : "^[A-Za-z0-9_-]+$"
+          }
+        }, {
+          "description" : "Events per page, 1 to 50",
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20,
+            "maximum" : 50,
+            "minimum" : 1
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordEventPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "List upcoming events",
+        "tags" : [ "events" ]
+      },
+      "post" : {
+        "description" : "Publishes it at once, hosted by the signed-in user. A host can create at most 20 events in any 24 hours.",
+        "operationId" : "createEvent",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EventRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordEventResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "An audience entry names a server where the host isn't discoverable, a circle that isn't the host's, or a person the host can't pick (D-011). Nothing is saved."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The host already created 20 events in the last 24 hours (errorType EVENT_LIMIT), or is rate limited (errorType TOO_MANY_REQUESTS)."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Create an event",
+        "tags" : [ "events" ]
+      }
+    },
+    "/api/events/{eventId}" : {
+      "delete" : {
+        "description" : "Sets its status to CANCELLED and keeps it; it drops out of everyone's feed. Cancelling a cancelled event is also a 204. 404 unless the user is the host.",
+        "operationId" : "cancelEvent",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Cancel an event the user hosts",
+        "tags" : [ "events" ]
+      },
+      "get" : {
+        "description" : "404 unless the user can see it (D-012). The host also sees their own cancelled events.",
+        "operationId" : "getEvent",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordEventResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Get an event",
+        "tags" : [ "events" ]
+      },
+      "patch" : {
+        "description" : "Send the whole event, as for create: every editable field is replaced, and the audience too. Entries already on the event are kept without a re-check, so sending back the audience as received never fails; only new entries are checked. 404 unless the user is the host.",
+        "operationId" : "updateEvent",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EventRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordEventResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation, or it moves the start into the past."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The user isn't the host, or a newly added audience entry can't be used. An audience entry names a server where the host isn't discoverable, a circle that isn't the host's, or a person the host can't pick (D-011). Nothing is saved."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The event is cancelled, so it can't be edited."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Edit an event the user hosts",
+        "tags" : [ "events" ]
+      }
+    },
     "/api/friends" : {
       "get" : {
         "description" : "Sorted by display name.",
@@ -1946,6 +2451,57 @@
   },
   "components" : {
     "schemas" : {
+      "AudienceEntryRequest" : {
+        "type" : "object",
+        "properties" : {
+          "circleId" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid"
+          },
+          "guildId" : {
+            "type" : [ "string", "null" ],
+            "example" : "81384788765712384",
+            "pattern" : "^[0-9]{17,19}$"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "GUILD", "FRIENDS", "CIRCLE", "USER" ]
+          },
+          "userId" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid"
+          }
+        },
+        "required" : [ "type" ]
+      },
+      "AudienceEntryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "circleId" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid"
+          },
+          "guildId" : {
+            "type" : [ "string", "null" ],
+            "example" : "81384788765712384",
+            "pattern" : "^[0-9]{17,19}$"
+          },
+          "label" : {
+            "type" : [ "string", "null" ],
+            "description" : "The server, circle or person name. Null for FRIENDS, and for a server where the host is no longer discoverable, which then reaches no one.",
+            "example" : "Example Con Community"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "GUILD", "FRIENDS", "CIRCLE", "USER" ]
+          },
+          "userId" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid"
+          }
+        },
+        "required" : [ "circleId", "guildId", "label", "type", "userId" ]
+      },
       "CircleListResponse" : {
         "type" : "object",
         "properties" : {
@@ -2009,6 +2565,163 @@
           }
         },
         "required" : [ "correlationId", "errorMessage", "errorType" ]
+      },
+      "EventPageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "events" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/EventResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "events", "nextCursor" ]
+      },
+      "EventRequest" : {
+        "type" : "object",
+        "properties" : {
+          "audience" : {
+            "type" : "array",
+            "description" : "1 to 50 entries, each at most once.",
+            "items" : {
+              "$ref" : "#/components/schemas/AudienceEntryRequest"
+            },
+            "maxItems" : 50,
+            "minItems" : 1
+          },
+          "capacity" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "maximum" : 10000,
+            "minimum" : 1
+          },
+          "description" : {
+            "type" : [ "string", "null" ],
+            "maxLength" : 2000,
+            "minLength" : 0
+          },
+          "endsAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "After startsAt and at most 7 days later."
+          },
+          "location" : {
+            "type" : "string",
+            "example" : "Hall B fountain",
+            "maxLength" : 200,
+            "minLength" : 1,
+            "pattern" : "^\\S(.*\\S)?$"
+          },
+          "locationVisibility" : {
+            "type" : "string",
+            "enum" : [ "VIEWERS", "CONFIRMED" ]
+          },
+          "signupOpensAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "Before startsAt and at most a year earlier."
+          },
+          "startsAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "In the future when creating, and within a year of now either way. An update may keep a start that has passed, but can't move the start into the past."
+          },
+          "tag" : {
+            "type" : [ "string", "null" ],
+            "example" : "Photoshoot",
+            "maxLength" : 30,
+            "minLength" : 1,
+            "pattern" : "^\\S(.*\\S)?$"
+          },
+          "timeZone" : {
+            "type" : "string",
+            "example" : "America/Chicago",
+            "maxLength" : 64
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Cosplay photo walk",
+            "maxLength" : 100,
+            "minLength" : 1,
+            "pattern" : "^\\S(.*\\S)?$"
+          }
+        },
+        "required" : [ "audience", "location", "locationVisibility", "startsAt", "timeZone", "title" ]
+      },
+      "EventResponse" : {
+        "type" : "object",
+        "properties" : {
+          "audience" : {
+            "type" : [ "array", "null" ],
+            "description" : "Only the host gets this; it is null for everyone else.",
+            "items" : {
+              "$ref" : "#/components/schemas/AudienceEntryResponse"
+            }
+          },
+          "capacity" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "maximum" : 10000,
+            "minimum" : 1
+          },
+          "description" : {
+            "type" : [ "string", "null" ]
+          },
+          "endsAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          },
+          "host" : {
+            "$ref" : "#/components/schemas/PersonResponse"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "isHost" : {
+            "type" : "boolean"
+          },
+          "location" : {
+            "type" : [ "string", "null" ],
+            "example" : "Hall B fountain"
+          },
+          "locationHidden" : {
+            "type" : "boolean"
+          },
+          "locationVisibility" : {
+            "type" : "string",
+            "enum" : [ "VIEWERS", "CONFIRMED" ]
+          },
+          "signupOpensAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          },
+          "startsAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PUBLISHED", "CANCELLED" ]
+          },
+          "tag" : {
+            "type" : [ "string", "null" ],
+            "example" : "Photoshoot"
+          },
+          "timeZone" : {
+            "type" : "string",
+            "example" : "America/Chicago"
+          },
+          "title" : {
+            "type" : "string",
+            "example" : "Cosplay photo walk"
+          }
+        },
+        "required" : [ "audience", "capacity", "description", "endsAt", "host", "id", "isHost", "location", "locationHidden", "locationVisibility", "signupOpensAt", "startsAt", "status", "tag", "timeZone", "title" ]
       },
       "GuildListResponse" : {
         "type" : "object",
@@ -2176,7 +2889,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2189,7 +2902,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2202,7 +2915,33 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordEventPageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/EventPageResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordEventResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/EventResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2215,7 +2954,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2228,7 +2967,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2241,7 +2980,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2254,7 +2993,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2267,7 +3006,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2280,7 +3019,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2293,7 +3032,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]

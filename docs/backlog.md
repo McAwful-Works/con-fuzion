@@ -23,3 +23,4 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | Tighten `Permissions-Policy` to `camera=()` | D-011 dropped the in-app QR scanner (invite links open in the phone camera app), so the app no longer needs the camera. Touches `SecurityConfig`, `docs/security.md` and plan B11 |
 | List and revoke friend invites | D-011 has no endpoint for them. Lets a "My QR" screen show whether its code was used, and lets a user clear the 20-invite cap early |
 | Purge used and expired `friend_invite` rows | They're never deleted, so who-invited-whom is kept forever. A `@Scheduled` delete after a grace period |
+| Tighten `GuildResponse.SNOWFLAKE_PATTERN` to `^[1-9][0-9]{16,18}$` | It accepts leading zeros (two strings for one ID, so the uniqueness check misses a duplicate) and 19-digit values above the `bigint` range. Shared with M1's `/api/me/guilds` |
