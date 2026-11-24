@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+/*
+ * The only place brand colors, type, and radii are defined. The palette below is a neutral
+ * placeholder; the hired artist's palette replaces these values and nothing else changes.
+ */
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-surface: #fafafa;
+  --color-surface-raised: #ffffff;
+  --color-surface-inverse: #18181b;
+  --color-ink: #18181b;
+  --color-ink-muted: #52525b;
+  --color-ink-inverse: #fafafa;
+  --color-line: #e4e4e7;
+  --color-accent: #4f46e5;
+  --color-accent-ink: #ffffff;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+}
+
+body {
+  @apply bg-surface text-ink font-sans antialiased;
+}
