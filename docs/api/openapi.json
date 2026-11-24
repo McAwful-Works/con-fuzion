@@ -1050,6 +1050,7 @@
           "schema" : {
             "type" : "string",
             "default" : "feed",
+            "enum" : [ "feed", "hosting" ],
             "pattern" : "^(feed|hosting)$"
           }
         }, {
@@ -1421,7 +1422,7 @@
         "tags" : [ "events" ]
       },
       "patch" : {
-        "description" : "Send the whole event, as for create: every editable field is replaced, and the audience too. 404 unless the user is the host.",
+        "description" : "Send the whole event, as for create: every editable field is replaced, and the audience too. Entries already on the event are kept without a re-check, so sending back the audience as received never fails; only new entries are checked. 404 unless the user is the host.",
         "operationId" : "updateEvent",
         "parameters" : [ {
           "description" : "The event's public ID",
@@ -1492,7 +1493,7 @@
                 }
               }
             },
-            "description" : "The user isn't the host, or an audience entry can't be used. An audience entry names a server where the host isn't discoverable, a circle that isn't the host's, or a person the host can't pick (D-011). Nothing is saved."
+            "description" : "The user isn't the host, or a newly added audience entry can't be used. An audience entry names a server where the host isn't discoverable, a circle that isn't the host's, or a person the host can't pick (D-011). Nothing is saved."
           },
           "409" : {
             "content" : {
@@ -2487,6 +2488,7 @@
           },
           "label" : {
             "type" : [ "string", "null" ],
+            "description" : "The server, circle or person name. Null for FRIENDS, and for a server where the host is no longer discoverable, which then reaches no one.",
             "example" : "Example Con Community"
           },
           "type" : {
@@ -2584,7 +2586,7 @@
         "properties" : {
           "audience" : {
             "type" : "array",
-            "description" : "1 to 50 entries, each at most once. FRIENDS may appear once.",
+            "description" : "1 to 50 entries, each at most once.",
             "items" : {
               "$ref" : "#/components/schemas/AudienceEntryRequest"
             },
@@ -2604,7 +2606,8 @@
           },
           "endsAt" : {
             "type" : [ "string", "null" ],
-            "format" : "date-time"
+            "format" : "date-time",
+            "description" : "After startsAt and at most 7 days later."
           },
           "location" : {
             "type" : "string",
@@ -2619,12 +2622,13 @@
           },
           "signupOpensAt" : {
             "type" : [ "string", "null" ],
-            "format" : "date-time"
+            "format" : "date-time",
+            "description" : "Before startsAt and at most a year earlier."
           },
           "startsAt" : {
             "type" : "string",
             "format" : "date-time",
-            "description" : "In the future when creating. An update may keep a start that has passed, but can't move the start into the past."
+            "description" : "In the future when creating, and within a year of now either way. An update may keep a start that has passed, but can't move the start into the past."
           },
           "tag" : {
             "type" : [ "string", "null" ],

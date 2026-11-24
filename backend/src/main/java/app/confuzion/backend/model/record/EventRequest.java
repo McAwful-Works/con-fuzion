@@ -18,6 +18,7 @@
  */
 package app.confuzion.backend.model.record;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -44,12 +45,15 @@ import jakarta.validation.constraints.Size;
  * fields other than the description have no leading or trailing whitespace.
  *
  * @param title              the title
- * @param description        the description as plain text, or {@code null}
+ * @param description        the description as plain text, or {@code null}.
+ *                           Empty or whitespace-only text is stored as
+ *                           {@code null}
  * @param location           where the event is
  * @param tag                a short label, or {@code null}
- * @param startsAt           when the event starts; in the future on create
- * @param endsAt             when it ends, after {@code startsAt}, or
- *                           {@code null}
+ * @param startsAt           when the event starts: in the future on create, and
+ *                           within a year of now either way
+ * @param endsAt             when it ends, after {@code startsAt} and at most 7
+ *                           days later, or {@code null}
  * @param timeZone           the IANA time zone to show times in
  * @param capacity           the number of spots, 1 to 10,000, or {@code null}
  *                           for unlimited
@@ -64,18 +68,29 @@ public record EventRequest(
 		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true) @Size(max = 2000) String description,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "Hall B fountain") @NotNull @Size(min = 1, max = 200) @Pattern(regexp = CircleRequest.TRIMMED) String location,
 		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, example = "Photoshoot") @Size(min = 1, max = 30) @Pattern(regexp = CircleRequest.TRIMMED) String tag,
-		@Schema(requiredMode = RequiredMode.REQUIRED, description = "In the future when creating. An update may keep a start that has passed, but can't move the start into the past.") @NotNull @Future(groups = EventRequest.Create.class) Instant startsAt,
-		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true) Instant endsAt,
+		@Schema(requiredMode = RequiredMode.REQUIRED, description = "In the future when creating, and within a year of now either way. An update may keep a start that has passed, but can't move the start into the past.") @NotNull @Future(groups = EventRequest.Create.class) Instant startsAt,
+		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "After startsAt and at most 7 days later.") Instant endsAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "America/Chicago", maxLength = IanaTimeZone.MAX_LENGTH) @NotNull @IanaTimeZone String timeZone,
 		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true) @Min(1) @Max(10000) Integer capacity,
-		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true) Instant signupOpensAt,
+		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "Before startsAt and at most a year earlier.") Instant signupOpensAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED) @NotNull LocationVisibility locationVisibility,
-		@Schema(requiredMode = RequiredMode.REQUIRED, description = "1 to 50 entries, each at most once. FRIENDS may appear once.") @NotNull @Size(min = 1, max = EventRequest.MAX_AUDIENCE) List<@NotNull @Valid AudienceEntry> audience) {
+		@Schema(requiredMode = RequiredMode.REQUIRED, description = "1 to 50 entries, each at most once.") @NotNull @Size(min = 1, max = EventRequest.MAX_AUDIENCE) List<@NotNull @Valid AudienceEntry> audience) {
 
 	/**
 	 * The most audience entries on one event.
 	 */
 	public static final int MAX_AUDIENCE = 50;
+
+	/**
+	 * The longest an event may last.
+	 */
+	public static final Duration MAX_LENGTH = Duration.ofDays(7);
+
+	/**
+	 * How far from now an event may start, and how long before its start sign-up
+	 * may open.
+	 */
+	public static final Duration MAX_HORIZON = Duration.ofDays(365);
 
 	/**
 	 * The validation group for rules that apply only when creating an event.
@@ -86,27 +101,46 @@ public record EventRequest(
 	}
 
 	/**
-	 * Returns whether the end, if any, is after the start.
+	 * Returns whether the end, if any, is after the start and at most
+	 * {@link #MAX_LENGTH} later.
 	 *
 	 * @return {@code true} when the times are in order or not given
 	 */
 	@JsonIgnore
 	@Schema(hidden = true)
-	@AssertTrue(message = "endsAt must be after startsAt")
+	@AssertTrue(message = "endsAt must be after startsAt, and at most 7 days later")
 	public boolean isEndAfterStart() {
-		return endsAt == null || startsAt == null || endsAt.isAfter(startsAt);
+		return endsAt == null || startsAt == null
+				|| endsAt.isAfter(startsAt) && !endsAt.isAfter(startsAt.plus(MAX_LENGTH));
 	}
 
 	/**
-	 * Returns whether sign-up, if scheduled, opens before the start.
+	 * Returns whether sign-up, if scheduled, opens before the start and at most
+	 * {@link #MAX_HORIZON} earlier.
 	 *
 	 * @return {@code true} when the times are in order or not given
 	 */
 	@JsonIgnore
 	@Schema(hidden = true)
-	@AssertTrue(message = "signupOpensAt must be before startsAt")
+	@AssertTrue(message = "signupOpensAt must be before startsAt, and at most a year earlier")
 	public boolean isSignupBeforeStart() {
-		return signupOpensAt == null || startsAt == null || signupOpensAt.isBefore(startsAt);
+		return signupOpensAt == null || startsAt == null
+				|| signupOpensAt.isBefore(startsAt) && !signupOpensAt.isBefore(startsAt.minus(MAX_HORIZON));
+	}
+
+	/**
+	 * Returns whether the start is within {@link #MAX_HORIZON} of now, either way.
+	 * This also keeps every time inside the database's range.
+	 *
+	 * @return {@code true} when the start is in range or not given
+	 */
+	@JsonIgnore
+	@Schema(hidden = true)
+	@AssertTrue(message = "startsAt must be within a year of now")
+	public boolean isStartWithinHorizon() {
+		var now = Instant.now();
+		return startsAt == null
+				|| !startsAt.isBefore(now.minus(MAX_HORIZON)) && !startsAt.isAfter(now.plus(MAX_HORIZON));
 	}
 
 	/**

@@ -145,7 +145,7 @@ class OpenApiConfigIntegrationTest {
 		assertThat(responses("/api/events/{eventId}", "patch")).containsKeys("200", "400", "403", "404", "409");
 		assertThat(responses("/api/events", "get")).containsKey("400").doesNotContainKey("403");
 		assertThat(document.<String>read("$.paths['/api/events'].post.responses['429'].description"))
-				.contains("EVENT_LIMIT");
+				.contains(LimitExceededException.Limit.EVENT_LIMIT.name());
 	}
 
 	/**
@@ -166,6 +166,9 @@ class OpenApiConfigIntegrationTest {
 				.containsOnlyKeys("type", "guildId", "circleId", "userId", "label");
 		assertThat(document.<Integer>read("$.components.schemas.EventRequest.properties.audience.maxItems"))
 				.isEqualTo(50);
+		assertThat(document
+				.<List<String>>read("$.paths['/api/events'].get.parameters[?(@.name == 'scope')].schema.enum[*]"))
+				.containsExactly("feed", "hosting");
 	}
 
 	/**

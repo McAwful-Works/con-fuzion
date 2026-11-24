@@ -40,6 +40,7 @@ import app.confuzion.backend.model.record.EventResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -103,7 +104,8 @@ public class EventController {
 			+ "3 hours) is still in the future. feed: published events visible to the user, their own included. "
 			+ "hosting: the user's own events, cancelled ones included. Sorted by start time, then ID.")
 	public ResponseRecord<EventPageResponse> getEvents(
-			@Parameter(description = "feed or hosting") @RequestParam(defaultValue = "feed") @Pattern(regexp = "^(feed|hosting)$") String scope,
+			@Parameter(description = "feed or hosting", schema = @Schema(type = "string", allowableValues = { "feed",
+					"hosting" }, defaultValue = "feed")) @RequestParam(defaultValue = "feed") @Pattern(regexp = "^(feed|hosting)$") String scope,
 			@Parameter(description = "The previous page's nextCursor. Opaque; a cursor that wasn't issued for this scope is a 400.") @RequestParam(required = false) @Size(max = 200) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String cursor,
 			@Parameter(description = "Events per page, 1 to 50") @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
 		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
@@ -132,13 +134,15 @@ public class EventController {
 	 */
 	@PatchMapping("/{eventId}")
 	@Operation(summary = "Edit an event the user hosts", description = "Send the whole event, as for create: every "
-			+ "editable field is replaced, and the audience too. 404 unless the user is the host.")
+			+ "editable field is replaced, and the audience too. Entries already on the event are kept without a "
+			+ "re-check, so sending back the audience as received never fails; only new entries are checked. 404 "
+			+ "unless the user is the host.")
 	// Declaring the 409 drops springdoc's inferred 200, so the 200 is declared too.
 	@ApiResponse(responseCode = "200", description = "OK")
 	@ApiResponse(responseCode = "400", description = "The request failed validation, or it moves the start into the "
 			+ "past.")
-	@ApiResponse(responseCode = "404", description = "The user isn't the host, or an audience entry can't be used. "
-			+ UNUSABLE_AUDIENCE)
+	@ApiResponse(responseCode = "404", description = "The user isn't the host, or a newly added audience entry "
+			+ "can't be used. " + UNUSABLE_AUDIENCE)
 	@ApiResponse(responseCode = "409", description = "The event is cancelled, so it can't be edited.")
 	public ResponseRecord<EventResponse> updateEvent(
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId,

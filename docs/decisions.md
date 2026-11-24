@@ -147,42 +147,56 @@ Context · Decision · Consequences · Trigger to revisit
 ## D-012 Event visibility, the feed and the event cap (2026-11-24) — Accepted
 - **Context:** M2 adds events with audiences made of servers, friends, circles and individuals (#35). Plan B3 gives the
   visibility rule; this pins it down for the contract and for #37's single visibility query.
-- **Visibility.** The host always sees their own events, cancelled ones included. Anyone else sees an event only when
-  all of these hold:
-  - it is `PUBLISHED`;
-  - neither of them has blocked the other (D-011);
-  - one of its audience entries matches the viewer:
-    - `USER`: the viewer;
-    - `FRIENDS`: the viewer is the host's friend;
-    - `CIRCLE`: the viewer is in that circle (always one of the host's);
-    - `GUILD`: **both** the viewer and the host are discoverable in that server **now**. Turning off
-      discoverability, or leaving the server, stops a server from reaching or exposing anyone.
+- **Decision (from plan B3 and the issue):**
+  - **Visibility.** The host always sees their own events. Anyone else sees an event only when all of these hold:
+    - it is `PUBLISHED`;
+    - neither of them has blocked the other (D-011);
+    - one of its audience entries matches the viewer:
+      - `USER`: the viewer;
+      - `FRIENDS`: the viewer is the host's friend;
+      - `CIRCLE`: the viewer is in that circle (always one of the host's);
+      - `GUILD`: the viewer is discoverable in that server.
 
-  Every endpoint uses this one rule. An event the viewer can't see is a 404, and changing or cancelling one the
-  viewer doesn't host is a 404 too.
-- **Audience entries:**
-  - `event_audience` holds typed references (`guild_id`, `circle_id` or `user_id`, with a CHECK that the type
-    names exactly one, or none for `FRIENDS`). This replaces plan B3's free-text `ref_id`, so every reference has a
-    foreign key or a snowflake.
-  - An event has 1 to 50 distinct entries. A host may name only a server where they are discoverable, one of their own
-    circles, or a person they can pick (D-011); anything else is a 404 and nothing is saved.
-  - Deleting a circle or a user removes their entries. An event left with no entries is visible only to its host.
-- **Who sees what:**
-  - Only the host gets `audience`; everyone else gets `null`.
-  - With `locationVisibility: CONFIRMED`, everyone but the host gets `location: null` and `locationHidden: true`,
-    until M3 adds confirmed attendees.
-- **The feed** (`GET /api/events?scope=feed`): published events visible to the viewer, their own included, that are
-  still upcoming. Upcoming means `coalesce(ends_at, starts_at + 3 hours) > now()`. It is sorted by `starts_at`, then
-  ID, and paged with an opaque cursor (`limit` 1 to 50, default 20). `scope=hosting` lists the viewer's own upcoming
-  events the same way, cancelled ones included. A cursor is valid only for the scope that issued it.
-- **Edits and cancelling:**
-  - `PATCH` takes the whole event, as create does, and replaces every editable field and the audience.
-  - A start that has passed may be kept, but a start can't be moved into the past.
-  - A cancelled event can't be edited (409).
-  - `DELETE` cancels: the row stays with `status = CANCELLED`, and cancelling twice is still a 204.
-- **The cap:** a host can create at most **20 events in any 24 hours** (counted on `created_at`). One more is a 429
-  with errorType `EVENT_LIMIT`, a domain errorType as D-011 allows.
-- **Not in M2:** RSVP and attendee views (M3), notifications (M4), and moderation's hidden flag (M5). Account
-  deletion has to cancel a host's events first, because `event.host_id` doesn't cascade.
+    Every endpoint uses this one rule, and an event the viewer can't see is a 404.
+  - **Typed audience entries.** `event_audience` holds typed references (`guild_id`, `circle_id` or `user_id`, with
+    a CHECK that the type names exactly one, or none for `FRIENDS`). This replaces plan B3's free-text `ref_id`, so
+    every reference has a foreign key or a snowflake. An event has 1 to 50 distinct entries. A host may target only
+    servers they're in, their own circles, and people they can pick (D-011).
+  - **Who sees what.** Only the host gets `audience`; everyone else gets `null`. With
+    `locationVisibility: CONFIRMED`, everyone but the host gets `location: null` and `locationHidden: true`, until M3
+    adds confirmed attendees.
+  - **The feed** (`GET /api/events?scope=feed`) lists published events visible to the viewer, their own included, that
+    are still upcoming. Upcoming means `coalesce(ends_at, starts_at + 3 hours) > now()`. It is sorted by
+    `starts_at`, then ID, and paged with an opaque cursor (`limit` 1 to 50, default 20).
+  - **Cancelling** (`DELETE`) keeps the row with `status = CANCELLED`.
+  - **The cap:** a host can create at most **20 events a day**. One more is a 429 with errorType `EVENT_LIMIT`, a
+    domain errorType as D-011 allows.
+- **Rules this contract adds (for the owner to confirm):**
+  - **A `GUILD` entry needs the host to be discoverable there too**, now, not just when the event was made. Turning
+    off discoverability, or leaving the server, stops that server from reaching anyone or exposing the host. The host
+    can only add a server where they're discoverable, and while they aren't, that entry's `label` is `null`.
+  - **"A day" means any rolling 24 hours**, counted on `created_at`, with cancelled events included.
+  - **Changing or cancelling an event the caller doesn't host is a 404**, even when they can see it.
+  - **`PATCH` is a full replace:** it takes the whole event, as create does, including the audience. Entries already
+    on the event are kept without a re-check (as D-011 does for circles), so sending back the audience the host
+    received never fails. Only newly added entries are checked, and one the host can't use is a 404, with nothing
+    saved. A start that has passed may be kept, but a start can't be moved into the past.
+  - **Cancelled events are visible only to the host**, can't be edited (409), and cancelling twice is still a 204.
+    M3 revisits this so confirmed attendees, and M4's "event cancelled" notification, can still open the event.
+  - **`scope=hosting`** lists the caller's own upcoming events the same way as the feed, cancelled ones included. A
+    cursor works only with the scope that issued it.
+  - **Time bounds:** an event lasts at most 7 days (`endsAt <= startsAt + 7 days`), starts within a year of now
+    either way, and opens sign-up at most a year before it starts. These keep a decade-long event from sitting at
+    the top of every feed, and let the feed query bound `starts_at` from below.
+  - **Blocking** also removes each person's `USER` entries from the other's events, as it does for circles (D-011).
+    Deleting a circle or a user removes their entries. An event left with no entries is visible only to its host.
+  - **An empty or whitespace-only description** is stored as `null`.
+- **For the implementation (#37):**
+  - Throw `LimitExceededException(Limit.EVENT_LIMIT)` for the cap, and count under a lock on the host (for example
+    `SELECT … FROM app_user WHERE id = ? FOR UPDATE`), because count-then-insert races.
+  - Bound the feed query with `starts_at > now() - interval '7 days'`, so it can use `event_starts_at_idx`.
+  - **Account deletion** (not in M2) must cancel the host's events (M4 notifies attendees) and then delete them,
+    because `event.host_id` doesn't cascade and a cancelled row still references the host.
+- **Not in M2:** RSVP and attendee views (M3), notifications (M4), and moderation's hidden flag (M5).
 - **Revisit:** if the visibility query misses its latency target in the M7 load test, or if hosts ask for audiences
   that don't need the host to be discoverable.

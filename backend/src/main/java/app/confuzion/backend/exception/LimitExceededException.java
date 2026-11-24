@@ -66,6 +66,11 @@ public class LimitExceededException extends RuntimeException {
 		/**
 		 * At most 20 active friend invites per user (D-011).
 		 */
-		INVITE_LIMIT
+		INVITE_LIMIT,
+
+		/**
+		 * At most 20 events created per host in any 24 hours (D-012).
+		 */
+		EVENT_LIMIT
 	}
 }

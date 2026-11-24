@@ -3,8 +3,8 @@
 CREATE TABLE event (
 	id                     bigint        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	public_id              uuid          NOT NULL DEFAULT gen_random_uuid(),
-	-- No cascade: account deletion has to cancel a user's hosted events first (docs/security.md), so a bare user
-	-- delete fails instead of silently dropping other people's plans.
+	-- No cascade: account deletion has to cancel the host's events (notifying attendees) and then delete them
+	-- (D-012), so a bare user delete fails instead of silently dropping other people's plans.
 	host_id                uuid          NOT NULL REFERENCES app_user (id),
 	title                  varchar(100)  NOT NULL,
 	description            varchar(2000),

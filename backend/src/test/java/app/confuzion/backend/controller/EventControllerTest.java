@@ -83,8 +83,8 @@ class EventControllerTest {
 	 */
 	static Stream<RequestBuilder> operations() {
 		var everyField = Map.<String, Object>of("description", "Bring a camera.\nMeet by the fountain.", "tag",
-				"Photoshoot", "endsAt", STARTS_AT.plus(2, ChronoUnit.HOURS).toString(), "capacity", 10000,
-				"signupOpensAt", STARTS_AT.minus(1, ChronoUnit.DAYS).toString(), "audience", allAudienceTypes());
+				"Photoshoot", "endsAt", STARTS_AT.plus(EventRequest.MAX_LENGTH).toString(), "capacity", 10000,
+				"signupOpensAt", STARTS_AT.minus(EventRequest.MAX_HORIZON).toString(), "audience", allAudienceTypes());
 		return Stream.of(json(post("/api/events"), body(Map.of())), json(post("/api/events"), body(everyField)),
 				json(post("/api/events"), body(Map.of("audience", audience(EventRequest.MAX_AUDIENCE)))),
 				get("/api/events"), get("/api/events").param("scope", "hosting").param("limit", "50"),
@@ -120,6 +120,11 @@ class EventControllerTest {
 				Arguments.of("tag", "a".repeat(31)), Arguments.of("startsAt", null),
 				Arguments.of("startsAt", "next week"), Arguments.of("endsAt", STARTS_AT.toString()),
 				Arguments.of("endsAt", STARTS_AT.minus(1, ChronoUnit.MINUTES).toString()),
+				Arguments.of("endsAt", STARTS_AT.plus(EventRequest.MAX_LENGTH).plusSeconds(1).toString()),
+				Arguments.of("startsAt",
+						Instant.now().plus(EventRequest.MAX_HORIZON).plus(1, ChronoUnit.DAYS).toString()),
+				Arguments.of("startsAt", "+1000000000-01-01T00:00:00Z"),
+				Arguments.of("signupOpensAt", STARTS_AT.minus(EventRequest.MAX_HORIZON).minusSeconds(1).toString()),
 				Arguments.of("signupOpensAt", STARTS_AT.toString()), Arguments.of("timeZone", null),
 				Arguments.of("timeZone", "Mars/Olympus_Mons"), Arguments.of("capacity", 0),
 				Arguments.of("capacity", 10001), Arguments.of("locationVisibility", null),

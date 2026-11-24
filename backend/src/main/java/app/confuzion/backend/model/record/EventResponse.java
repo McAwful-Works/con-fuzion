@@ -144,8 +144,8 @@ public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID i
 	 * @param circleId the circle's public ID, for {@code CIRCLE}
 	 * @param userId   the person's user ID, for {@code USER}
 	 * @param label    the server name, circle name or person's display name, or
-	 *                 {@code null} for {@code FRIENDS} or when the host is no
-	 *                 longer in the server
+	 *                 {@code null} for {@code FRIENDS}, or for a server where the
+	 *                 host is no longer discoverable, so the entry reaches no one
 	 * @author mcawful
 	 */
 	@Schema(name = "AudienceEntryResponse")
@@ -153,6 +153,6 @@ public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID i
 			@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, pattern = GuildResponse.SNOWFLAKE_PATTERN, example = "81384788765712384") String guildId,
 			@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true) UUID circleId,
 			@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true) UUID userId,
-			@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "Example Con Community") String label) {
+			@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "Example Con Community", description = "The server, circle or person name. Null for FRIENDS, and for a server where the host is no longer discoverable, which then reaches no one.") String label) {
 	}
 }
