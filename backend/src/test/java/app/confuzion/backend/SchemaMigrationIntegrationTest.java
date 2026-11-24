@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -42,8 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Integration tests for the migrations on Testcontainers Postgres: M1's
- * {@code app_user} and {@code user_guild}, and M2's social graph. Each test
- * rolls back.
+ * {@code app_user} and {@code user_guild}, and M2's social graph and events.
+ * Each test rolls back.
  *
  * @author mcawful
  */
@@ -187,6 +188,108 @@ class SchemaMigrationIntegrationTest {
 	}
 
 	/**
+	 * Tests that Flyway applied the events migration, with the planned columns and
+	 * defaults.
+	 */
+	@Test
+	void eventsMigrationApplied() {
+		assertThat(jdbcTemplate.queryForObject(
+				"SELECT success FROM flyway_schema_history WHERE version = '202611241710'", Boolean.class)).isTrue();
+		assertThat(columns("event")).containsExactlyInAnyOrder("id", "public_id", "host_id", "title", "description",
+				"location_text", "tag", "starts_at", "ends_at", "time_zone", "capacity", "confirmed_count",
+				"signup_opens_at", "confirm_window_minutes", "location_visibility", "status", "created_at",
+				"updated_at");
+		assertThat(columns("event_audience")).containsExactlyInAnyOrder("id", "event_id", "type", "guild_id",
+				"circle_id", "user_id");
+
+		var eventId = insertEvent(insertUser(81384788765712384L), null, null);
+
+		assertThat(jdbcTemplate
+				.queryForMap("SELECT public_id IS NOT NULL AS has_public_id, confirmed_count, confirm_window_minutes, "
+						+ "location_visibility, status FROM event WHERE id = ?", eventId))
+				.containsEntry("has_public_id", true).containsEntry("confirmed_count", 0)
+				.containsEntry("confirm_window_minutes", 30).containsEntry("location_visibility", "VIEWERS")
+				.containsEntry("status", "PUBLISHED");
+	}
+
+	/**
+	 * Tests the event CHECKs: times in order, capacity 1 to 10,000, a non-negative
+	 * count, and known enum values.
+	 */
+	@Test
+	void eventChecks() throws SQLException {
+		var host = insertUser(81384788765712384L);
+
+		assertRejected(() -> insertEvent(host, Duration.ZERO, null), DataIntegrityViolationException.class);
+		assertRejected(() -> insertEvent(host, null, 0), DataIntegrityViolationException.class);
+		assertRejected(() -> insertEvent(host, null, 10001), DataIntegrityViolationException.class);
+		insertEvent(host, Duration.ofHours(25), 10000);
+		var eventId = insertEvent(host, null, 1);
+		for (var update : List.of("UPDATE event SET ends_at = starts_at WHERE id = ?",
+				"UPDATE event SET signup_opens_at = starts_at WHERE id = ?",
+				"UPDATE event SET confirmed_count = -1 WHERE id = ?",
+				"UPDATE event SET confirm_window_minutes = 0 WHERE id = ?",
+				"UPDATE event SET status = 'DELETED' WHERE id = ?",
+				"UPDATE event SET location_visibility = 'EVERYONE' WHERE id = ?"))
+			assertRejected(() -> jdbcTemplate.update(update, eventId), DataIntegrityViolationException.class);
+	}
+
+	/**
+	 * Tests that each audience entry sets exactly the column its type names, that
+	 * an entry appears once per event, and that deleting a circle or user removes
+	 * their entries while deleting a host with events is refused.
+	 */
+	@Test
+	void eventAudienceIsTyped() throws SQLException {
+		var host = insertUser(81384788765712384L);
+		var guest = insertUser(81384788765712385L);
+		var circleId = insertCircle(host, "Cosplay crew");
+		var eventId = insertEvent(host, null, null);
+		var insert = "INSERT INTO event_audience (event_id, type, guild_id, circle_id, user_id) VALUES (?, ?, ?, ?, ?)";
+
+		jdbcTemplate.update(insert, eventId, "GUILD", 175928847299117063L, null, null);
+		jdbcTemplate.update(insert, eventId, "FRIENDS", null, null, null);
+		jdbcTemplate.update(insert, eventId, "CIRCLE", null, circleId, null);
+		jdbcTemplate.update(insert, eventId, "USER", null, null, guest);
+		assertRejected(() -> jdbcTemplate.update(insert, eventId, "GUILD", null, null, null),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, eventId, "FRIENDS", null, null, guest),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, eventId, "CIRCLE", 175928847299117063L, circleId, null),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, eventId, "TEAM", null, null, null),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, eventId, "FRIENDS", null, null, null),
+				DuplicateKeyException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, eventId, "USER", null, null, guest),
+				DuplicateKeyException.class);
+
+		jdbcTemplate.update("DELETE FROM circle WHERE id = ?", circleId);
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", guest);
+
+		assertThat(
+				jdbcTemplate.queryForList("SELECT type FROM event_audience WHERE event_id = ?", String.class, eventId))
+				.containsExactlyInAnyOrder("GUILD", "FRIENDS");
+		assertRejected(() -> jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", host),
+				DataIntegrityViolationException.class);
+	}
+
+	/**
+	 * Tests the events' indexes.
+	 */
+	@Test
+	void eventIndexes() {
+		assertThat(indexDefinition("event_public_id_key")).startsWith("CREATE UNIQUE INDEX").endsWith("(public_id)");
+		assertThat(indexDefinition("event_starts_at_idx")).endsWith("(starts_at)");
+		assertThat(indexDefinition("event_host_starts_at_idx")).endsWith("(host_id, starts_at)");
+		assertThat(indexDefinition("event_audience_entry_key")).startsWith("CREATE UNIQUE INDEX")
+				.endsWith("(event_id, type, guild_id, circle_id, user_id) NULLS NOT DISTINCT");
+		assertThat(indexDefinition("event_audience_guild_idx")).endsWith("(guild_id) WHERE (guild_id IS NOT NULL)");
+		assertThat(indexDefinition("event_audience_circle_idx")).endsWith("(circle_id) WHERE (circle_id IS NOT NULL)");
+		assertThat(indexDefinition("event_audience_user_idx")).endsWith("(user_id) WHERE (user_id IS NOT NULL)");
+	}
+
+	/**
 	 * Tests that {@code app_user} has exactly the planned columns, and no email.
 	 */
 	@Test
@@ -309,6 +412,24 @@ class SchemaMigrationIntegrationTest {
 	private long insertCircle(UUID owner, String name) {
 		return jdbcTemplate.queryForObject("INSERT INTO circle (owner_id, name) VALUES (?, ?) RETURNING id", Long.class,
 				owner, name);
+	}
+
+	/**
+	 * Inserts an event that starts in a day, with only the required columns plus an
+	 * end and a capacity.
+	 *
+	 * @param host     the host
+	 * @param endsIn   how long from now it ends, or {@code null}
+	 * @param capacity the capacity, or {@code null}
+	 * @return the event's internal ID
+	 */
+	private long insertEvent(UUID host, Duration endsIn, Integer capacity) {
+		var now = Instant.now();
+		return jdbcTemplate.queryForObject(
+				"INSERT INTO event (host_id, title, location_text, starts_at, ends_at, time_zone, capacity) "
+						+ "VALUES (?, 'Photo walk', 'Hall B', ?, ?, 'America/Chicago', ?) RETURNING id",
+				Long.class, host, Timestamp.from(now.plus(Duration.ofDays(1))),
+				endsIn == null ? null : Timestamp.from(now.plus(endsIn)), capacity);
 	}
 
 	/**

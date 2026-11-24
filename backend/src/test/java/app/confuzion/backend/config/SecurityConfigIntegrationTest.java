@@ -28,6 +28,8 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +74,13 @@ class SecurityConfigIntegrationTest {
 	static final String ADMIN_ID = "100000000000000001";
 
 	/**
+	 * A valid event body, starting a week from now.
+	 */
+	private static final String EVENT_BODY = "{\"title\":\"Photo walk\",\"location\":\"Hall B\",\"startsAt\":\""
+			+ Instant.now().plus(Duration.ofDays(7)) + "\",\"timeZone\":\"America/Chicago\","
+			+ "\"locationVisibility\":\"VIEWERS\",\"audience\":[{\"type\":\"FRIENDS\"}]}";
+
+	/**
 	 * One valid request per contract-stub operation, so the security chain is
 	 * checked for every endpoint that has no implementation yet.
 	 */
@@ -93,7 +102,11 @@ class SecurityConfigIntegrationTest {
 					null),
 			new Stub("GET", "/api/blocks", null),
 			new Stub("PUT", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null),
-			new Stub("DELETE", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null));
+			new Stub("DELETE", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null),
+			new Stub("POST", "/api/events", EVENT_BODY), new Stub("GET", "/api/events?scope=hosting", null),
+			new Stub("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null),
+			new Stub("PATCH", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", EVENT_BODY),
+			new Stub("DELETE", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null));
 
 	/**
 	 * The stub Discord.

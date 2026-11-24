@@ -75,6 +75,16 @@ public enum ResponseType {
 	CIRCLE_LIST,
 
 	/**
+	 * Indicates an {@link EventResponse} body.
+	 */
+	EVENT,
+
+	/**
+	 * Indicates an {@link EventPageResponse} body.
+	 */
+	EVENT_PAGE,
+
+	/**
 	 * Indicates the response body is unknown.
 	 */
 	UNKNOWN

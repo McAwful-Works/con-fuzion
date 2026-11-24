@@ -143,3 +143,46 @@ Context · Decision · Consequences · Trigger to revisit
   ever existed, or whether someone blocked them, from these endpoints.
 - **Revisit:** if invite abuse shows up (many accounts accepting one person's links), or if hosts ask to reach
   people they share a server with but who aren't discoverable.
+
+## D-012 Event visibility, the feed and the event cap (2026-11-24) — Accepted
+- **Context:** M2 adds events with audiences made of servers, friends, circles and individuals (#35). Plan B3 gives the
+  visibility rule; this pins it down for the contract and for #37's single visibility query.
+- **Visibility.** The host always sees their own events, cancelled ones included. Anyone else sees an event only when
+  all of these hold:
+  - it is `PUBLISHED`;
+  - neither of them has blocked the other (D-011);
+  - one of its audience entries matches the viewer:
+    - `USER`: the viewer;
+    - `FRIENDS`: the viewer is the host's friend;
+    - `CIRCLE`: the viewer is in that circle (always one of the host's);
+    - `GUILD`: **both** the viewer and the host are discoverable in that server **now**. Turning off
+      discoverability, or leaving the server, stops a server from reaching or exposing anyone.
+
+  Every endpoint uses this one rule. An event the viewer can't see is a 404, and changing or cancelling one the
+  viewer doesn't host is a 404 too.
+- **Audience entries:**
+  - `event_audience` holds typed references (`guild_id`, `circle_id` or `user_id`, with a CHECK that the type
+    names exactly one, or none for `FRIENDS`). This replaces plan B3's free-text `ref_id`, so every reference has a
+    foreign key or a snowflake.
+  - An event has 1 to 50 distinct entries. A host may name only a server where they are discoverable, one of their own
+    circles, or a person they can pick (D-011); anything else is a 404 and nothing is saved.
+  - Deleting a circle or a user removes their entries. An event left with no entries is visible only to its host.
+- **Who sees what:**
+  - Only the host gets `audience`; everyone else gets `null`.
+  - With `locationVisibility: CONFIRMED`, everyone but the host gets `location: null` and `locationHidden: true`,
+    until M3 adds confirmed attendees.
+- **The feed** (`GET /api/events?scope=feed`): published events visible to the viewer, their own included, that are
+  still upcoming. Upcoming means `coalesce(ends_at, starts_at + 3 hours) > now()`. It is sorted by `starts_at`, then
+  ID, and paged with an opaque cursor (`limit` 1 to 50, default 20). `scope=hosting` lists the viewer's own upcoming
+  events the same way, cancelled ones included. A cursor is valid only for the scope that issued it.
+- **Edits and cancelling:**
+  - `PATCH` takes the whole event, as create does, and replaces every editable field and the audience.
+  - A start that has passed may be kept, but a start can't be moved into the past.
+  - A cancelled event can't be edited (409).
+  - `DELETE` cancels: the row stays with `status = CANCELLED`, and cancelling twice is still a 204.
+- **The cap:** a host can create at most **20 events in any 24 hours** (counted on `created_at`). One more is a 429
+  with errorType `EVENT_LIMIT`, a domain errorType as D-011 allows.
+- **Not in M2:** RSVP and attendee views (M3), notifications (M4), and moderation's hidden flag (M5). Account
+  deletion has to cancel a host's events first, because `event.host_id` doesn't cascade.
+- **Revisit:** if the visibility query misses its latency target in the M7 load test, or if hosts ask for audiences
+  that don't need the host to be discoverable.

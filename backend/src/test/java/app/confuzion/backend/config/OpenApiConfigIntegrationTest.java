@@ -106,7 +106,7 @@ class OpenApiConfigIntegrationTest {
 				"/api/auth/logout-everywhere", "/api/friends", "/api/friends/{userId}", "/api/friends/invites",
 				"/api/friends/invites/{token}", "/api/friends/invites/{token}/accept", "/api/people", "/api/circles",
 				"/api/circles/{circleId}", "/api/circles/{circleId}/members/{userId}", "/api/blocks",
-				"/api/blocks/{userId}");
+				"/api/blocks/{userId}", "/api/events", "/api/events/{eventId}");
 		assertThat(paths.get("/api/me")).containsOnlyKeys("get", "patch");
 		assertThat(paths.get("/api/me/guilds")).containsOnlyKeys("get", "put");
 		assertThat(paths.get("/api/me/guilds/{guildId}")).containsOnlyKeys("put");
@@ -123,6 +123,49 @@ class OpenApiConfigIntegrationTest {
 		assertThat(paths.get("/api/circles/{circleId}/members/{userId}")).containsOnlyKeys("put", "delete");
 		assertThat(paths.get("/api/blocks")).containsOnlyKeys("get");
 		assertThat(paths.get("/api/blocks/{userId}")).containsOnlyKeys("put", "delete");
+		assertThat(paths.get("/api/events")).containsOnlyKeys("get", "post");
+		assertThat(paths.get("/api/events/{eventId}")).containsOnlyKeys("get", "patch", "delete");
+	}
+
+	/**
+	 * Tests the events' success bodies and their documented errors.
+	 */
+	@Test
+	void eventSuccessBodies() {
+		assertThat(successRef("/api/events", "post", "201"))
+				.isEqualTo("#/components/schemas/ResponseRecordEventResponse");
+		assertThat(successRef("/api/events", "get")).isEqualTo("#/components/schemas/ResponseRecordEventPageResponse");
+		assertThat(successRef("/api/events/{eventId}", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordEventResponse");
+		assertThat(successRef("/api/events/{eventId}", "patch"))
+				.isEqualTo("#/components/schemas/ResponseRecordEventResponse");
+		assertThat(responses("/api/events/{eventId}", "delete")).containsKey("204").doesNotContainKey("200");
+		assertThat(responses("/api/events", "post")).containsKeys("201", "400", "403", "404", "429")
+				.doesNotContainKey("200");
+		assertThat(responses("/api/events/{eventId}", "patch")).containsKeys("200", "400", "403", "404", "409");
+		assertThat(responses("/api/events", "get")).containsKey("400").doesNotContainKey("403");
+		assertThat(document.<String>read("$.paths['/api/events'].post.responses['429'].description"))
+				.contains("EVENT_LIMIT");
+	}
+
+	/**
+	 * Tests the event schemas: {@code isHost} under that name, a nullable location
+	 * and audience, and typed audience entries with no free-text reference.
+	 */
+	@Test
+	void eventSchemas() {
+		Map<String, Map<String, Object>> properties = document.read("$.components.schemas.EventResponse.properties");
+		assertThat(properties).containsOnlyKeys("id", "host", "title", "description", "location", "locationHidden",
+				"locationVisibility", "tag", "startsAt", "endsAt", "timeZone", "signupOpensAt", "capacity", "status",
+				"isHost", "audience");
+		assertThat((List<String>) properties.get("location").get("type")).contains("null");
+		assertThat((List<String>) properties.get("audience").get("type")).contains("null");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.AudienceEntryRequest.properties"))
+				.containsOnlyKeys("type", "guildId", "circleId", "userId");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.AudienceEntryResponse.properties"))
+				.containsOnlyKeys("type", "guildId", "circleId", "userId", "label");
+		assertThat(document.<Integer>read("$.components.schemas.EventRequest.properties.audience.maxItems"))
+				.isEqualTo(50);
 	}
 
 	/**
@@ -204,7 +247,7 @@ class OpenApiConfigIntegrationTest {
 	void everyOperationDocumentsTheErrorEnvelope() {
 		List<Map<String, Map<String, Object>>> responses = document.read("$.paths.*.*.responses");
 
-		assertThat(responses).hasSize(23).allSatisfy(byStatus -> {
+		assertThat(responses).hasSize(28).allSatisfy(byStatus -> {
 			assertThat(byStatus).containsKeys("500", "default");
 			byStatus.forEach((code, response) -> {
 				if (code.startsWith("4") || code.startsWith("5") || code.equals("default"))

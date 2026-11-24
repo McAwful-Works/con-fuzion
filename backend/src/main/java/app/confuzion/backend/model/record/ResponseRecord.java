@@ -51,7 +51,9 @@ public record ResponseRecord<T extends ResponseBodyObject>(
 			Map.entry(InviteResponse.class, ResponseType.INVITE),
 			Map.entry(InvitePreviewResponse.class, ResponseType.INVITE_PREVIEW),
 			Map.entry(CircleResponse.class, ResponseType.CIRCLE),
-			Map.entry(CircleListResponse.class, ResponseType.CIRCLE_LIST));
+			Map.entry(CircleListResponse.class, ResponseType.CIRCLE_LIST),
+			Map.entry(EventResponse.class, ResponseType.EVENT),
+			Map.entry(EventPageResponse.class, ResponseType.EVENT_PAGE));
 
 	/**
 	 * Constructor to create a {@link ResponseRecord} from the provided
