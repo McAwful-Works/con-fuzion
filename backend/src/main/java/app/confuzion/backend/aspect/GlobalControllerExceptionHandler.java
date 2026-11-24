@@ -193,11 +193,12 @@ public class GlobalControllerExceptionHandler {
 	 * requests doesn't flood the log. Status headers that a Spring
 	 * {@link ErrorResponse} carries (such as {@code Allow} on a 405) are kept.
 	 * <p>
-	 * The failing handler may already have set its own content type (a static
-	 * file's, say), and the JSON envelope can't be written under it, so the
-	 * response's buffer and content type are reset first. When the response is
-	 * already committed, nothing more can be sent: the failure is logged and
-	 * {@code null} is returned, which Spring MVC treats as handled (#44).
+	 * The failing handler may already have described its own body (a static file's
+	 * content type, length and year-long cache headers, say). The JSON envelope
+	 * can't be written under that content type and must never be cached, so the
+	 * buffer and those headers are reset first. When the response is already
+	 * committed, nothing more can be sent: the failure is logged and {@code null}
+	 * is returned, which Spring MVC treats as handled (#44).
 	 *
 	 * @param status   the response {@link HttpStatusCode}
 	 * @param e        the failure, or {@code null} when there is none to log
@@ -241,6 +242,10 @@ public class GlobalControllerExceptionHandler {
 		}
 		response.resetBuffer();
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		response.setContentLengthLong(-1);
+		response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+		response.setHeader(HttpHeaders.ETAG, null);
+		response.setHeader(HttpHeaders.LAST_MODIFIED, null);
 
 		var headers = new HttpHeaders();
 		if (e instanceof ErrorResponse errorResponse)

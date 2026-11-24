@@ -47,8 +47,8 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
+import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import com.jayway.jsonpath.JsonPath;
@@ -443,6 +443,7 @@ class SecurityConfigIntegrationTest {
 
 		assertError(send("GET", "/api/me", preLogin, null), 401, "UNAUTHORIZED");
 		assertThat(operations.hasKey(preLoginKey)).isFalse();
+		assertThat(operations.hasKey(SESSION_KEY_PREFIX + "expires:" + sessionId(preLogin))).isFalse();
 		assertThat(send("GET", "/api/me", session, null).statusCode()).isEqualTo(200);
 	}
 

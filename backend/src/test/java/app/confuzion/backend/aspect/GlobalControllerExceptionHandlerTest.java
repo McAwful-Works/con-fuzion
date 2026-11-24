@@ -19,12 +19,8 @@
 package app.confuzion.backend.aspect;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.IOException;
@@ -82,42 +78,33 @@ class GlobalControllerExceptionHandlerTest {
 	private final GlobalControllerExceptionHandler handler = new GlobalControllerExceptionHandler();
 
 	/**
-	 * A {@link MockMvc} over {@link PresetContentTypeController}, so the envelope
-	 * goes through Spring's real message converters.
+	 * A {@link MockMvc} over {@link PresetContentTypeController}, so the handler
+	 * runs inside Spring's real exception resolution.
 	 */
 	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PresetContentTypeController())
 			.setControllerAdvice(handler).build();
 
 	/**
-	 * Tests that the envelope is still written as JSON when the failing handler had
-	 * already set a non-JSON content type, as a static resource does when Spring
-	 * Session fails while the response is being written (#44).
-	 */
-	@Test
-	void testEnvelopeOverridesPresetContentType() throws Exception {
-		mockMvc.perform(get("/octet-stream")).andExpect(status().isInternalServerError())
-				.andExpect(content().contentTypeCompatibleWith("application/json"))
-				.andExpect(header().exists(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER))
-				.andExpect(jsonPath("$.responseType").value("ERROR"))
-				.andExpect(jsonPath("$.body.errorType").value("INTERNAL_SERVER_ERROR"))
-				.andExpect(content().string(not(containsString(SECRET))));
-	}
-
-	/**
-	 * Tests that the handler itself replaces a preset non-JSON content type and
-	 * drops a partly buffered body, for containers or dispatches where Spring MVC
-	 * hasn't already cleared them.
+	 * Tests that the handler itself replaces what a failing static handler had set:
+	 * a non-JSON content type, a partly buffered body and long-lived cache headers
+	 * (#44). Spring MVC clears only the content type, and only for its own
+	 * exception handling.
 	 */
 	@Test
 	void testRespondResetsPresetContentType() throws IOException {
 		var servletResponse = new MockHttpServletResponse();
 		servletResponse.setContentType("application/octet-stream");
+		servletResponse.setHeader("Cache-Control", "max-age=31536000, public, immutable");
+		servletResponse.setHeader("ETag", "\"abc\"");
+		servletResponse.setDateHeader("Last-Modified", 0);
 		servletResponse.getOutputStream().write(new byte[] { 1, 2, 3 });
 
 		assertGeneric(handler.handleUnexpected(new IllegalStateException(SECRET), servletResponse),
 				HttpStatus.INTERNAL_SERVER_ERROR);
 		assertThat(servletResponse.getContentType()).isEqualTo("application/json");
 		assertThat(servletResponse.getContentAsByteArray()).isEmpty();
+		assertThat(servletResponse.getHeader("Cache-Control")).isEqualTo("no-store");
+		assertThat(servletResponse.getHeaderNames()).doesNotContain("ETag", "Last-Modified");
 	}
 
 	/**
@@ -348,17 +335,6 @@ class GlobalControllerExceptionHandlerTest {
 		 * The bytes {@code /committed} sends before it fails.
 		 */
 		static final String PARTIAL_BODY = "partial";
-
-		/**
-		 * Sets a non-JSON content type, then fails.
-		 *
-		 * @param response the {@link HttpServletResponse}
-		 */
-		@GetMapping("/octet-stream")
-		void octetStream(HttpServletResponse response) {
-			response.setContentType("application/octet-stream");
-			throw new IllegalStateException(SECRET);
-		}
 
 		/**
 		 * Commits part of a body, then fails.

@@ -79,7 +79,9 @@ public class SessionConfig {
 	 * {@code findByPrincipalName} skips it.
 	 * <p>
 	 * It deletes the keys itself, because the repository's {@code deleteById} reads
-	 * the session through this mapper again.
+	 * the session through this mapper again. The session's ID can stay in its
+	 * principal-name index, where lookups skip it like any expired ID. The race
+	 * only damages pre-login sessions, which aren't indexed.
 	 *
 	 * @author mcawful
 	 */
@@ -117,6 +119,8 @@ public class SessionConfig {
 		 */
 		DamagedSessionMapper(RedisOperations<String, Object> redisOperations, String namespace) {
 			this.redisOperations = redisOperations;
+			// Mirrors the repository's own (package-private) key layout in Spring Session
+			// 4.2: <namespace>:sessions:<id> and <namespace>:sessions:expires:<id>.
 			this.sessionKeyPrefix = namespace + ":sessions:";
 		}
 
