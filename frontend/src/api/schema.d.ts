@@ -152,6 +152,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List upcoming events
+         * @description Upcoming means the end (or, without one, the start plus 3 hours) is still in the future. feed: published events visible to the user, their own included. hosting: the user's own events, cancelled ones included. Sorted by start time, then ID.
+         */
+        get: operations["getEvents"];
+        put?: never;
+        /**
+         * Create an event
+         * @description Publishes it at once, hosted by the signed-in user. A host can create at most 20 events in any 24 hours.
+         */
+        post: operations["createEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an event
+         * @description 404 unless the user can see it (D-012). The host also sees their own cancelled events.
+         */
+        get: operations["getEvent"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel an event the user hosts
+         * @description Sets its status to CANCELLED and keeps it; it drops out of everyone's feed. Cancelling a cancelled event is also a 204. 404 unless the user is the host.
+         */
+        delete: operations["cancelEvent"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit an event the user hosts
+         * @description Send the whole event, as for create: every editable field is replaced, and the audience too. Entries already on the event are kept without a re-check, so sending back the audience as received never fails; only new entries are checked. 404 unless the user is the host.
+         */
+        patch: operations["updateEvent"];
+        trace?: never;
+    };
     "/api/friends": {
         parameters: {
             query?: never;
@@ -341,6 +393,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AudienceEntryRequest: {
+            /** Format: uuid */
+            circleId?: string | null;
+            /** @example 81384788765712384 */
+            guildId?: string | null;
+            /** @enum {string} */
+            type: "GUILD" | "FRIENDS" | "CIRCLE" | "USER";
+            /** Format: uuid */
+            userId?: string | null;
+        };
+        AudienceEntryResponse: {
+            /** Format: uuid */
+            circleId: string | null;
+            /** @example 81384788765712384 */
+            guildId: string | null;
+            /**
+             * @description The server, circle or person name. Null for FRIENDS, and for a server where the host is no longer discoverable, which then reaches no one.
+             * @example Example Con Community
+             */
+            label: string | null;
+            /** @enum {string} */
+            type: "GUILD" | "FRIENDS" | "CIRCLE" | "USER";
+            /** Format: uuid */
+            userId: string | null;
+        };
         CircleListResponse: {
             circles: components["schemas"]["CircleResponse"][];
         };
@@ -365,6 +442,72 @@ export interface components {
              * @example NOT_FOUND
              */
             errorType: string;
+        };
+        EventPageResponse: {
+            events: components["schemas"]["EventResponse"][];
+            nextCursor: string | null;
+        };
+        EventRequest: {
+            /** @description 1 to 50 entries, each at most once. */
+            audience: components["schemas"]["AudienceEntryRequest"][];
+            /** Format: int32 */
+            capacity?: number | null;
+            description?: string | null;
+            /**
+             * Format: date-time
+             * @description After startsAt and at most 7 days later.
+             */
+            endsAt?: string | null;
+            /** @example Hall B fountain */
+            location: string;
+            /** @enum {string} */
+            locationVisibility: "VIEWERS" | "CONFIRMED";
+            /**
+             * Format: date-time
+             * @description Before startsAt and at most a year earlier.
+             */
+            signupOpensAt?: string | null;
+            /**
+             * Format: date-time
+             * @description In the future when creating, and within a year of now either way. An update may keep a start that has passed, but can't move the start into the past.
+             */
+            startsAt: string;
+            /** @example Photoshoot */
+            tag?: string | null;
+            /** @example America/Chicago */
+            timeZone: string;
+            /** @example Cosplay photo walk */
+            title: string;
+        };
+        EventResponse: {
+            /** @description Only the host gets this; it is null for everyone else. */
+            audience: components["schemas"]["AudienceEntryResponse"][] | null;
+            /** Format: int32 */
+            capacity: number | null;
+            description: string | null;
+            /** Format: date-time */
+            endsAt: string | null;
+            host: components["schemas"]["PersonResponse"];
+            /** Format: uuid */
+            id: string;
+            isHost: boolean;
+            /** @example Hall B fountain */
+            location: string | null;
+            locationHidden: boolean;
+            /** @enum {string} */
+            locationVisibility: "VIEWERS" | "CONFIRMED";
+            /** Format: date-time */
+            signupOpensAt: string | null;
+            /** Format: date-time */
+            startsAt: string;
+            /** @enum {string} */
+            status: "PUBLISHED" | "CANCELLED";
+            /** @example Photoshoot */
+            tag: string | null;
+            /** @example America/Chicago */
+            timeZone: string;
+            /** @example Cosplay photo walk */
+            title: string;
         };
         GuildListResponse: {
             guilds: components["schemas"]["GuildResponse"][];
@@ -429,52 +572,62 @@ export interface components {
         ResponseRecordCircleListResponse: {
             body: components["schemas"]["CircleListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordCircleResponse: {
             body: components["schemas"]["CircleResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordErrorResponseBodyRecord: {
             body: components["schemas"]["ErrorResponseBodyRecord"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordEventPageResponse: {
+            body: components["schemas"]["EventPageResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordEventResponse: {
+            body: components["schemas"]["EventResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordGuildListResponse: {
             body: components["schemas"]["GuildListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordGuildResponse: {
             body: components["schemas"]["GuildResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordInvitePreviewResponse: {
             body: components["schemas"]["InvitePreviewResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordInviteResponse: {
             body: components["schemas"]["InviteResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordMeResponse: {
             body: components["schemas"]["MeResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordPersonListResponse: {
             body: components["schemas"]["PersonListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         ResponseRecordPersonResponse: {
             body: components["schemas"]["PersonResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "UNKNOWN";
         };
         UpdateGuildRequest: {
             discoverable: boolean;
@@ -1371,6 +1524,425 @@ export interface operations {
             };
             /** @description Not found, or not visible to the caller. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getEvents: {
+        parameters: {
+            query?: {
+                /** @description feed or hosting */
+                scope?: "feed" | "hosting";
+                /** @description The previous page's nextCursor. Opaque; a cursor that wasn't issued for this scope is a 400. */
+                cursor?: string;
+                /** @description Events per page, 1 to 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordEventPageResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    createEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordEventResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description An audience entry names a server where the host isn't discoverable, a circle that isn't the host's, or a person the host can't pick (D-011). Nothing is saved. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The host already created 20 events in the last 24 hours (errorType EVENT_LIMIT), or is rate limited (errorType TOO_MANY_REQUESTS). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordEventResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    cancelEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    updateEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordEventResponse"];
+                };
+            };
+            /** @description The request failed validation, or it moves the start into the past. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The user isn't the host, or a newly added audience entry can't be used. An audience entry names a server where the host isn't discoverable, a circle that isn't the host's, or a person the host can't pick (D-011). Nothing is saved. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The event is cancelled, so it can't be edited. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
