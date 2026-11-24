@@ -20,21 +20,29 @@ package app.confuzion.backend.model.record;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
  * The body of {@code POST /api/circles} and {@code PATCH
  * /api/circles/{circleId}}.
  *
- * @param name the circle's name. Leading and trailing whitespace is trimmed,
- *             and it must be unique among the owner's circles, ignoring case
+ * @param name the circle's name, 1 to 50 characters with no leading or trailing
+ *             whitespace. It must be unique among the owner's circles, ignoring
+ *             case
  * @author mcawful
  */
 public record CircleRequest(
-		@Schema(requiredMode = RequiredMode.REQUIRED, minLength = 1, maxLength = CircleRequest.MAX_NAME, example = "Cosplay crew") @NotBlank @Size(max = CircleRequest.MAX_NAME) String name) {
+		@Schema(requiredMode = RequiredMode.REQUIRED, example = "Cosplay crew") @NotNull @Size(min = 1, max = CircleRequest.MAX_NAME) @Pattern(regexp = CircleRequest.TRIMMED) String name) {
 	/**
 	 * The longest circle name, matching {@code circle.name}.
 	 */
 	public static final int MAX_NAME = 50;
+
+	/**
+	 * Text with no leading or trailing whitespace (and no line breaks), so clients
+	 * trim before sending.
+	 */
+	public static final String TRIMMED = "^\\S(.*\\S)?$";
 }

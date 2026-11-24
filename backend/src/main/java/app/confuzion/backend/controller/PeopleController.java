@@ -30,7 +30,9 @@ import app.confuzion.backend.model.record.ResponseRecord;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.constraints.NotBlank;
+import app.confuzion.backend.model.record.CircleRequest;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -66,7 +68,7 @@ public class PeopleController {
 			+ "the user themself, and never anyone either of them has blocked. Matches display names and usernames, "
 			+ "ignoring case. At most 20 results, sorted by display name.")
 	public ResponseRecord<PersonListResponse> searchPeople(
-			@Parameter(description = "The search text, 2 to 50 characters") @RequestParam @NotBlank @Size(min = MIN_QUERY, max = MAX_QUERY) String q) {
+			@Parameter(description = "The search text: 2 to 50 characters, with no leading or trailing whitespace") @RequestParam @NotNull @Size(min = MIN_QUERY, max = MAX_QUERY) @Pattern(regexp = CircleRequest.TRIMMED) String q) {
 		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}
 }

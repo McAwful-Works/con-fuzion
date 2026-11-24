@@ -109,7 +109,8 @@ class SchemaMigrationIntegrationTest {
 
 	/**
 	 * Tests that an invite stores a 32-byte hash, can't be accepted without being
-	 * used, and stays used when the accepting account is deleted.
+	 * used or by its own inviter, and stays used when the accepting account is
+	 * deleted.
 	 */
 	@Test
 	void friendInviteStoresHashAndKeepsUse() throws SQLException {
@@ -121,6 +122,8 @@ class SchemaMigrationIntegrationTest {
 		assertRejected(() -> jdbcTemplate.update(insert, new byte[16], inviter, null, null),
 				DataIntegrityViolationException.class);
 		assertRejected(() -> jdbcTemplate.update(insert, new byte[32], inviter, null, friend),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, new byte[32], inviter, Timestamp.from(Instant.now()), inviter),
 				DataIntegrityViolationException.class);
 		jdbcTemplate.update(insert, new byte[32], inviter, Timestamp.from(Instant.now()), friend);
 

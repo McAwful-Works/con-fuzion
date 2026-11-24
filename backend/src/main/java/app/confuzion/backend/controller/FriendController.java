@@ -66,7 +66,8 @@ public class FriendController {
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Make a friend invite link", description = "The link holds a 128-bit random token, works once, "
 			+ "and expires after 24 hours. This response is the only place the token appears: the server stores only "
-			+ "its SHA-256. A user can have at most 20 unused, unexpired invites.")
+			+ "its SHA-256. A user can have at most 20 unused, unexpired invites, and can't list or revoke them, so "
+			+ "the client makes a new one only when the user asks for a new code, not each time a screen opens.")
 	// Declaring the 429 drops springdoc's inferred 201, so the 201 is declared too.
 	@ApiResponse(responseCode = "201", description = "Created")
 	@ApiResponse(responseCode = "429", description = "The user already has 20 active invites (errorType INVITE_LIMIT), "
@@ -82,7 +83,10 @@ public class FriendController {
 	 * @return the {@link InvitePreviewResponse} envelope
 	 */
 	@GetMapping("/invites/{token}")
-	@Operation(summary = "Preview a friend invite before accepting it", description = "Doesn't use the invite up.")
+	@Operation(summary = "Preview a friend invite before accepting it", description = "Doesn't use the invite up. A "
+			+ "signed-out visitor to /invite/{token} gets a 401 here: the SPA keeps the token in sessionStorage, signs "
+			+ "them in (and through onboarding), then returns to the accept page. A malformed token is a 404 too, never "
+			+ "a 400.")
 	// Declaring the 404 drops springdoc's inferred 200, so the 200 is declared too.
 	@ApiResponse(responseCode = "200", description = "OK")
 	@ApiResponse(responseCode = "404", description = UNUSABLE_INVITE)
@@ -99,7 +103,8 @@ public class FriendController {
 	 */
 	@PostMapping("/invites/{token}/accept")
 	@Operation(summary = "Accept a friend invite", description = "Uses the invite up and returns the new friend. If the "
-			+ "two are already friends it still succeeds, returns the friend, and uses the invite up.")
+			+ "two are already friends it still succeeds, returns the friend, and uses the invite up. A malformed "
+			+ "token is a 404 too, never a 400.")
 	@ApiResponse(responseCode = "200", description = "OK")
 	@ApiResponse(responseCode = "404", description = UNUSABLE_INVITE)
 	public ResponseRecord<PersonResponse> acceptInvite(
@@ -125,8 +130,9 @@ public class FriendController {
 	 */
 	@DeleteMapping("/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@Operation(summary = "Remove a friend", description = "Ends the friendship for both people. Also 204 when the two "
-			+ "aren't friends or the user doesn't exist, so it reveals nothing about the user.")
+	@Operation(summary = "Remove a friend", description = "Ends the friendship for both people and, in the same "
+			+ "transaction, removes each from the other's circles. Always 204, also when the two aren't friends or the "
+			+ "user doesn't exist, so it reveals nothing; the documented 404 never happens.")
 	public void deleteFriend(@Parameter(description = "The friend's user ID") @PathVariable UUID userId) {
 		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}

@@ -170,7 +170,7 @@ class OpenApiConfigIntegrationTest {
 	void personSchemasCarryNoDiscordId() {
 		assertThat(document.<Map<String, Object>>read("$.components.schemas.PersonResponse.properties"))
 				.containsOnlyKeys("id", "displayName", "avatarUrl");
-		assertThat(document.<Map<String, Object>>read("$.components.schemas.Inviter.properties"))
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.InvitePreviewInviter.properties"))
 				.containsOnlyKeys("displayName", "avatarUrl");
 		assertThat(document.<Map<String, Object>>read("$.components.schemas.CircleResponse.properties"))
 				.containsOnlyKeys("id", "name", "members");

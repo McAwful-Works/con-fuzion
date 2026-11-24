@@ -141,7 +141,7 @@ public class CircleController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Add a person to a circle", description = "Idempotent. The person must be pickable (D-011): "
 			+ "a friend, or someone who shares a Discord server where both are discoverable, and not blocked either "
-			+ "way. They aren't told.")
+			+ "way. They aren't told. Adding someone who is already a member is a 204 without re-checking.")
 	// Declaring the 404 drops springdoc's inferred 204, so the 204 is declared too.
 	@ApiResponse(responseCode = "204", description = "No Content")
 	@ApiResponse(responseCode = "404", description = "The circle isn't one of the caller's, or the person isn't "

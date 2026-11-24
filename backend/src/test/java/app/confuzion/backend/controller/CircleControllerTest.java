@@ -80,14 +80,15 @@ class CircleControllerTest {
 	}
 
 	/**
-	 * Tests that creating or renaming a circle rejects a missing, blank, too long
-	 * or malformed name.
+	 * Tests that creating or renaming a circle rejects a missing, blank, untrimmed,
+	 * too long or malformed name.
 	 *
 	 * @param body the bad JSON body
 	 */
 	@ParameterizedTest
-	@ValueSource(strings = { "{}", "{\"name\":null}", "{\"name\":\"\"}", "{\"name\":\"   \"}",
-			"{\"name\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}", "{\"name\":" })
+	@ValueSource(strings = { "{}", "{\"name\":null}", "{\"name\":\"\"}", "{\"name\":\"   \"}", "{\"name\":\" Crew\"}",
+			"{\"name\":\"Crew \"}", "{\"name\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+			"{\"name\":" })
 	void testRejectsBadName(String body) throws Exception {
 		assertError(mockMvc, json(post("/api/circles"), body), HttpStatus.BAD_REQUEST);
 		assertError(mockMvc, json(patch(CIRCLE), body), HttpStatus.BAD_REQUEST);

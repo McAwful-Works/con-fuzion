@@ -197,7 +197,7 @@
     },
     "/api/blocks/{userId}" : {
       "delete" : {
-        "description" : "Removes only the caller's own block; a block the other person made stays. Friendships and circle memberships aren't restored. Also 204 when there was no block.",
+        "description" : "Removes only the caller's own block; a block the other person made stays. Friendships and circle memberships aren't restored. Always 204, also when there was no block or no such user; the documented 404 never happens.",
         "operationId" : "unblockUser",
         "parameters" : [ {
           "description" : "The blocked user",
@@ -288,7 +288,7 @@
         "tags" : [ "blocks" ]
       },
       "put" : {
-        "description" : "Idempotent. In one transaction it ends any friendship between the two and removes each from the other's circles. From then on, whichever of them made the block, neither can find or pick the other, use the other's invites, or see the other's events.",
+        "description" : "Idempotent. In one transaction it ends any friendship between the two and removes each from the other's circles. From then on, whichever of them made the block, neither can find or pick the other, use the other's invites, or see the other's events. A user ID that doesn't exist is also a 204, so it reveals nothing; the documented 404 never happens.",
         "operationId" : "blockUser",
         "parameters" : [ {
           "description" : "The user to block",
@@ -342,7 +342,7 @@
                 }
               }
             },
-            "description" : "No user has this ID."
+            "description" : "Not found, or not visible to the caller."
           },
           "429" : {
             "content" : {
@@ -935,7 +935,7 @@
         "tags" : [ "circles" ]
       },
       "put" : {
-        "description" : "Idempotent. The person must be pickable (D-011): a friend, or someone who shares a Discord server where both are discoverable, and not blocked either way. They aren't told.",
+        "description" : "Idempotent. The person must be pickable (D-011): a friend, or someone who shares a Discord server where both are discoverable, and not blocked either way. They aren't told. Adding someone who is already a member is a 204 without re-checking.",
         "operationId" : "addMember",
         "parameters" : [ {
           "description" : "The circle's public ID",
@@ -1097,7 +1097,7 @@
     },
     "/api/friends/invites" : {
       "post" : {
-        "description" : "The link holds a 128-bit random token, works once, and expires after 24 hours. This response is the only place the token appears: the server stores only its SHA-256. A user can have at most 20 unused, unexpired invites.",
+        "description" : "The link holds a 128-bit random token, works once, and expires after 24 hours. This response is the only place the token appears: the server stores only its SHA-256. A user can have at most 20 unused, unexpired invites, and can't list or revoke them, so the client makes a new one only when the user asks for a new code, not each time a screen opens.",
         "operationId" : "createInvite",
         "responses" : {
           "201" : {
@@ -1167,7 +1167,7 @@
     },
     "/api/friends/invites/{token}" : {
       "get" : {
-        "description" : "Doesn't use the invite up.",
+        "description" : "Doesn't use the invite up. A signed-out visitor to /invite/{token} gets a 401 here: the SPA keeps the token in sessionStorage, signs them in (and through onboarding), then returns to the accept page. A malformed token is a 404 too, never a 400.",
         "operationId" : "previewInvite",
         "parameters" : [ {
           "description" : "The invite token from the link",
@@ -1256,7 +1256,7 @@
     },
     "/api/friends/invites/{token}/accept" : {
       "post" : {
-        "description" : "Uses the invite up and returns the new friend. If the two are already friends it still succeeds, returns the friend, and uses the invite up.",
+        "description" : "Uses the invite up and returns the new friend. If the two are already friends it still succeeds, returns the friend, and uses the invite up. A malformed token is a 404 too, never a 400.",
         "operationId" : "acceptInvite",
         "parameters" : [ {
           "description" : "The invite token from the link",
@@ -1355,7 +1355,7 @@
     },
     "/api/friends/{userId}" : {
       "delete" : {
-        "description" : "Ends the friendship for both people. Also 204 when the two aren't friends or the user doesn't exist, so it reveals nothing about the user.",
+        "description" : "Ends the friendship for both people and, in the same transaction, removes each from the other's circles. Always 204, also when the two aren't friends or the user doesn't exist, so it reveals nothing; the documented 404 never happens.",
         "operationId" : "deleteFriend",
         "parameters" : [ {
           "description" : "The friend's user ID",
@@ -1866,14 +1866,15 @@
         "description" : "Pickable people (D-011) are the user's friends, plus people who share a Discord server where both of them are discoverable. Never the user themself, and never anyone either of them has blocked. Matches display names and usernames, ignoring case. At most 20 results, sorted by display name.",
         "operationId" : "searchPeople",
         "parameters" : [ {
-          "description" : "The search text, 2 to 50 characters",
+          "description" : "The search text: 2 to 50 characters, with no leading or trailing whitespace",
           "in" : "query",
           "name" : "q",
           "required" : true,
           "schema" : {
             "type" : "string",
             "maxLength" : 50,
-            "minLength" : 2
+            "minLength" : 2,
+            "pattern" : "^\\S(.*\\S)?$"
           }
         } ],
         "responses" : {
@@ -1964,7 +1965,8 @@
             "type" : "string",
             "example" : "Cosplay crew",
             "maxLength" : 50,
-            "minLength" : 0
+            "minLength" : 1,
+            "pattern" : "^\\S(.*\\S)?$"
           }
         },
         "required" : [ "name" ]
@@ -2002,6 +2004,7 @@
           },
           "errorType" : {
             "type" : "string",
+            "description" : "The HTTP status name, or a domain type the operation documents for that status (D-011).",
             "example" : "NOT_FOUND"
           }
         },
@@ -2055,6 +2058,20 @@
         },
         "required" : [ "discoverable", "guildId" ]
       },
+      "InvitePreviewInviter" : {
+        "type" : "object",
+        "properties" : {
+          "avatarUrl" : {
+            "type" : "string",
+            "example" : "https://cdn.discordapp.com/embed/avatars/0.png"
+          },
+          "displayName" : {
+            "type" : "string",
+            "example" : "Con Goer"
+          }
+        },
+        "required" : [ "avatarUrl", "displayName" ]
+      },
       "InvitePreviewResponse" : {
         "type" : "object",
         "properties" : {
@@ -2063,7 +2080,7 @@
             "format" : "date-time"
           },
           "inviter" : {
-            "$ref" : "#/components/schemas/Inviter"
+            "$ref" : "#/components/schemas/InvitePreviewInviter"
           }
         },
         "required" : [ "expiresAt", "inviter" ]
@@ -2081,20 +2098,6 @@
           }
         },
         "required" : [ "expiresAt", "url" ]
-      },
-      "Inviter" : {
-        "type" : "object",
-        "properties" : {
-          "avatarUrl" : {
-            "type" : "string",
-            "example" : "https://cdn.discordapp.com/embed/avatars/0.png"
-          },
-          "displayName" : {
-            "type" : "string",
-            "example" : "Con Goer"
-          }
-        },
-        "required" : [ "avatarUrl", "displayName" ]
       },
       "MeResponse" : {
         "type" : "object",

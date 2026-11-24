@@ -70,11 +70,11 @@ public class BlockController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Block a user", description = "Idempotent. In one transaction it ends any friendship between "
 			+ "the two and removes each from the other's circles. From then on, whichever of them made the block, "
-			+ "neither can find or pick the other, use the other's invites, or see the other's events.")
+			+ "neither can find or pick the other, use the other's invites, or see the other's events. A user ID that "
+			+ "doesn't exist is also a 204, so it reveals nothing; the documented 404 never happens.")
 	// Declaring the 400 drops springdoc's inferred 204, so the 204 is declared too.
 	@ApiResponse(responseCode = "204", description = "No Content")
 	@ApiResponse(responseCode = "400", description = "The request failed validation, or the user ID is the caller's own.")
-	@ApiResponse(responseCode = "404", description = "No user has this ID.")
 	public void blockUser(@Parameter(description = "The user to block") @PathVariable UUID userId) {
 		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}
@@ -87,7 +87,8 @@ public class BlockController {
 	@DeleteMapping("/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Unblock a user", description = "Removes only the caller's own block; a block the other person "
-			+ "made stays. Friendships and circle memberships aren't restored. Also 204 when there was no block.")
+			+ "made stays. Friendships and circle memberships aren't restored. Always 204, also when there was no "
+			+ "block or no such user; the documented 404 never happens.")
 	public void unblockUser(@Parameter(description = "The blocked user") @PathVariable UUID userId) {
 		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}

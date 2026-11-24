@@ -289,9 +289,7 @@ class SecurityConfigIntegrationTest {
 	void contractStubsNeedSessionAndCsrf() throws Exception {
 		DISCORD.reset("100000000000000080", "stub_user", false);
 		var session = login().session();
-		// The CSRF filter runs before authorization, so an anonymous write needs a
-		// token
-		// to reach the 401.
+		// CSRF is checked before authorization, so anonymous writes send a token.
 		var anonymousCsrf = cookie(send("GET", "/api/me", null, null), "XSRF-TOKEN");
 
 		for (var stub : CONTRACT_STUBS) {

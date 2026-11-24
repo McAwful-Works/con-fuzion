@@ -44,6 +44,7 @@ public record InvitePreviewResponse(@Schema(requiredMode = RequiredMode.REQUIRED
 	 *                    the user has none)
 	 * @author mcawful
 	 */
+	@Schema(name = "InvitePreviewInviter")
 	public record Inviter(@Schema(requiredMode = RequiredMode.REQUIRED, example = "Con Goer") String displayName,
 			@Schema(requiredMode = RequiredMode.REQUIRED, example = "https://cdn.discordapp.com/embed/avatars/0.png") String avatarUrl) {
 	}

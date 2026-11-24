@@ -49,12 +49,12 @@ class PeopleControllerTest {
 	}
 
 	/**
-	 * Tests that a query that is too short, too long or blank is a 400.
+	 * Tests that a query that is too short, too long, blank or untrimmed is a 400.
 	 *
 	 * @param q the bad query
 	 */
 	@ParameterizedTest
-	@ValueSource(strings = { "", "a", "  ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" })
+	@ValueSource(strings = { "", "a", "  ", " ab", "ab ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" })
 	void testSearchRejectsBadQuery(String q) throws Exception {
 		assertError(mockMvc, get("/api/people").param("q", q), HttpStatus.BAD_REQUEST);
 	}

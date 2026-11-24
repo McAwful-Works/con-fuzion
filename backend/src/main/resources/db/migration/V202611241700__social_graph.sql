@@ -1,8 +1,9 @@
 -- M2 social graph (plan B3, D-011): in-app friends made through invite links, circles, and blocks. Every user column
 -- is our app_user UUID, never a Discord ID, and deleting a user deletes their rows.
 
--- One row per friendship, stored once with the smaller UUID first. The primary key's index leads with user_a, so
--- user_b gets its own index for "this user's friends" lookups from the other side.
+-- One row per friendship, stored once with the smaller UUID first. Postgres orders uuid as unsigned bytes, which
+-- Java's UUID.compareTo doesn't match, so order the pair in SQL (LEAST/GREATEST), never in Java. The primary key's
+-- index leads with user_a, so user_b gets its own index for "this user's friends" lookups from the other side.
 CREATE TABLE friendship (
 	user_a     uuid        NOT NULL REFERENCES app_user (id) ON DELETE CASCADE,
 	user_b     uuid        NOT NULL REFERENCES app_user (id) ON DELETE CASCADE,
@@ -24,7 +25,8 @@ CREATE TABLE friend_invite (
 	accepted_by uuid        REFERENCES app_user (id) ON DELETE SET NULL,
 	CONSTRAINT friend_invite_token_hash_length CHECK (octet_length(token_hash) = 32),
 	CONSTRAINT friend_invite_expiry CHECK (expires_at > created_at),
-	CONSTRAINT friend_invite_accepted_is_used CHECK (accepted_by IS NULL OR used_at IS NOT NULL)
+	CONSTRAINT friend_invite_accepted_is_used CHECK (accepted_by IS NULL OR used_at IS NOT NULL),
+	CONSTRAINT friend_invite_not_own CHECK (accepted_by <> inviter_id)
 );
 -- Counting a user's unused invites for the 20-active cap.
 CREATE INDEX friend_invite_inviter_unused_idx ON friend_invite (inviter_id, expires_at) WHERE used_at IS NULL;
