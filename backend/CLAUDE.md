@@ -58,5 +58,7 @@ util/         stateless helpers
 ./gradlew test -PexcludeTags=integration
 ./gradlew check                      # tests + coverage verification
 ./gradlew bootRun                    # needs local Postgres/Valkey (infra/docker-compose.yml)
+./gradlew bootJar                    # builds the PWA with npm (Node 24) and bundles it at / in the jar
+./gradlew bootJar -PskipFrontend     # API-only jar; test and check never need Node
 ```
 On Windows use `gradlew.bat`.

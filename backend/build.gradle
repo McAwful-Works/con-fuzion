@@ -114,3 +114,36 @@ jacocoTestCoverageVerification {
 tasks.named('check') {
     dependsOn jacocoTestCoverageVerification
 }
+
+// ---- Frontend: bundle the built PWA into the jar (D-003) ----
+// Only bootJar builds and packages the SPA, so test and check never need Node.
+// ./gradlew bootJar -PskipFrontend builds an API-only jar.
+def frontendDir = layout.projectDirectory.dir('../frontend')
+def skipFrontend = providers.gradleProperty('skipFrontend').isPresent()
+def npm = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+
+def frontendInstall = tasks.register('frontendInstall', Exec) {
+    workingDir frontendDir
+    commandLine npm, 'ci'
+    inputs.file frontendDir.file('package-lock.json')
+    outputs.dir frontendDir.dir('node_modules')
+}
+
+def frontendBuild = tasks.register('frontendBuild', Exec) {
+    dependsOn frontendInstall
+    workingDir frontendDir
+    commandLine npm, 'run', 'build'
+    inputs.files(fileTree(frontendDir) {
+        include 'src/**', 'public/**', 'index.html', 'package.json', 'package-lock.json', 'tsconfig*.json', 'vite.config.ts'
+    })
+    outputs.dir frontendDir.dir('dist')
+}
+
+tasks.named('bootJar') {
+    if (!skipFrontend) {
+        dependsOn frontendBuild
+        from(frontendDir.dir('dist')) {
+            into 'BOOT-INF/classes/static'
+        }
+    }
+}
