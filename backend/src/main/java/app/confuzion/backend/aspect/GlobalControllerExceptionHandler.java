@@ -79,7 +79,8 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code TOO MANY REQUESTS}
 	 */
 	@ExceptionHandler(RateLimitException.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleTooManyRequests(Exception e, HttpServletResponse response) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleTooManyRequests(Exception e,
+			HttpServletResponse response) {
 		return respond(HttpStatus.TOO_MANY_REQUESTS, e, response);
 	}
 
@@ -109,7 +110,8 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code CONFLICT}
 	 */
 	@ExceptionHandler(DataIntegrityViolationException.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleConflict(Exception e, HttpServletResponse response) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleConflict(Exception e,
+			HttpServletResponse response) {
 		return respond(HttpStatus.CONFLICT, e, response);
 	}
 
@@ -123,7 +125,8 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code METHOD NOT ALLOWED}
 	 */
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleMethodNotAllowed(Exception e, HttpServletResponse response) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleMethodNotAllowed(Exception e,
+			HttpServletResponse response) {
 		return respond(HttpStatus.METHOD_NOT_ALLOWED, e, response);
 	}
 
@@ -137,7 +140,8 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code NOT FOUND}
 	 */
 	@ExceptionHandler({ NoSuchElementException.class, EmptyResultDataAccessException.class })
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleNotFound(Exception e, HttpServletResponse response) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleNotFound(Exception e,
+			HttpServletResponse response) {
 		return respond(HttpStatus.NOT_FOUND, e, response);
 	}
 
@@ -153,7 +157,8 @@ public class GlobalControllerExceptionHandler {
 	@ExceptionHandler({ IllegalArgumentException.class, MissingServletRequestParameterException.class,
 			PropertyValueException.class, InvalidInputException.class, HttpMessageNotReadableException.class,
 			MethodArgumentTypeMismatchException.class })
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleBadRequest(Exception e, HttpServletResponse response) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleBadRequest(Exception e,
+			HttpServletResponse response) {
 		return respond(HttpStatus.BAD_REQUEST, e, response);
 	}
 
@@ -169,7 +174,8 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code INTERNAL SERVER ERROR}
 	 */
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleUnexpected(Exception e, HttpServletResponse response) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleUnexpected(Exception e,
+			HttpServletResponse response) {
 		var status = e instanceof ErrorResponse errorResponse ? errorResponse.getStatusCode()
 				: HttpStatus.INTERNAL_SERVER_ERROR;
 		return respond(status, e, response);
