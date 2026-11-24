@@ -107,7 +107,7 @@ public class MeController {
 	 *
 	 * @return a {@link ResponseStatusException} for {@code NOT IMPLEMENTED}
 	 */
-	static ResponseStatusException notImplemented() {
+	private static ResponseStatusException notImplemented() {
 		return new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}
 }

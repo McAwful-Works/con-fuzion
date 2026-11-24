@@ -141,6 +141,11 @@ class OpenApiConfigIntegrationTest {
 		});
 		assertThat(responses("/api/me/guilds/{guildId}", "put")).containsKeys("400", "404");
 		assertThat(responses("/api/me", "patch")).containsKey("400");
+		assertThat(responses("/api/me", "patch")).containsKey("403");
+		assertThat(responses("/api/me/guilds/{guildId}", "put")).containsKey("403");
+		assertThat(responses("/api/auth/logout-everywhere", "post")).containsKey("403");
+		assertThat(responses("/api/me", "get")).doesNotContainKey("403");
+		assertThat(responses("/api/me/guilds", "get")).doesNotContainKey("403");
 	}
 
 	/**

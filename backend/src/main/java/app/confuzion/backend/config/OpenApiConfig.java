@@ -32,6 +32,7 @@ import app.confuzion.backend.model.record.ResponseRecord;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.responses.ApiResponse;
@@ -41,8 +42,8 @@ import io.swagger.v3.oas.models.servers.Server;
 
 /**
  * The OpenAPI document that springdoc serves and {@code docs/api/openapi.json}
- * commits. It adds what annotations can't express once: the session cookie, and
- * the error envelope on every operation (D-010).
+ * commits. It adds what annotations can't express once: the session cookie and
+ * CSRF header, and the error envelope on every operation (D-010).
  *
  * @author mcawful
  */
@@ -59,6 +60,18 @@ public class OpenApiConfig {
 	static final String SESSION_COOKIE = "SESSION";
 
 	/**
+	 * The cookie that carries the CSRF token (Spring's
+	 * {@code CookieCsrfTokenRepository} default).
+	 */
+	static final String CSRF_COOKIE = "XSRF-TOKEN";
+
+	/**
+	 * The header that every state-changing request must echo the CSRF token in
+	 * (Spring's {@code CookieCsrfTokenRepository} default).
+	 */
+	static final String CSRF_HEADER = "X-XSRF-TOKEN";
+
+	/**
 	 * Returns the document's info, server and security scheme. The server is
 	 * {@code /} because the SPA calls the API on its own origin (D-003), which also
 	 * keeps the document the same wherever it is generated.
@@ -71,7 +84,10 @@ public class OpenApiConfig {
 				.servers(List.of(new Server().url("/")))
 				.components(new Components().addSecuritySchemes(SESSION_SCHEME,
 						new SecurityScheme().type(SecurityScheme.Type.APIKEY).in(SecurityScheme.In.COOKIE)
-								.name(SESSION_COOKIE).description("Session cookie set by Discord sign-in")))
+								.name(SESSION_COOKIE)
+								.description("Session cookie set by Discord sign-in. Every request other than GET must "
+										+ "also send the " + CSRF_COOKIE + " cookie's value in the " + CSRF_HEADER
+										+ " header.")))
 				.addSecurityItem(new SecurityRequirement().addList(SESSION_SCHEME));
 	}
 
@@ -85,16 +101,18 @@ public class OpenApiConfig {
 	OpenApiCustomizer errorResponsesCustomizer() {
 		return openApi -> {
 			// Resolved the way springdoc resolves return types, so it gets the same name
-			// and OpenAPI 3.1 typing as the
-			// success envelopes.
+			// and
+			// OpenAPI 3.1 typing as the success envelopes.
 			var errorEnvelope = SpringDocAnnotationsUtils.extractSchema(openApi.getComponents(),
 					ResolvableType.forClassWithGenerics(ResponseRecord.class, ErrorResponseBodyRecord.class).getType(),
 					null, null, openApi.getSpecVersion());
 			var content = new Content().addMediaType(MediaType.APPLICATION_JSON_VALUE,
 					new io.swagger.v3.oas.models.media.MediaType().schema(errorEnvelope));
 
-			openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperations()
-					.forEach(operation -> addErrorResponses(operation, path.contains("{"), content)));
+			openApi.getPaths()
+					.forEach((path, pathItem) -> pathItem.readOperationsMap()
+							.forEach((method, operation) -> addErrorResponses(operation,
+									method != PathItem.HttpMethod.GET, path.contains("{"), content)));
 		};
 	}
 
@@ -103,15 +121,21 @@ public class OpenApiConfig {
 	 * declares.
 	 *
 	 * @param operation    the {@link Operation}
+	 * @param mutation     whether the operation changes state, so it needs the CSRF
+	 *                     token
 	 * @param hasPathParam whether the path has a parameter, which can name
 	 *                     something that doesn't exist or that the caller can't see
 	 * @param content      the error envelope {@link Content}
 	 */
-	private static void addErrorResponses(Operation operation, boolean hasPathParam, Content content) {
+	private static void addErrorResponses(Operation operation, boolean mutation, boolean hasPathParam,
+			Content content) {
 		var responses = operation.getResponses();
 		if (hasPathParam || operation.getRequestBody() != null || operation.getParameters() != null)
 			responses.putIfAbsent("400", error("The request failed validation.", content));
 		responses.putIfAbsent("401", error("Not signed in.", content));
+		if (mutation)
+			responses.putIfAbsent("403", error("CSRF token missing or invalid. Send the " + CSRF_COOKIE
+					+ " cookie's value in the " + CSRF_HEADER + " header.", content));
 		if (hasPathParam)
 			responses.putIfAbsent("404", error("Not found, or not visible to the caller.", content));
 		responses.putIfAbsent("429", error("Rate limited. Try again later.", content));

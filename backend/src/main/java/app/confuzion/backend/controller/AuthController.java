@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,6 +47,6 @@ public class AuthController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Sign the user out on every device, including this one")
 	public void logoutEverywhere() {
-		throw MeController.notImplemented();
+		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}
 }

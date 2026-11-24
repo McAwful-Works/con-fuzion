@@ -157,10 +157,11 @@ public class GlobalControllerExceptionHandler {
 	 * outside Spring MVC (in filters or the container) look the same.
 	 * <p>
 	 * Server errors are logged with the stack trace. Client errors are logged as
-	 * one line with the exception type and message, and 429s only at debug, so a
-	 * flood of throttled requests doesn't flood the log. Status headers that a
-	 * Spring {@link ErrorResponse} carries (such as {@code Allow} on a 405) are
-	 * kept.
+	 * one line with the exception type only, because client-error messages echo
+	 * request input (a validation failure's rejected value, say) and request bodies
+	 * are never logged. 429s are logged only at debug, so a flood of throttled
+	 * requests doesn't flood the log. Status headers that a Spring
+	 * {@link ErrorResponse} carries (such as {@code Allow} on a 405) are kept.
 	 *
 	 * @param status the response {@link HttpStatusCode}
 	 * @param e      the failure, or {@code null} when there is none to log
@@ -176,8 +177,7 @@ public class GlobalControllerExceptionHandler {
 		else if (status.value() == HttpStatus.TOO_MANY_REQUESTS.value())
 			LOGGER.debug("[{}] {} from {}", correlationId, status.value(), type);
 		else
-			LOGGER.warn("[{}] {} from {}: {}", correlationId, status.value(), type,
-					e == null ? null : singleLine(e.getMessage()));
+			LOGGER.warn("[{}] {} from {}", correlationId, status.value(), type);
 
 		var headers = new HttpHeaders();
 		if (e instanceof ErrorResponse errorResponse)
@@ -186,16 +186,5 @@ public class GlobalControllerExceptionHandler {
 		headers.setContentType(MediaType.APPLICATION_JSON);
 		return ResponseEntity.status(status).headers(headers)
 				.body(new ResponseRecord<>(ErrorResponseBodyRecord.of(status, correlationId)));
-	}
-
-	/**
-	 * Replaces line breaks so an exception message that echoes request input can't
-	 * forge extra log lines.
-	 *
-	 * @param message the exception message, possibly {@code null}
-	 * @return the message on one line
-	 */
-	private static String singleLine(String message) {
-		return message == null ? null : message.replaceAll("[\\r\\n]+", " ");
 	}
 }

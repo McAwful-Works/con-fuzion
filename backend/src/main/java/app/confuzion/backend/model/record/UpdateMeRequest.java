@@ -29,6 +29,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @author mcawful
  */
 public record UpdateMeRequest(
-		@IanaTimeZone @Schema(description = "IANA time zone ID", example = "America/Chicago", maxLength = IanaTimeZone.MAX_LENGTH) String timeZone,
-		Boolean pushEnabled) {
+		@IanaTimeZone @Schema(description = "IANA time zone ID", nullable = true, example = "America/Chicago", maxLength = IanaTimeZone.MAX_LENGTH) String timeZone,
+		@Schema(nullable = true) Boolean pushEnabled) {
 }

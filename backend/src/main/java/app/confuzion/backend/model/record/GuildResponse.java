@@ -40,7 +40,9 @@ public record GuildResponse(
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "https://cdn.discordapp.com/icons/81384788765712384/0123456789abcdef0123456789abcdef.png") String iconUrl,
 		@Schema(requiredMode = RequiredMode.REQUIRED) boolean discoverable) implements ResponseBodyObject {
 	/**
-	 * A Discord snowflake ID: an unsigned 64-bit integer written in decimal.
+	 * A Discord snowflake ID in decimal. Snowflakes are unsigned 64-bit, but stay
+	 * below 2^63 (19 digits) until about 2084, so they fit the {@code bigint}
+	 * columns.
 	 */
-	public static final String SNOWFLAKE_PATTERN = "^[0-9]{17,20}$";
+	public static final String SNOWFLAKE_PATTERN = "^[0-9]{17,19}$";
 }

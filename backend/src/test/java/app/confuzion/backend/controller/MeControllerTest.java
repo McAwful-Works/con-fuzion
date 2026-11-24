@@ -18,16 +18,18 @@
  */
 package app.confuzion.backend.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -36,12 +38,14 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import app.confuzion.backend.aspect.GlobalControllerExceptionHandler;
-import org.junit.jupiter.api.Test;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 /**
- * Unit tests for the contract stubs in {@link MeController} and
- * {@link AuthController}: each answers 501 in the error envelope, and request
- * validation already turns a bad request into a 400 in the same envelope.
+ * Unit tests for the contract stubs in {@link MeController}: each answers 501
+ * in the error envelope, and request validation already turns a bad request
+ * into a 400 in the same envelope.
  *
  * @author mcawful
  */
@@ -52,9 +56,14 @@ class MeControllerTest {
 	private static final String GUILD_ID = "81384788765712384";
 
 	/**
+	 * A request value that must never reach the log.
+	 */
+	private static final String SECRET = "Secret/Rejected_Value";
+
+	/**
 	 * The {@link MockMvc}, with the real exception handler and Bean Validation.
 	 */
-	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MeController(), new AuthController())
+	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MeController())
 			.setControllerAdvice(new GlobalControllerExceptionHandler()).build();
 
 	/**
@@ -127,17 +136,30 @@ class MeControllerTest {
 	 * @param guildId the bad ID
 	 */
 	@ParameterizedTest
-	@ValueSource(strings = { "123", "not-a-snowflake", "813847887657123840000" })
+	@ValueSource(strings = { "123", "not-a-snowflake", "18446744073709551615", "813847887657123840000" })
 	void testUpdateGuildRejectsBadGuildId(String guildId) throws Exception {
 		assertError(json(put("/api/me/guilds/" + guildId), "{\"discoverable\":true}"), HttpStatus.BAD_REQUEST);
 	}
 
 	/**
-	 * Tests that {@code POST /api/auth/logout-everywhere} is a 501 stub.
+	 * Tests that a rejected request value never reaches the log, because client
+	 * errors log the exception type only.
 	 */
 	@Test
-	void testLogoutEverywhereIsNotImplemented() throws Exception {
-		assertError(post("/api/auth/logout-everywhere"), HttpStatus.NOT_IMPLEMENTED);
+	void testRejectedValueIsNotLogged() throws Exception {
+		var appender = new ListAppender<ILoggingEvent>();
+		appender.start();
+		var logger = (Logger) LoggerFactory.getLogger(GlobalControllerExceptionHandler.class);
+		logger.addAppender(appender);
+		try {
+			assertError(json(patch("/api/me"), "{\"timeZone\":\"" + SECRET + "\"}"), HttpStatus.BAD_REQUEST);
+			assertError(json(patch("/api/me"), "{\"pushEnabled\":\"" + SECRET + "\"}"), HttpStatus.BAD_REQUEST);
+		} finally {
+			logger.detachAppender(appender);
+		}
+
+		assertThat(appender.list).hasSize(2).allSatisfy(
+				event -> assertThat(event.getFormattedMessage()).contains("400 from").doesNotContain(SECRET));
 	}
 
 	/**
