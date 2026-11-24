@@ -104,7 +104,8 @@ Context · Decision · Consequences · Trigger to revisit
     from the other's circles, in one transaction. From then on neither can find or pick the other, use the other's
     invites, or see the other's events.
   - **A block doesn't void the blocker's other invites** (owner, 2026-11-24): accepting already rejects a blocked pair,
-    so links the blocker sent to other people keep working.
+    so links the blocker sent to other people keep working. After an unblock, an unexpired link the blocker had
+    already shown the other person works again.
 - **Invite rules:**
   - The token is 128 bits from a CSPRNG, base64url without padding (22 characters).
   - Only its SHA-256 is stored (`friend_invite.token_hash`). The raw token appears once, in the

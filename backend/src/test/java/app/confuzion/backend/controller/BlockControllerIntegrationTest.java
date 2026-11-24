@@ -201,8 +201,16 @@ class BlockControllerIntegrationTest {
 		mockMvc.perform(get("/api/friends/invites/" + myOther).with(login(third))).andExpect(status().isOk());
 		mockMvc.perform(post("/api/friends/invites/" + myOther + "/accept").with(login(third)).with(csrf()))
 				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/friends/invites/" + theirs + "/accept").with(login(third)).with(csrf()))
+				.andExpect(status().isOk());
 		assertThat(fixtures.areFriends(me, third)).isTrue();
+		assertThat(fixtures.areFriends(them, third)).isTrue();
 		assertThat(fixtures.areFriends(me, them)).isFalse();
+
+		// After an unblock, a link the blocker had already shown works again (D-011).
+		mockMvc.perform(delete("/api/blocks/" + them).with(login(me)).with(csrf())).andExpect(status().isNoContent());
+		mockMvc.perform(post("/api/friends/invites/" + mine + "/accept").with(login(them)).with(csrf()))
+				.andExpect(status().isOk());
 	}
 
 	/**
