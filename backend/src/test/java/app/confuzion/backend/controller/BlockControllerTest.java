@@ -19,11 +19,10 @@
 package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.params.ParameterizedTest;
@@ -32,9 +31,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 
+import app.confuzion.backend.service.BlockService;
+
 /**
- * Unit tests for the {@link BlockController} contract stubs: every operation
- * answers 501 in the error envelope, and a user ID that isn't a UUID is a 400.
+ * Unit tests for {@link BlockController} request validation: a user ID that
+ * isn't a UUID is a 400 in the error envelope.
  *
  * @author mcawful
  */
@@ -42,28 +43,7 @@ class BlockControllerTest {
 	/**
 	 * The {@link MockMvc}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new BlockController());
-
-	/**
-	 * Returns one valid request per operation.
-	 *
-	 * @return the requests
-	 */
-	static Stream<RequestBuilder> operations() {
-		return Stream.of(get("/api/blocks"), put("/api/blocks/" + UUID.randomUUID()),
-				delete("/api/blocks/" + UUID.randomUUID()));
-	}
-
-	/**
-	 * Tests that each stub answers 501 in the error envelope.
-	 *
-	 * @param request the request
-	 */
-	@ParameterizedTest
-	@MethodSource("operations")
-	void testStubsAreNotImplemented(RequestBuilder request) throws Exception {
-		assertError(mockMvc, request, HttpStatus.NOT_IMPLEMENTED);
-	}
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new BlockController(mock(BlockService.class)));
 
 	/**
 	 * Returns requests whose user ID isn't a UUID.

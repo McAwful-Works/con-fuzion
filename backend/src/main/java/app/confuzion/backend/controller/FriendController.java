@@ -21,6 +21,7 @@ package app.confuzion.backend.controller;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,13 +29,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.InvitePreviewResponse;
 import app.confuzion.backend.model.record.InviteResponse;
 import app.confuzion.backend.model.record.PersonListResponse;
 import app.confuzion.backend.model.record.PersonResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.service.FriendService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -42,8 +44,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * The {@link RestController} for in-app friends and the invite links that make
- * them (D-011). Every method is a contract stub that answers 501 until #36
- * implements it; request validation already runs, so a bad request is a 400.
+ * them (D-011). The service checks every token, and every unusable one is the
+ * same 404.
  *
  * @author mcawful
  */
@@ -58,8 +60,23 @@ public class FriendController {
 			+ "the caller's own, or between two people where either has blocked the other. Every case is the same 404.";
 
 	/**
+	 * The {@link FriendService}.
+	 */
+	private final FriendService friendService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param friendService the {@link FriendService}
+	 */
+	public FriendController(FriendService friendService) {
+		this.friendService = friendService;
+	}
+
+	/**
 	 * Makes a new single-use invite link for the signed-in user.
 	 *
+	 * @param authentication the session's {@link Authentication}
 	 * @return the {@link InviteResponse} envelope
 	 */
 	@PostMapping("/invites")
@@ -72,14 +89,15 @@ public class FriendController {
 	@ApiResponse(responseCode = "201", description = "Created")
 	@ApiResponse(responseCode = "429", description = "The user already has 20 active invites (errorType INVITE_LIMIT), "
 			+ "or is rate limited (errorType TOO_MANY_REQUESTS).")
-	public ResponseRecord<InviteResponse> createInvite() {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public ResponseRecord<InviteResponse> createInvite(@Parameter(hidden = true) Authentication authentication) {
+		return new ResponseRecord<>(friendService.createInvite(HttpUtil.userId(authentication)));
 	}
 
 	/**
 	 * Returns what the invite accept page shows.
 	 *
-	 * @param token the invite token from the link
+	 * @param authentication the session's {@link Authentication}
+	 * @param token          the invite token from the link
 	 * @return the {@link InvitePreviewResponse} envelope
 	 */
 	@GetMapping("/invites/{token}")
@@ -90,15 +108,16 @@ public class FriendController {
 	// Declaring the 404 drops springdoc's inferred 200, so the 200 is declared too.
 	@ApiResponse(responseCode = "200", description = "OK")
 	@ApiResponse(responseCode = "404", description = UNUSABLE_INVITE)
-	public ResponseRecord<InvitePreviewResponse> previewInvite(
+	public ResponseRecord<InvitePreviewResponse> previewInvite(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The invite token from the link") @PathVariable String token) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(friendService.previewInvite(HttpUtil.userId(authentication), token));
 	}
 
 	/**
 	 * Accepts an invite, making the signed-in user and the inviter friends.
 	 *
-	 * @param token the invite token from the link
+	 * @param authentication the session's {@link Authentication}
+	 * @param token          the invite token from the link
 	 * @return the new friend's {@link PersonResponse} envelope
 	 */
 	@PostMapping("/invites/{token}/accept")
@@ -107,33 +126,36 @@ public class FriendController {
 			+ "token is a 404 too, never a 400.")
 	@ApiResponse(responseCode = "200", description = "OK")
 	@ApiResponse(responseCode = "404", description = UNUSABLE_INVITE)
-	public ResponseRecord<PersonResponse> acceptInvite(
+	public ResponseRecord<PersonResponse> acceptInvite(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The invite token from the link") @PathVariable String token) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(friendService.acceptInvite(HttpUtil.userId(authentication), token));
 	}
 
 	/**
 	 * Returns the signed-in user's friends.
 	 *
+	 * @param authentication the session's {@link Authentication}
 	 * @return the {@link PersonListResponse} envelope
 	 */
 	@GetMapping
 	@Operation(summary = "List the signed-in user's friends", description = "Sorted by display name.")
-	public ResponseRecord<PersonListResponse> getFriends() {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public ResponseRecord<PersonListResponse> getFriends(@Parameter(hidden = true) Authentication authentication) {
+		return new ResponseRecord<>(friendService.getFriends(HttpUtil.userId(authentication)));
 	}
 
 	/**
 	 * Ends a friendship, for both people.
 	 *
-	 * @param userId the friend's user ID
+	 * @param authentication the session's {@link Authentication}
+	 * @param userId         the friend's user ID
 	 */
 	@DeleteMapping("/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Remove a friend", description = "Ends the friendship for both people and, in the same "
 			+ "transaction, removes each from the other's circles. Always 204, also when the two aren't friends or the "
 			+ "user doesn't exist, so it reveals nothing; the documented 404 never happens.")
-	public void deleteFriend(@Parameter(description = "The friend's user ID") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public void deleteFriend(@Parameter(hidden = true) Authentication authentication,
+			@Parameter(description = "The friend's user ID") @PathVariable UUID userId) {
+		friendService.deleteFriend(HttpUtil.userId(authentication), userId);
 	}
 }

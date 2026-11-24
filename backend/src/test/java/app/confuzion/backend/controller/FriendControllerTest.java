@@ -19,23 +19,18 @@
 package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-
-import java.util.UUID;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.RequestBuilder;
+
+import app.confuzion.backend.service.FriendService;
 
 /**
- * Unit tests for the {@link FriendController} contract stubs: every operation
- * answers 501 in the error envelope, and a bad path parameter is a 400.
+ * Unit tests for {@link FriendController} request validation: a user ID that
+ * isn't a UUID is a 400 in the error envelope.
  *
  * @author mcawful
  */
@@ -43,29 +38,7 @@ class FriendControllerTest {
 	/**
 	 * The {@link MockMvc}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new FriendController());
-
-	/**
-	 * Returns one valid request per operation.
-	 *
-	 * @return the requests
-	 */
-	static Stream<RequestBuilder> operations() {
-		return Stream.of(post("/api/friends/invites"), get("/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA"),
-				post("/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA/accept"), get("/api/friends"),
-				delete("/api/friends/" + UUID.randomUUID()));
-	}
-
-	/**
-	 * Tests that each stub answers 501 in the error envelope.
-	 *
-	 * @param request the request
-	 */
-	@ParameterizedTest
-	@MethodSource("operations")
-	void testStubsAreNotImplemented(RequestBuilder request) throws Exception {
-		assertError(mockMvc, request, HttpStatus.NOT_IMPLEMENTED);
-	}
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new FriendController(mock(FriendService.class)));
 
 	/**
 	 * Tests that a user ID that isn't a UUID is a 400.

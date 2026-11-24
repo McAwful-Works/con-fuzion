@@ -243,19 +243,29 @@ public class UserService {
 	}
 
 	/**
-	 * Maps a user to the {@link MeResponse}. A user without an avatar gets
+	 * Returns a user's Discord CDN avatar URL. A user without an avatar gets
 	 * Discord's default one, picked by {@code (user_id >> 22) % 6}.
+	 *
+	 * @param discordId  the Discord user ID
+	 * @param avatarHash the avatar hash, or {@code null}
+	 * @return the avatar URL
+	 */
+	public static String avatarUrl(long discordId, String avatarHash) {
+		return avatarHash == null ? CDN + "embed/avatars/" + (discordId >>> 22) % DEFAULT_AVATARS + ".png"
+				: CDN + "avatars/" + discordId + "/" + avatarHash + ".png";
+	}
+
+	/**
+	 * Maps a user to the {@link MeResponse}.
 	 *
 	 * @param user        the {@link AppUser}
 	 * @param authorities the session's authorities
 	 * @return the {@link MeResponse}
 	 */
 	private static MeResponse toMeResponse(AppUser user, Collection<? extends GrantedAuthority> authorities) {
-		var avatarUrl = user.getAvatarHash() == null
-				? CDN + "embed/avatars/" + (user.getDiscordId() >>> 22) % DEFAULT_AVATARS + ".png"
-				: CDN + "avatars/" + user.getDiscordId() + "/" + user.getAvatarHash() + ".png";
-		return new MeResponse(user.getId(), user.getUsername(), user.getGlobalName(), avatarUrl, user.getTimeZone(),
-				user.isPushEnabled(), roles(authorities), user.isMfaEnabled());
+		return new MeResponse(user.getId(), user.getUsername(), user.getGlobalName(),
+				avatarUrl(user.getDiscordId(), user.getAvatarHash()), user.getTimeZone(), user.isPushEnabled(),
+				roles(authorities), user.isMfaEnabled());
 	}
 
 	/**

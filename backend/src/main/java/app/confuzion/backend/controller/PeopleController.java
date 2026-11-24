@@ -18,15 +18,16 @@
  */
 package app.confuzion.backend.controller;
 
-import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.PersonListResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.service.FriendService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,8 +38,7 @@ import jakarta.validation.constraints.Size;
 
 /**
  * The {@link RestController} for finding the people the signed-in user can pick
- * for circles and event audiences. A contract stub that answers 501 until #36
- * implements it; request validation already runs, so a bad query is a 400.
+ * for circles and event audiences. The user ID always comes from the session.
  *
  * @author mcawful
  */
@@ -57,9 +57,24 @@ public class PeopleController {
 	public static final int MAX_QUERY = 50;
 
 	/**
+	 * The {@link FriendService}.
+	 */
+	private final FriendService friendService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param friendService the {@link FriendService}
+	 */
+	public PeopleController(FriendService friendService) {
+		this.friendService = friendService;
+	}
+
+	/**
 	 * Searches the people the signed-in user can pick.
 	 *
-	 * @param q the search text
+	 * @param authentication the session's {@link Authentication}
+	 * @param q              the search text
 	 * @return the {@link PersonListResponse} envelope
 	 */
 	@GetMapping
@@ -67,8 +82,8 @@ public class PeopleController {
 			+ "the user's friends, plus people who share a Discord server where both of them are discoverable. Never "
 			+ "the user themself, and never anyone either of them has blocked. Matches display names and usernames, "
 			+ "ignoring case. At most 20 results, sorted by display name.")
-	public ResponseRecord<PersonListResponse> searchPeople(
+	public ResponseRecord<PersonListResponse> searchPeople(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The search text: 2 to 50 characters, with no leading or trailing whitespace") @RequestParam @NotNull @Size(min = MIN_QUERY, max = MAX_QUERY) @Pattern(regexp = CircleRequest.TRIMMED) String q) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(friendService.searchPeople(HttpUtil.userId(authentication), q));
 	}
 }

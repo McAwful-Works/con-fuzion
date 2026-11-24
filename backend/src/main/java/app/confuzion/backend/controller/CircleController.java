@@ -21,6 +21,7 @@ package app.confuzion.backend.controller;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -31,12 +32,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.CircleListResponse;
 import app.confuzion.backend.model.record.CircleRequest;
 import app.confuzion.backend.model.record.CircleResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.service.CircleService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -46,8 +48,7 @@ import jakarta.validation.Valid;
 /**
  * The {@link RestController} for the signed-in user's circles. A circle is
  * private to its owner, and a circle ID that isn't one of the caller's own is a
- * 404. Every method is a contract stub that answers 501 until #36 implements
- * it; request validation already runs, so a bad request is a 400.
+ * 404. The user ID always comes from the session.
  *
  * @author mcawful
  */
@@ -61,20 +62,36 @@ public class CircleController {
 	private static final String NAME_TAKEN = "The caller already has a circle with this name, ignoring case.";
 
 	/**
+	 * The {@link CircleService}.
+	 */
+	private final CircleService circleService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param circleService the {@link CircleService}
+	 */
+	public CircleController(CircleService circleService) {
+		this.circleService = circleService;
+	}
+
+	/**
 	 * Returns the signed-in user's circles.
 	 *
+	 * @param authentication the session's {@link Authentication}
 	 * @return the {@link CircleListResponse} envelope
 	 */
 	@GetMapping
 	@Operation(summary = "List the signed-in user's circles", description = "Sorted by name, each with its members.")
-	public ResponseRecord<CircleListResponse> getCircles() {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public ResponseRecord<CircleListResponse> getCircles(@Parameter(hidden = true) Authentication authentication) {
+		return new ResponseRecord<>(circleService.getCircles(HttpUtil.userId(authentication)));
 	}
 
 	/**
 	 * Creates an empty circle.
 	 *
-	 * @param request the {@link CircleRequest}
+	 * @param authentication the session's {@link Authentication}
+	 * @param request        the {@link CircleRequest}
 	 * @return the new {@link CircleResponse} envelope
 	 */
 	@PostMapping
@@ -83,28 +100,31 @@ public class CircleController {
 	// Declaring the 409 drops springdoc's inferred 201, so the 201 is declared too.
 	@ApiResponse(responseCode = "201", description = "Created")
 	@ApiResponse(responseCode = "409", description = NAME_TAKEN)
-	public ResponseRecord<CircleResponse> createCircle(@Valid @RequestBody CircleRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public ResponseRecord<CircleResponse> createCircle(@Parameter(hidden = true) Authentication authentication,
+			@Valid @RequestBody CircleRequest request) {
+		return new ResponseRecord<>(circleService.createCircle(HttpUtil.userId(authentication), request.name()));
 	}
 
 	/**
 	 * Returns one of the signed-in user's circles.
 	 *
-	 * @param circleId the circle's public ID
+	 * @param authentication the session's {@link Authentication}
+	 * @param circleId       the circle's public ID
 	 * @return the {@link CircleResponse} envelope
 	 */
 	@GetMapping("/{circleId}")
 	@Operation(summary = "Get one of the signed-in user's circles")
-	public ResponseRecord<CircleResponse> getCircle(
+	public ResponseRecord<CircleResponse> getCircle(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The circle's public ID") @PathVariable UUID circleId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(circleService.getCircle(HttpUtil.userId(authentication), circleId));
 	}
 
 	/**
 	 * Renames one of the signed-in user's circles.
 	 *
-	 * @param circleId the circle's public ID
-	 * @param request  the {@link CircleRequest}
+	 * @param authentication the session's {@link Authentication}
+	 * @param circleId       the circle's public ID
+	 * @param request        the {@link CircleRequest}
 	 * @return the updated {@link CircleResponse} envelope
 	 */
 	@PatchMapping("/{circleId}")
@@ -112,30 +132,34 @@ public class CircleController {
 	// Declaring the 409 drops springdoc's inferred 200, so the 200 is declared too.
 	@ApiResponse(responseCode = "200", description = "OK")
 	@ApiResponse(responseCode = "409", description = NAME_TAKEN)
-	public ResponseRecord<CircleResponse> updateCircle(
+	public ResponseRecord<CircleResponse> updateCircle(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The circle's public ID") @PathVariable UUID circleId,
 			@Valid @RequestBody CircleRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(
+				circleService.renameCircle(HttpUtil.userId(authentication), circleId, request.name()));
 	}
 
 	/**
 	 * Deletes one of the signed-in user's circles.
 	 *
-	 * @param circleId the circle's public ID
+	 * @param authentication the session's {@link Authentication}
+	 * @param circleId       the circle's public ID
 	 */
 	@DeleteMapping("/{circleId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Delete one of the signed-in user's circles")
-	public void deleteCircle(@Parameter(description = "The circle's public ID") @PathVariable UUID circleId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public void deleteCircle(@Parameter(hidden = true) Authentication authentication,
+			@Parameter(description = "The circle's public ID") @PathVariable UUID circleId) {
+		circleService.deleteCircle(HttpUtil.userId(authentication), circleId);
 	}
 
 	/**
 	 * Adds a person to one of the signed-in user's circles. Repeating it changes
 	 * nothing.
 	 *
-	 * @param circleId the circle's public ID
-	 * @param userId   the person to add
+	 * @param authentication the session's {@link Authentication}
+	 * @param circleId       the circle's public ID
+	 * @param userId         the person to add
 	 */
 	@PutMapping("/{circleId}/members/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
@@ -146,23 +170,26 @@ public class CircleController {
 	@ApiResponse(responseCode = "204", description = "No Content")
 	@ApiResponse(responseCode = "404", description = "The circle isn't one of the caller's, or the person isn't "
 			+ "pickable. Both are the same 404.")
-	public void addMember(@Parameter(description = "The circle's public ID") @PathVariable UUID circleId,
+	public void addMember(@Parameter(hidden = true) Authentication authentication,
+			@Parameter(description = "The circle's public ID") @PathVariable UUID circleId,
 			@Parameter(description = "The person's user ID") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		circleService.addMember(HttpUtil.userId(authentication), circleId, userId);
 	}
 
 	/**
 	 * Removes a person from one of the signed-in user's circles.
 	 *
-	 * @param circleId the circle's public ID
-	 * @param userId   the person to remove
+	 * @param authentication the session's {@link Authentication}
+	 * @param circleId       the circle's public ID
+	 * @param userId         the person to remove
 	 */
 	@DeleteMapping("/{circleId}/members/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Remove a person from a circle", description = "Also 204 when the person isn't a member. "
 			+ "404 only when the circle isn't one of the caller's.")
-	public void removeMember(@Parameter(description = "The circle's public ID") @PathVariable UUID circleId,
+	public void removeMember(@Parameter(hidden = true) Authentication authentication,
+			@Parameter(description = "The circle's public ID") @PathVariable UUID circleId,
 			@Parameter(description = "The person's user ID") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		circleService.removeMember(HttpUtil.userId(authentication), circleId, userId);
 	}
 }

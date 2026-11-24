@@ -18,8 +18,6 @@
  */
 package app.confuzion.backend.controller;
 
-import java.util.UUID;
-
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -37,6 +35,7 @@ import app.confuzion.backend.model.record.UpdateGuildRequest;
 import app.confuzion.backend.model.record.UpdateGuildsRequest;
 import app.confuzion.backend.model.record.UpdateMeRequest;
 import app.confuzion.backend.service.UserService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -78,7 +77,8 @@ public class MeController {
 	@GetMapping
 	@Operation(summary = "Get the signed-in user's profile")
 	public ResponseRecord<MeResponse> getMe(@Parameter(hidden = true) Authentication authentication) {
-		return new ResponseRecord<>(userService.getMe(userId(authentication), authentication.getAuthorities()));
+		return new ResponseRecord<>(
+				userService.getMe(HttpUtil.userId(authentication), authentication.getAuthorities()));
 	}
 
 	/**
@@ -93,7 +93,7 @@ public class MeController {
 	public ResponseRecord<MeResponse> updateMe(@Parameter(hidden = true) Authentication authentication,
 			@Valid @RequestBody UpdateMeRequest request) {
 		return new ResponseRecord<>(
-				userService.updateMe(userId(authentication), authentication.getAuthorities(), request));
+				userService.updateMe(HttpUtil.userId(authentication), authentication.getAuthorities(), request));
 	}
 
 	/**
@@ -105,7 +105,7 @@ public class MeController {
 	@GetMapping("/guilds")
 	@Operation(summary = "List the signed-in user's Discord servers", description = "As of the last login sync, sorted by name.")
 	public ResponseRecord<GuildListResponse> getGuilds(@Parameter(hidden = true) Authentication authentication) {
-		return new ResponseRecord<>(userService.getGuilds(userId(authentication)));
+		return new ResponseRecord<>(userService.getGuilds(HttpUtil.userId(authentication)));
 	}
 
 	/**
@@ -124,7 +124,7 @@ public class MeController {
 	@ApiResponse(responseCode = "404", description = "A guildId isn't one of the user's synced servers. Nothing is changed.")
 	public ResponseRecord<GuildListResponse> updateGuilds(@Parameter(hidden = true) Authentication authentication,
 			@Valid @RequestBody UpdateGuildsRequest request) {
-		return new ResponseRecord<>(userService.updateGuilds(userId(authentication), request));
+		return new ResponseRecord<>(userService.updateGuilds(HttpUtil.userId(authentication), request));
 	}
 
 	/**
@@ -140,16 +140,7 @@ public class MeController {
 	public ResponseRecord<GuildResponse> updateGuild(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "Discord server ID (a snowflake, as a string)") @PathVariable @Pattern(regexp = GuildResponse.SNOWFLAKE_PATTERN) String guildId,
 			@Valid @RequestBody UpdateGuildRequest request) {
-		return new ResponseRecord<>(userService.updateGuild(userId(authentication), guildId, request.discoverable()));
-	}
-
-	/**
-	 * Returns the signed-in user's ID, which is the principal name.
-	 *
-	 * @param authentication the session's {@link Authentication}
-	 * @return the user ID
-	 */
-	private static UUID userId(Authentication authentication) {
-		return UUID.fromString(authentication.getName());
+		return new ResponseRecord<>(
+				userService.updateGuild(HttpUtil.userId(authentication), guildId, request.discoverable()));
 	}
 }
