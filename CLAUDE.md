@@ -55,7 +55,9 @@ docs/       plan, roadmap, decisions, security, runbooks, research
   - Types: `feat fix refactor test docs chore ci build perf`.
   - Scopes (optional): `auth events rsvp social notify admin web infra deps deps-dev docs ci`.
   - PRs are squash-merged, so the PR title becomes the commit.
-- **Branches**: `feat/<scope>-<slug>`, `fix/…`, `chore/…`, `docs/…`, `research/…`.
+- **Branches**: trunk-based. Short-lived `feat/<scope>-<slug>`, `fix/…`, `chore/…`, `docs/…`, `research/…` off `main`.
+  Releases are `v*` tags that only the owner creates. See [docs/releasing.md](docs/releasing.md). Claude never tags,
+  releases, or pushes to `release/*`.
 - **PR body**: fill in `.github/pull_request_template.md` and close the issue with `Closes #<n>`.
 
 ## Commands
@@ -69,7 +71,7 @@ docs/       plan, roadmap, decisions, security, runbooks, research
 ## Hooks (`.claude/settings.json`)
 These run automatically. Don't work around them; if one is wrong, say so.
 - `guard-writes`: blocks secret files and image assets, and asks before dependency-file edits.
-- `guard-bash`: blocks commit/push on `main`, force-push, `gh pr merge`, `terraform apply/destroy`, and printing `.env` files. Asks before adding packages.
+- `guard-bash`: blocks commit/push on `main`, pushes to `release/*`, tags and releases, force-push, `gh pr merge`, `terraform apply/destroy`, and printing `.env` files. Asks before adding packages.
 - `format`: Prettier on edited frontend files, once `frontend/node_modules` exists. Java is formatted by Spotless at Stop.
 - `license-check`: flags Java files that are missing the MIT header or `@author`.
 - `stop-checks`: runs Spotless and unit tests (backend) and lint and tests (frontend) when code changed.
