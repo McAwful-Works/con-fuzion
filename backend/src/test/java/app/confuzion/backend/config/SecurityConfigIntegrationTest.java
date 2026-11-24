@@ -72,6 +72,30 @@ class SecurityConfigIntegrationTest {
 	static final String ADMIN_ID = "100000000000000001";
 
 	/**
+	 * One valid request per contract-stub operation, so the security chain is
+	 * checked for every endpoint that has no implementation yet.
+	 */
+	private static final List<Stub> CONTRACT_STUBS = List.of(new Stub("POST", "/api/friends/invites", null),
+			new Stub("GET", "/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA", null),
+			new Stub("POST", "/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA/accept", null),
+			new Stub("GET", "/api/friends", null),
+			new Stub("DELETE", "/api/friends/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null),
+			new Stub("GET", "/api/people?q=con", null), new Stub("GET", "/api/circles", null),
+			new Stub("POST", "/api/circles", "{\"name\":\"Crew\"}"),
+			new Stub("GET", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null),
+			new Stub("PATCH", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", "{\"name\":\"Crew\"}"),
+			new Stub("DELETE", "/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null),
+			new Stub("PUT",
+					"/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/members/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20",
+					null),
+			new Stub("DELETE",
+					"/api/circles/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/members/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20",
+					null),
+			new Stub("GET", "/api/blocks", null),
+			new Stub("PUT", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null),
+			new Stub("DELETE", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null));
+
+	/**
 	 * The stub Discord.
 	 */
 	private static final DiscordStub DISCORD = new DiscordStub();
@@ -254,6 +278,27 @@ class SecurityConfigIntegrationTest {
 		var ok = sendWithCsrf("PUT", path, session, body);
 		assertThat(ok.statusCode()).isEqualTo(200);
 		assertThat(JsonPath.<Boolean>read(ok.body(), "$.body.discoverable")).isTrue();
+	}
+
+	/**
+	 * Tests that every contract stub is deny-by-default: a 401 without a session, a
+	 * 403 for a signed-in write without the CSRF token, and through to the stub's
+	 * 501 with both.
+	 */
+	@Test
+	void contractStubsNeedSessionAndCsrf() throws Exception {
+		DISCORD.reset("100000000000000080", "stub_user", false);
+		var session = login().session();
+		// CSRF is checked before authorization, so anonymous writes send a token.
+		var anonymousCsrf = cookie(send("GET", "/api/me", null, null), "XSRF-TOKEN");
+
+		for (var stub : CONTRACT_STUBS) {
+			assertError(send(stub.method(), stub.path(), null, stub.body(), "Cookie", "XSRF-TOKEN=" + anonymousCsrf,
+					"X-XSRF-TOKEN", anonymousCsrf), 401, "UNAUTHORIZED");
+			if (!stub.method().equals("GET"))
+				assertError(send(stub.method(), stub.path(), session, stub.body()), 403, "FORBIDDEN");
+			assertError(sendWithCsrf(stub.method(), stub.path(), session, stub.body()), 501, "NOT_IMPLEMENTED");
+		}
 	}
 
 	/**
@@ -482,6 +527,17 @@ class SecurityConfigIntegrationTest {
 		assertThat(JsonPath.<String>read(response.body(), "$.body.errorType")).isEqualTo(errorType);
 		assertThat(JsonPath.<String>read(response.body(), "$.body.correlationId"))
 				.isEqualTo(response.headers().firstValue("X-Correlation-Id").orElseThrow());
+	}
+
+	/**
+	 * One request to a contract stub.
+	 *
+	 * @param method the method
+	 * @param path   the path, with any query
+	 * @param body   the JSON body, or {@code null}
+	 * @author mcawful
+	 */
+	private record Stub(String method, String path, String body) {
 	}
 
 	/**

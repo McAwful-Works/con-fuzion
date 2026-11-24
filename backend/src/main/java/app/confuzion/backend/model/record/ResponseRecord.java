@@ -42,9 +42,16 @@ public record ResponseRecord<T extends ResponseBodyObject>(
 	/**
 	 * The response body to type map.
 	 */
-	private static final Map<Class<? extends ResponseBodyObject>, ResponseType> BODY_TO_TYPE_MAP = Map.of(
-			ErrorResponseBodyRecord.class, ResponseType.ERROR, MeResponse.class, ResponseType.ME, GuildResponse.class,
-			ResponseType.GUILD, GuildListResponse.class, ResponseType.GUILD_LIST);
+	private static final Map<Class<? extends ResponseBodyObject>, ResponseType> BODY_TO_TYPE_MAP = Map.ofEntries(
+			Map.entry(ErrorResponseBodyRecord.class, ResponseType.ERROR), Map.entry(MeResponse.class, ResponseType.ME),
+			Map.entry(GuildResponse.class, ResponseType.GUILD),
+			Map.entry(GuildListResponse.class, ResponseType.GUILD_LIST),
+			Map.entry(PersonResponse.class, ResponseType.PERSON),
+			Map.entry(PersonListResponse.class, ResponseType.PERSON_LIST),
+			Map.entry(InviteResponse.class, ResponseType.INVITE),
+			Map.entry(InvitePreviewResponse.class, ResponseType.INVITE_PREVIEW),
+			Map.entry(CircleResponse.class, ResponseType.CIRCLE),
+			Map.entry(CircleListResponse.class, ResponseType.CIRCLE_LIST));
 
 	/**
 	 * Constructor to create a {@link ResponseRecord} from the provided

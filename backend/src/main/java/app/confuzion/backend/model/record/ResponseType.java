@@ -45,6 +45,36 @@ public enum ResponseType {
 	GUILD_LIST,
 
 	/**
+	 * Indicates a {@link PersonResponse} body.
+	 */
+	PERSON,
+
+	/**
+	 * Indicates a {@link PersonListResponse} body.
+	 */
+	PERSON_LIST,
+
+	/**
+	 * Indicates a {@link InviteResponse} body.
+	 */
+	INVITE,
+
+	/**
+	 * Indicates a {@link InvitePreviewResponse} body.
+	 */
+	INVITE_PREVIEW,
+
+	/**
+	 * Indicates a {@link CircleResponse} body.
+	 */
+	CIRCLE,
+
+	/**
+	 * Indicates a {@link CircleListResponse} body.
+	 */
+	CIRCLE_LIST,
+
+	/**
 	 * Indicates the response body is unknown.
 	 */
 	UNKNOWN

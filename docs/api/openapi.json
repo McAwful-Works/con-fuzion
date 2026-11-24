@@ -11,11 +11,23 @@
     "session" : [ ]
   } ],
   "tags" : [ {
+    "description" : "Blocked users",
+    "name" : "blocks"
+  }, {
     "description" : "Sessions",
     "name" : "auth"
   }, {
+    "description" : "Finding people to add to circles and audiences",
+    "name" : "people"
+  }, {
     "description" : "The signed-in user's profile and Discord servers",
     "name" : "me"
+  }, {
+    "description" : "Named groups of people, private to their owner",
+    "name" : "circles"
+  }, {
+    "description" : "In-app friends and invite links",
+    "name" : "friends"
   } ],
   "paths" : {
     "/api/auth/logout" : {
@@ -121,6 +133,1317 @@
         },
         "summary" : "Sign the user out on every device, including this one",
         "tags" : [ "auth" ]
+      }
+    },
+    "/api/blocks" : {
+      "get" : {
+        "description" : "Sorted by display name. Never shows who has blocked the user.",
+        "operationId" : "getBlocks",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordPersonListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "List the users the signed-in user has blocked",
+        "tags" : [ "blocks" ]
+      }
+    },
+    "/api/blocks/{userId}" : {
+      "delete" : {
+        "description" : "Removes only the caller's own block; a block the other person made stays. Friendships and circle memberships aren't restored. Always 204, also when there was no block or no such user; the documented 404 never happens.",
+        "operationId" : "unblockUser",
+        "parameters" : [ {
+          "description" : "The blocked user",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Unblock a user",
+        "tags" : [ "blocks" ]
+      },
+      "put" : {
+        "description" : "Idempotent. In one transaction it ends any friendship between the two and removes each from the other's circles. From then on, whichever of them made the block, neither can find or pick the other, use the other's invites, or see the other's events. A user ID that doesn't exist is also a 204, so it reveals nothing; the documented 404 never happens.",
+        "operationId" : "blockUser",
+        "parameters" : [ {
+          "description" : "The user to block",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation, or the user ID is the caller's own."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Block a user",
+        "tags" : [ "blocks" ]
+      }
+    },
+    "/api/circles" : {
+      "get" : {
+        "description" : "Sorted by name, each with its members.",
+        "operationId" : "getCircles",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordCircleListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "List the signed-in user's circles",
+        "tags" : [ "circles" ]
+      },
+      "post" : {
+        "description" : "The new circle has no members.",
+        "operationId" : "createCircle",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CircleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordCircleResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The caller already has a circle with this name, ignoring case."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Create a circle",
+        "tags" : [ "circles" ]
+      }
+    },
+    "/api/circles/{circleId}" : {
+      "delete" : {
+        "operationId" : "deleteCircle",
+        "parameters" : [ {
+          "description" : "The circle's public ID",
+          "in" : "path",
+          "name" : "circleId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Delete one of the signed-in user's circles",
+        "tags" : [ "circles" ]
+      },
+      "get" : {
+        "operationId" : "getCircle",
+        "parameters" : [ {
+          "description" : "The circle's public ID",
+          "in" : "path",
+          "name" : "circleId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordCircleResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Get one of the signed-in user's circles",
+        "tags" : [ "circles" ]
+      },
+      "patch" : {
+        "operationId" : "updateCircle",
+        "parameters" : [ {
+          "description" : "The circle's public ID",
+          "in" : "path",
+          "name" : "circleId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CircleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordCircleResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The caller already has a circle with this name, ignoring case."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Rename one of the signed-in user's circles",
+        "tags" : [ "circles" ]
+      }
+    },
+    "/api/circles/{circleId}/members/{userId}" : {
+      "delete" : {
+        "description" : "Also 204 when the person isn't a member. 404 only when the circle isn't one of the caller's.",
+        "operationId" : "removeMember",
+        "parameters" : [ {
+          "description" : "The circle's public ID",
+          "in" : "path",
+          "name" : "circleId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "description" : "The person's user ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Remove a person from a circle",
+        "tags" : [ "circles" ]
+      },
+      "put" : {
+        "description" : "Idempotent. The person must be pickable (D-011): a friend, or someone who shares a Discord server where both are discoverable, and not blocked either way. They aren't told. Adding someone who is already a member is a 204 without re-checking.",
+        "operationId" : "addMember",
+        "parameters" : [ {
+          "description" : "The circle's public ID",
+          "in" : "path",
+          "name" : "circleId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "description" : "The person's user ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The circle isn't one of the caller's, or the person isn't pickable. Both are the same 404."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Add a person to a circle",
+        "tags" : [ "circles" ]
+      }
+    },
+    "/api/friends" : {
+      "get" : {
+        "description" : "Sorted by display name.",
+        "operationId" : "getFriends",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordPersonListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "List the signed-in user's friends",
+        "tags" : [ "friends" ]
+      }
+    },
+    "/api/friends/invites" : {
+      "post" : {
+        "description" : "The link holds a 128-bit random token, works once, and expires after 24 hours. This response is the only place the token appears: the server stores only its SHA-256. A user can have at most 20 unused, unexpired invites, and can't list or revoke them, so the client makes a new one only when the user asks for a new code, not each time a screen opens.",
+        "operationId" : "createInvite",
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordInviteResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The user already has 20 active invites (errorType INVITE_LIMIT), or is rate limited (errorType TOO_MANY_REQUESTS)."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Make a friend invite link",
+        "tags" : [ "friends" ]
+      }
+    },
+    "/api/friends/invites/{token}" : {
+      "get" : {
+        "description" : "Doesn't use the invite up. A signed-out visitor to /invite/{token} gets a 401 here: the SPA keeps the token in sessionStorage, signs them in (and through onboarding), then returns to the accept page. A malformed token is a 404 too, never a 400.",
+        "operationId" : "previewInvite",
+        "parameters" : [ {
+          "description" : "The invite token from the link",
+          "in" : "path",
+          "name" : "token",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordInvitePreviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The token is unusable: malformed, unknown, expired, already used, the caller's own, or between two people where either has blocked the other. Every case is the same 404."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Preview a friend invite before accepting it",
+        "tags" : [ "friends" ]
+      }
+    },
+    "/api/friends/invites/{token}/accept" : {
+      "post" : {
+        "description" : "Uses the invite up and returns the new friend. If the two are already friends it still succeeds, returns the friend, and uses the invite up. A malformed token is a 404 too, never a 400.",
+        "operationId" : "acceptInvite",
+        "parameters" : [ {
+          "description" : "The invite token from the link",
+          "in" : "path",
+          "name" : "token",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordPersonResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The token is unusable: malformed, unknown, expired, already used, the caller's own, or between two people where either has blocked the other. Every case is the same 404."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Accept a friend invite",
+        "tags" : [ "friends" ]
+      }
+    },
+    "/api/friends/{userId}" : {
+      "delete" : {
+        "description" : "Ends the friendship for both people and, in the same transaction, removes each from the other's circles. Always 204, also when the two aren't friends or the user doesn't exist, so it reveals nothing; the documented 404 never happens.",
+        "operationId" : "deleteFriend",
+        "parameters" : [ {
+          "description" : "The friend's user ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Remove a friend",
+        "tags" : [ "friends" ]
       }
     },
     "/api/me" : {
@@ -537,10 +1860,137 @@
         "summary" : "Set whether the signed-in user is discoverable in one of their servers",
         "tags" : [ "me" ]
       }
+    },
+    "/api/people" : {
+      "get" : {
+        "description" : "Pickable people (D-011) are the user's friends, plus people who share a Discord server where both of them are discoverable. Never the user themself, and never anyone either of them has blocked. Matches display names and usernames, ignoring case. At most 20 results, sorted by display name.",
+        "operationId" : "searchPeople",
+        "parameters" : [ {
+          "description" : "The search text: 2 to 50 characters, with no leading or trailing whitespace",
+          "in" : "query",
+          "name" : "q",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "maxLength" : 50,
+            "minLength" : 2,
+            "pattern" : "^\\S(.*\\S)?$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordPersonListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Search the people the signed-in user can pick",
+        "tags" : [ "people" ]
+      }
     }
   },
   "components" : {
     "schemas" : {
+      "CircleListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "circles" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CircleResponse"
+            }
+          }
+        },
+        "required" : [ "circles" ]
+      },
+      "CircleRequest" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "example" : "Cosplay crew",
+            "maxLength" : 50,
+            "minLength" : 1,
+            "pattern" : "^\\S(.*\\S)?$"
+          }
+        },
+        "required" : [ "name" ]
+      },
+      "CircleResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "members" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonResponse"
+            }
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "Cosplay crew"
+          }
+        },
+        "required" : [ "id", "members", "name" ]
+      },
       "ErrorResponseBodyRecord" : {
         "type" : "object",
         "properties" : {
@@ -554,6 +2004,7 @@
           },
           "errorType" : {
             "type" : "string",
+            "description" : "The HTTP status name, or a domain type the operation documents for that status (D-011).",
             "example" : "NOT_FOUND"
           }
         },
@@ -607,6 +2058,47 @@
         },
         "required" : [ "discoverable", "guildId" ]
       },
+      "InvitePreviewInviter" : {
+        "type" : "object",
+        "properties" : {
+          "avatarUrl" : {
+            "type" : "string",
+            "example" : "https://cdn.discordapp.com/embed/avatars/0.png"
+          },
+          "displayName" : {
+            "type" : "string",
+            "example" : "Con Goer"
+          }
+        },
+        "required" : [ "avatarUrl", "displayName" ]
+      },
+      "InvitePreviewResponse" : {
+        "type" : "object",
+        "properties" : {
+          "expiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "inviter" : {
+            "$ref" : "#/components/schemas/InvitePreviewInviter"
+          }
+        },
+        "required" : [ "expiresAt", "inviter" ]
+      },
+      "InviteResponse" : {
+        "type" : "object",
+        "properties" : {
+          "expiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "url" : {
+            "type" : "string",
+            "example" : "https://example.com/invite/q3Jx0nV9cY2bT8pL1mR4wA"
+          }
+        },
+        "required" : [ "expiresAt", "url" ]
+      },
       "MeResponse" : {
         "type" : "object",
         "properties" : {
@@ -646,6 +2138,62 @@
         },
         "required" : [ "avatarUrl", "globalName", "id", "mfaEnabled", "pushEnabled", "roles", "timeZone", "username" ]
       },
+      "PersonListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "people" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonResponse"
+            }
+          }
+        },
+        "required" : [ "people" ]
+      },
+      "PersonResponse" : {
+        "type" : "object",
+        "properties" : {
+          "avatarUrl" : {
+            "type" : "string",
+            "example" : "https://cdn.discordapp.com/embed/avatars/0.png"
+          },
+          "displayName" : {
+            "type" : "string",
+            "example" : "Con Goer"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        },
+        "required" : [ "avatarUrl", "displayName", "id" ]
+      },
+      "ResponseRecordCircleListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/CircleListResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordCircleResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/CircleResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
       "ResponseRecordErrorResponseBodyRecord" : {
         "type" : "object",
         "properties" : {
@@ -654,7 +2202,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -667,7 +2215,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -680,7 +2228,33 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordInvitePreviewResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/InvitePreviewResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordInviteResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/InviteResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -693,7 +2267,33 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordPersonListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/PersonListResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordPersonResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/PersonResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]

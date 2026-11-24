@@ -20,3 +20,6 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | `logout-everywhere` access log shows `-> 200 (user anonymous)` | The response is a 204, which the tests check, but `LoggerAspect` reads the status and user after the logout handler has cleared them. Capture the user ID before `proceed()`, and return a `ResponseEntity` so the status is logged correctly |
 | Separate local database for e2e runs | Local `e2e` runs add `e2e-…` users to the dev `confuzion` database. Point the suite at `confuzion_e2e` (create it in docker-compose's init) |
 | Clean the session principal index without keyspace events | #11 sets `configure-action=none` because ElastiCache refuses `CONFIG`. Expired session IDs accumulate in the per-user index set (harmless, since lookups skip them) |
+| Tighten `Permissions-Policy` to `camera=()` | D-011 dropped the in-app QR scanner (invite links open in the phone camera app), so the app no longer needs the camera. Touches `SecurityConfig`, `docs/security.md` and plan B11 |
+| List and revoke friend invites | D-011 has no endpoint for them. Lets a "My QR" screen show whether its code was used, and lets a user clear the 20-invite cap early |
+| Purge used and expired `friend_invite` rows | They're never deleted, so who-invited-whom is kept forever. A `@Scheduled` delete after a grace period |

@@ -42,6 +42,7 @@ import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.TestcontainersConfiguration;
+import app.confuzion.backend.exception.LimitExceededException;
 
 /**
  * Exports the OpenAPI document to {@value #DOCUMENT} and checks the contract in
@@ -102,12 +103,80 @@ class OpenApiConfigIntegrationTest {
 		Map<String, Map<String, Object>> paths = document.read("$.paths");
 
 		assertThat(paths).containsOnlyKeys("/api/me", "/api/me/guilds", "/api/me/guilds/{guildId}", "/api/auth/logout",
-				"/api/auth/logout-everywhere");
+				"/api/auth/logout-everywhere", "/api/friends", "/api/friends/{userId}", "/api/friends/invites",
+				"/api/friends/invites/{token}", "/api/friends/invites/{token}/accept", "/api/people", "/api/circles",
+				"/api/circles/{circleId}", "/api/circles/{circleId}/members/{userId}", "/api/blocks",
+				"/api/blocks/{userId}");
 		assertThat(paths.get("/api/me")).containsOnlyKeys("get", "patch");
 		assertThat(paths.get("/api/me/guilds")).containsOnlyKeys("get", "put");
 		assertThat(paths.get("/api/me/guilds/{guildId}")).containsOnlyKeys("put");
 		assertThat(paths.get("/api/auth/logout")).containsOnlyKeys("post");
 		assertThat(paths.get("/api/auth/logout-everywhere")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/friends")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/friends/{userId}")).containsOnlyKeys("delete");
+		assertThat(paths.get("/api/friends/invites")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/friends/invites/{token}")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/friends/invites/{token}/accept")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/people")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/circles")).containsOnlyKeys("get", "post");
+		assertThat(paths.get("/api/circles/{circleId}")).containsOnlyKeys("get", "patch", "delete");
+		assertThat(paths.get("/api/circles/{circleId}/members/{userId}")).containsOnlyKeys("put", "delete");
+		assertThat(paths.get("/api/blocks")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/blocks/{userId}")).containsOnlyKeys("put", "delete");
+	}
+
+	/**
+	 * Tests the social graph's success bodies: typed envelopes, 201 for creates and
+	 * a bodiless 204 for removals.
+	 */
+	@Test
+	void socialSuccessBodies() {
+		assertThat(successRef("/api/friends", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordPersonListResponse");
+		assertThat(successRef("/api/friends/invites", "post", "201"))
+				.isEqualTo("#/components/schemas/ResponseRecordInviteResponse");
+		assertThat(successRef("/api/friends/invites/{token}", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordInvitePreviewResponse");
+		assertThat(successRef("/api/friends/invites/{token}/accept", "post"))
+				.isEqualTo("#/components/schemas/ResponseRecordPersonResponse");
+		assertThat(successRef("/api/people", "get")).isEqualTo("#/components/schemas/ResponseRecordPersonListResponse");
+		assertThat(successRef("/api/blocks", "get")).isEqualTo("#/components/schemas/ResponseRecordPersonListResponse");
+		assertThat(successRef("/api/circles", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordCircleListResponse");
+		assertThat(successRef("/api/circles", "post", "201"))
+				.isEqualTo("#/components/schemas/ResponseRecordCircleResponse");
+		assertThat(successRef("/api/circles/{circleId}", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordCircleResponse");
+		assertThat(successRef("/api/circles/{circleId}", "patch"))
+				.isEqualTo("#/components/schemas/ResponseRecordCircleResponse");
+		for (var removal : List.of(List.of("/api/friends/{userId}", "delete"),
+				List.of("/api/circles/{circleId}", "delete"),
+				List.of("/api/circles/{circleId}/members/{userId}", "put"),
+				List.of("/api/circles/{circleId}/members/{userId}", "delete"), List.of("/api/blocks/{userId}", "put"),
+				List.of("/api/blocks/{userId}", "delete")))
+			assertThat(responses(removal.get(0), removal.get(1))).containsKey("204").doesNotContainKey("200");
+		assertThat(responses("/api/friends/invites", "post")).containsKeys("201", "429").doesNotContainKey("200");
+		assertThat(responses("/api/circles", "post")).containsKeys("201", "409").doesNotContainKey("200");
+		assertThat(responses("/api/circles/{circleId}", "patch")).containsKeys("200", "409");
+		assertThat(responses("/api/friends/invites/{token}", "get")).containsKeys("200", "404");
+		assertThat(responses("/api/friends/invites/{token}/accept", "post")).containsKeys("200", "403", "404");
+		assertThat(responses("/api/people", "get")).containsKey("400").doesNotContainKey("403");
+		assertThat(document.<String>read("$.paths['/api/friends/invites'].post.responses['429'].description"))
+				.contains(LimitExceededException.Limit.INVITE_LIMIT.name());
+	}
+
+	/**
+	 * Tests that people are identified by our user ID only: no Discord ID, username
+	 * or email in a public profile, and no ID at all for an inviter.
+	 */
+	@Test
+	void personSchemasCarryNoDiscordId() {
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.PersonResponse.properties"))
+				.containsOnlyKeys("id", "displayName", "avatarUrl");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.InvitePreviewInviter.properties"))
+				.containsOnlyKeys("displayName", "avatarUrl");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.CircleResponse.properties"))
+				.containsOnlyKeys("id", "name", "members");
 	}
 
 	/**
@@ -135,7 +204,7 @@ class OpenApiConfigIntegrationTest {
 	void everyOperationDocumentsTheErrorEnvelope() {
 		List<Map<String, Map<String, Object>>> responses = document.read("$.paths.*.*.responses");
 
-		assertThat(responses).hasSize(7).allSatisfy(byStatus -> {
+		assertThat(responses).hasSize(23).allSatisfy(byStatus -> {
 			assertThat(byStatus).containsKeys("500", "default");
 			byStatus.forEach((code, response) -> {
 				if (code.startsWith("4") || code.startsWith("5") || code.equals("default"))
@@ -202,7 +271,19 @@ class OpenApiConfigIntegrationTest {
 	 * @return the {@code $ref}
 	 */
 	private String successRef(String path, String method) {
-		return document.read(
-				"$.paths['" + path + "']." + method + ".responses['200'].content['application/json'].schema.$ref");
+		return successRef(path, method, "200");
+	}
+
+	/**
+	 * Returns the schema reference of an operation's success response.
+	 *
+	 * @param path   the path
+	 * @param method the HTTP method, in lower case
+	 * @param status the success status
+	 * @return the {@code $ref}
+	 */
+	private String successRef(String path, String method, String status) {
+		return document.read("$.paths['" + path + "']." + method + ".responses['" + status
+				+ "'].content['application/json'].schema.$ref");
 	}
 }

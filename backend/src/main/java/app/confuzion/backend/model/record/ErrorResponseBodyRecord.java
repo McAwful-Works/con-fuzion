@@ -31,7 +31,9 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * sent inside a {@link ResponseRecord} envelope with {@link ResponseType#ERROR}
  * (D-010).
  *
- * @param errorType     the HTTP status name, for example {@code CONFLICT}
+ * @param errorType     the HTTP status name, for example {@code CONFLICT}, or a
+ *                      domain type that an operation documents for that status,
+ *                      such as {@code INVITE_LIMIT} on a 429 (D-011)
  * @param errorMessage  the generic HTTP reason phrase, for example
  *                      {@code Conflict}
  * @param correlationId the ID that ties this response to the server-side log
@@ -40,7 +42,7 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * @author mcawful
  */
 public record ErrorResponseBodyRecord(
-		@Schema(requiredMode = RequiredMode.REQUIRED, example = "NOT_FOUND") String errorType,
+		@Schema(requiredMode = RequiredMode.REQUIRED, example = "NOT_FOUND", description = "The HTTP status name, or a domain type the operation documents for that status (D-011).") String errorType,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "Not Found") String errorMessage,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60") String correlationId)
 		implements ResponseBodyObject {
