@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { api } from './client';
-import type { components } from './schema';
+import type { components, paths } from './schema';
 
 type Schemas = components['schemas'];
 export type Me = Schemas['MeResponse'];
@@ -10,11 +10,10 @@ export type Guild = Schemas['GuildResponse'];
 /** Where the browser goes to start Discord sign-in. A full navigation, not an XHR. */
 export const SIGN_IN_URL = '/api/oauth2/authorization/discord';
 
-/**
- * Single-session sign-out comes from Spring Security in #11 and is not in the OpenAPI contract yet.
- * Keep the path here so it is one line to change.
- */
-const SIGN_OUT_PATH = '/auth/logout';
+/** An API path relative to the `/api` root, checked against the generated contract paths. */
+type ContractPath = keyof paths extends infer P ? (P extends `/api${infer R}` ? R : never) : never;
+const SIGN_OUT_PATH = '/auth/logout' satisfies ContractPath;
+const SIGN_OUT_EVERYWHERE_PATH = '/auth/logout-everywhere' satisfies ContractPath;
 
 const meKey = ['me'] as const;
 const guildsKey = ['guilds'] as const;
@@ -104,7 +103,7 @@ export function useSignOut(everywhere: boolean) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      api<void>(everywhere ? '/auth/logout-everywhere' : SIGN_OUT_PATH, { method: 'POST' }),
+      api<void>(everywhere ? SIGN_OUT_EVERYWHERE_PATH : SIGN_OUT_PATH, { method: 'POST' }),
     // Drop everything cached for the old session so nothing leaks into the next sign-in.
     onSuccess: () => queryClient.clear(),
   });

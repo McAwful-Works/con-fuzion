@@ -32,6 +32,26 @@ describe('auth state', () => {
     expect(link).toHaveAttribute('href', '/api/oauth2/authorization/discord');
   });
 
+  it('shows a plain message after a failed sign-in and removes the parameter', async () => {
+    mockApi(({ path }) => (path === '/api/me' ? jsonResponse(errorEnvelope, 401) : undefined));
+
+    const router = renderApp('/welcome?login=failed');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sign-in didn’t complete');
+    await waitFor(() => expect(router.state.location.search).toBe(''));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(router.state.historyAction).toBe('REPLACE');
+  });
+
+  it('shows no sign-in message on a normal visit', async () => {
+    mockApi(({ path }) => (path === '/api/me' ? jsonResponse(errorEnvelope, 401) : undefined));
+
+    renderApp('/welcome');
+
+    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('shows the app shell with the avatar and name when signed in', async () => {
     mockApi(({ path }) => (path === '/api/me' ? envelope('ME', me) : undefined));
 
@@ -163,7 +183,11 @@ describe('servers', () => {
       {
         method: 'PUT',
         path: '/api/me/guilds',
-        body: { guilds: guilds.map((g) => ({ guildId: g.id, discoverable: true })) },
+        body: {
+          guilds: [...guilds]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((g) => ({ guildId: g.id, discoverable: true })),
+        },
       },
     ]);
     for (const guild of guilds) {
@@ -218,6 +242,46 @@ describe('servers', () => {
     fireEvent.click(await screen.findByRole('switch', { name: /Example Con Community/ }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/welcome'));
+  });
+
+  it('sorts servers case-insensitively', async () => {
+    const unsorted = [
+      { ...guilds[0]!, id: '81384788765712391', name: 'zebra con' },
+      { ...guilds[0]!, id: '81384788765712392', name: 'Apple Con' },
+      { ...guilds[0]!, id: '81384788765712393', name: 'banana con' },
+    ];
+    mockApi(({ method, path }) => {
+      if (path === '/api/me') return envelope('ME', me);
+      if (method === 'GET' && path === '/api/me/guilds') {
+        return envelope('GUILD_LIST', { guilds: unsorted });
+      }
+      return undefined;
+    });
+
+    renderApp('/onboarding');
+
+    const switches = await screen.findAllByRole('switch');
+    expect(switches.map((s) => s.closest('li')?.textContent)).toEqual([
+      expect.stringContaining('Apple Con'),
+      expect.stringContaining('banana con'),
+      expect.stringContaining('zebra con'),
+    ]);
+  });
+
+  it('signs out with POST /api/auth/logout and returns to the landing page', async () => {
+    const calls = mockApi(({ method, path }) => {
+      if (path === '/api/me') return envelope('ME', me);
+      if (method === 'GET' && path === '/api/me/guilds') return envelope('GUILD_LIST', { guilds });
+      if (method === 'POST' && path === '/api/auth/logout')
+        return new Response(null, { status: 204 });
+      return undefined;
+    });
+
+    const router = renderApp('/settings');
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/welcome'));
+    expect(calls.filter((c) => c.path === '/api/auth/logout')).toHaveLength(1);
   });
 
   it('reuses the same list under Settings → Servers', async () => {
