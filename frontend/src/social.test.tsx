@@ -136,11 +136,14 @@ describe('invite a friend', () => {
 
 describe('accepting an invite', () => {
   it('shows the inviter, accepts with one POST and lands on Friends', async () => {
+    let used = false;
     const calls = signedIn(({ method, path }) => {
       if (method === 'GET' && path === `/api/friends/invites/${TOKEN}`) {
-        return envelope('INVITE_PREVIEW', preview);
+        // Once accepted the invite is used up, so a refetch would be a 404.
+        return used ? jsonResponse(errorEnvelope, 404) : envelope('INVITE_PREVIEW', preview);
       }
       if (method === 'POST' && path === `/api/friends/invites/${TOKEN}/accept`) {
+        used = true;
         return envelope('PERSON', ada);
       }
       if (method === 'GET' && path === '/api/friends')
@@ -156,6 +159,8 @@ describe('accepting an invite', () => {
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/friends'));
     expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+    // The accepted invite is never fetched again, so no "isn't valid" flash on the way out.
+    expect(calls.filter((c) => c.path === `/api/friends/invites/${TOKEN}`)).toHaveLength(1);
   });
 
   it('shows one message for every 404 and keeps the token for no one', async () => {
@@ -342,6 +347,8 @@ describe('circles', () => {
     fireEvent.change(screen.getByLabelText('Circle name'), { target: { value: 'cosplay crew' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create circle' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('already have a circle');
+    // A failed create keeps what was typed, so it can be fixed.
+    expect(screen.getByLabelText('Circle name')).toHaveValue('cosplay crew');
   });
 
   const circleApi = (extra: (call: RecordedCall) => Response | undefined = () => undefined) =>

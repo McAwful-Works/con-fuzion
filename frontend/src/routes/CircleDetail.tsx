@@ -114,14 +114,19 @@ export function CircleDetail() {
         </Link>
         <h1 className="text-2xl font-semibold break-words">{data.name}</h1>
         {renaming ? (
-          <CircleForm
-            label="Circle name"
-            submitLabel="Save name"
-            initialName={data.name}
-            pending={rename.isPending}
-            error={rename.error}
-            onSubmit={(name) => rename.mutate(name, { onSuccess: () => setRenaming(false) })}
-          />
+          <div className="space-y-2">
+            <CircleForm
+              label="Circle name"
+              submitLabel="Save name"
+              initialName={data.name}
+              pending={rename.isPending}
+              error={rename.error}
+              onSubmit={(name) => rename.mutate(name, { onSuccess: () => setRenaming(false) })}
+            />
+            <button type="button" className="btn btn-secondary" onClick={() => setRenaming(false)}>
+              Cancel
+            </button>
+          </div>
         ) : (
           <button type="button" className="btn btn-secondary" onClick={() => setRenaming(true)}>
             Rename

@@ -26,7 +26,14 @@ export function ConfirmPanel({
 }: Props) {
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => cancelRef.current?.focus(), []);
+  useEffect(() => {
+    // Focus the safe button, and give focus back to whatever opened the panel when it closes.
+    const opener = document.activeElement;
+    cancelRef.current?.focus();
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  }, []);
 
   return (
     <div

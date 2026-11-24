@@ -6,6 +6,7 @@ import {
   usePeopleSearch,
   type Circle,
 } from '../../api/social';
+import { ApiError } from '../../api/client';
 import { ErrorState } from '../../components/ErrorState';
 import { PersonRow } from './PersonRow';
 
@@ -44,11 +45,14 @@ export function PeopleSearch({ circle }: { circle: Circle }) {
         Type at least {PEOPLE_QUERY_MIN} characters. You can add friends and people who are in a
         server with you where you’re both discoverable.
       </p>
-      {add.isError && (
-        <p role="alert" className="text-sm">
-          Couldn’t add them. They may not be available to add any more.
-        </p>
-      )}
+      {add.isError &&
+        (add.error instanceof ApiError && add.error.status === 404 ? (
+          <p role="alert" className="text-sm">
+            Couldn’t add them. They may not be available to add any more.
+          </p>
+        ) : (
+          <ErrorState error={add.error} />
+        ))}
       {!tooShort && results.isError && (
         <ErrorState error={results.error} onRetry={() => void results.refetch()} />
       )}

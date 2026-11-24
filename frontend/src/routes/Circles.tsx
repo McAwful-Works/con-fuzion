@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { useCircles, useCreateCircle } from '../api/social';
 import { ErrorState } from '../components/ErrorState';
@@ -7,6 +8,8 @@ import { CircleForm } from '../features/social/CircleForm';
 export function Circles() {
   const circles = useCircles();
   const create = useCreateCircle();
+  // Clears the field after a success only: a failed create keeps what was typed.
+  const [formKey, setFormKey] = useState(0);
 
   return (
     <div className="space-y-8">
@@ -21,12 +24,12 @@ export function Circles() {
           New circle
         </h2>
         <CircleForm
-          key={create.data?.id}
+          key={formKey}
           label="Circle name"
           submitLabel="Create circle"
           pending={create.isPending}
           error={create.error}
-          onSubmit={(name) => create.mutate(name)}
+          onSubmit={(name) => create.mutate(name, { onSuccess: () => setFormKey((k) => k + 1) })}
         />
       </section>
 

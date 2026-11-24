@@ -73,7 +73,7 @@ export function useInvitePreview(token: string) {
 }
 
 export function useAcceptInvite(token: string) {
-  const invalidate = useInvalidateSocial();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () =>
       (
@@ -81,7 +81,8 @@ export function useAcceptInvite(token: string) {
           method: 'POST',
         })
       ).body,
-    onSuccess: invalidate,
+    // Not the preview: it is a 404 once the invite is used, and the page is about to leave.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: friendsKey }),
   });
 }
 
@@ -154,10 +155,11 @@ export function useRenameCircle(circleId: string) {
 }
 
 export function useDeleteCircle(circleId: string) {
-  const invalidate = useInvalidateSocial();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api<void>(fillPath(CIRCLE, { circleId }), { method: 'DELETE' }),
-    onSuccess: invalidate,
+    // Only the list: the deleted circle's own page would 404 before we navigate away.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: circlesKey, exact: true }),
   });
 }
 

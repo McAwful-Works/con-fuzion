@@ -36,8 +36,11 @@ function QrCode({ value }: { value: string }) {
 }
 
 const expiryFormat = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'medium',
-  timeStyle: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
 });
 
 function InviteLink({ invite }: { invite: Invite }) {
