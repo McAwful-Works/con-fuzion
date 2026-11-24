@@ -72,6 +72,7 @@ docs/       plan, roadmap, decisions, security, runbooks, research
 |---|---|
 | Backend tests | `cd backend && ./gradlew test` (Windows: `gradlew.bat test`) |
 | Backend full check | `cd backend && ./gradlew check` |
+| Export the OpenAPI contract | `cd backend && ./gradlew test --tests '*OpenApiConfigIntegrationTest'` → `docs/api/openapi.json` |
 | Frontend (after M0) | `cd frontend && npm run check` |
 | Local services (after M0) | `docker compose -f infra/docker-compose.yml up -d` |
 

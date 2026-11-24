@@ -18,29 +18,33 @@
  */
 package app.confuzion.backend.model.record;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import app.confuzion.backend.model.ResponseBodyObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 
 /**
- * The standard response record.
- * 
+ * The standard response envelope. Every {@code /api} body uses it, success and
+ * error alike (D-010), so clients parse one structure and switch on
+ * {@code responseType}. The type parameter lets the OpenAPI document describe
+ * each endpoint's concrete body.
+ *
+ * @param <T>          the body type
  * @param responseType the {@link ResponseType}
  * @param body         the {@link ResponseBodyObject}
- * 
+ *
  * @author mcawful
  */
-public record ResponseRecord(ResponseType responseType, ResponseBodyObject body) {
+public record ResponseRecord<T extends ResponseBodyObject>(
+		@Schema(requiredMode = RequiredMode.REQUIRED) ResponseType responseType,
+		@Schema(requiredMode = RequiredMode.REQUIRED) T body) {
 	/**
 	 * The response body to type map.
 	 */
-	private static final Map<Class<? extends ResponseBodyObject>, ResponseType> BODY_TO_TYPE_MAP = new HashMap<>();
-
-	// Initializes the mapping
-	static {
-		BODY_TO_TYPE_MAP.put(ErrorResponseBodyRecord.class, ResponseType.ERROR);
-	}
+	private static final Map<Class<? extends ResponseBodyObject>, ResponseType> BODY_TO_TYPE_MAP = Map.of(
+			ErrorResponseBodyRecord.class, ResponseType.ERROR, MeResponse.class, ResponseType.ME, GuildResponse.class,
+			ResponseType.GUILD, GuildListResponse.class, ResponseType.GUILD_LIST);
 
 	/**
 	 * Constructor to create a {@link ResponseRecord} from the provided
@@ -48,7 +52,7 @@ public record ResponseRecord(ResponseType responseType, ResponseBodyObject body)
 	 *
 	 * @param responseBodyObject the {@link ResponseBodyObject}
 	 */
-	public ResponseRecord(ResponseBodyObject responseBodyObject) {
+	public ResponseRecord(T responseBodyObject) {
 		this(getResponseType(responseBodyObject), responseBodyObject);
 	}
 
@@ -60,9 +64,6 @@ public record ResponseRecord(ResponseType responseType, ResponseBodyObject body)
 	 * @return a {@link ResponseType}
 	 */
 	private static ResponseType getResponseType(ResponseBodyObject responseBodyObject) {
-		var responseBodyObjectClass = responseBodyObject.getClass();
-		if (BODY_TO_TYPE_MAP.containsKey(responseBodyObjectClass))
-			return BODY_TO_TYPE_MAP.get(responseBodyObjectClass);
-		return ResponseType.UNKNOWN;
+		return BODY_TO_TYPE_MAP.getOrDefault(responseBodyObject.getClass(), ResponseType.UNKNOWN);
 	}
 }

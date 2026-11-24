@@ -1,0 +1,549 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Con-Fuzion API",
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "/"
+  } ],
+  "security" : [ {
+    "session" : [ ]
+  } ],
+  "tags" : [ {
+    "description" : "Sessions",
+    "name" : "auth"
+  }, {
+    "description" : "The signed-in user's profile and Discord servers",
+    "name" : "me"
+  } ],
+  "paths" : {
+    "/api/auth/logout-everywhere" : {
+      "post" : {
+        "operationId" : "logoutEverywhere",
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Sign the user out on every device, including this one",
+        "tags" : [ "auth" ]
+      }
+    },
+    "/api/me" : {
+      "get" : {
+        "operationId" : "getMe",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordMeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Get the signed-in user's profile",
+        "tags" : [ "me" ]
+      },
+      "patch" : {
+        "description" : "A field that is missing or null leaves that setting unchanged.",
+        "operationId" : "updateMe",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateMeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordMeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Update the signed-in user's time zone or push setting",
+        "tags" : [ "me" ]
+      }
+    },
+    "/api/me/guilds" : {
+      "get" : {
+        "description" : "As of the last login sync, sorted by name.",
+        "operationId" : "getGuilds",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordGuildListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "List the signed-in user's Discord servers",
+        "tags" : [ "me" ]
+      }
+    },
+    "/api/me/guilds/{guildId}" : {
+      "put" : {
+        "description" : "404 when the server isn't one of the user's synced servers.",
+        "operationId" : "updateGuild",
+        "parameters" : [ {
+          "description" : "Discord server ID (a snowflake, as a string)",
+          "in" : "path",
+          "name" : "guildId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[0-9]{17,20}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateGuildRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordGuildResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Set whether the signed-in user is discoverable in one of their servers",
+        "tags" : [ "me" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "ErrorResponseBodyRecord" : {
+        "type" : "object",
+        "properties" : {
+          "correlationId" : {
+            "type" : "string",
+            "example" : "3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60"
+          },
+          "errorMessage" : {
+            "type" : "string",
+            "example" : "Not Found"
+          },
+          "errorType" : {
+            "type" : "string",
+            "example" : "NOT_FOUND"
+          }
+        },
+        "required" : [ "correlationId", "errorMessage", "errorType" ]
+      },
+      "GuildListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "guilds" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/GuildResponse"
+            }
+          }
+        },
+        "required" : [ "guilds" ]
+      },
+      "GuildResponse" : {
+        "type" : "object",
+        "properties" : {
+          "discoverable" : {
+            "type" : "boolean"
+          },
+          "iconUrl" : {
+            "type" : [ "string", "null" ],
+            "example" : "https://cdn.discordapp.com/icons/81384788765712384/0123456789abcdef0123456789abcdef.png"
+          },
+          "id" : {
+            "type" : "string",
+            "example" : "81384788765712384",
+            "pattern" : "^[0-9]{17,20}$"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "Example Con Community"
+          }
+        },
+        "required" : [ "discoverable", "iconUrl", "id", "name" ]
+      },
+      "MeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "avatarUrl" : {
+            "type" : "string",
+            "example" : "https://cdn.discordapp.com/embed/avatars/0.png"
+          },
+          "globalName" : {
+            "type" : [ "string", "null" ],
+            "example" : "Con Goer"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "mfaEnabled" : {
+            "type" : "boolean"
+          },
+          "pushEnabled" : {
+            "type" : "boolean"
+          },
+          "roles" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "USER", "MODERATOR", "ADMIN" ]
+            }
+          },
+          "timeZone" : {
+            "type" : [ "string", "null" ],
+            "example" : "America/Chicago"
+          },
+          "username" : {
+            "type" : "string",
+            "example" : "con_goer"
+          }
+        },
+        "required" : [ "avatarUrl", "globalName", "id", "mfaEnabled", "pushEnabled", "roles", "timeZone", "username" ]
+      },
+      "ResponseRecordErrorResponseBodyRecord" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/ErrorResponseBodyRecord"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordGuildListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/GuildListResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordGuildResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/GuildResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordMeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/MeResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "UpdateGuildRequest" : {
+        "type" : "object",
+        "properties" : {
+          "discoverable" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "discoverable" ]
+      },
+      "UpdateMeRequest" : {
+        "type" : "object",
+        "properties" : {
+          "pushEnabled" : {
+            "type" : "boolean"
+          },
+          "timeZone" : {
+            "type" : "string",
+            "description" : "IANA time zone ID",
+            "example" : "America/Chicago",
+            "maxLength" : 64
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "session" : {
+        "description" : "Session cookie set by Discord sign-in",
+        "in" : "cookie",
+        "name" : "SESSION",
+        "type" : "apiKey"
+      }
+    }
+  }
+}

@@ -28,6 +28,9 @@ dependencies {
     // Application dependencies
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // Bean Validation on request DTOs (plan B6). springdoc already brings Hibernate Validator transitively; declaring it
+    // keeps validation from disappearing if springdoc ever drops it. Adds no new jars.
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
     // Boot 4 no longer pulls AOP in through the JPA starter; the aspect/ package needs it.
     implementation 'org.springframework.boot:spring-boot-starter-aspectj'
     // TODO: Add security dependencies when oauth2 implementation begins (versions come from the Boot BOM)

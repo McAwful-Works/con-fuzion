@@ -177,7 +177,7 @@ class TwoInstancesIntegrationTest {
 		var blocked = get(portA, "/api/actuator/metrics", "X-Forwarded-For", "203.0.113.50");
 		assertThat(blocked.statusCode()).isEqualTo(404);
 		assertThat(blocked.headers().firstValue("X-Correlation-Id")).isPresent();
-		assertThat(blocked.body()).contains("\"errorType\":\"NOT_FOUND\"");
+		assertThat(blocked.body()).contains("\"responseType\":\"ERROR\"").contains("\"errorType\":\"NOT_FOUND\"");
 		assertThat(get(portA, "/api/actuator/%6detrics", "X-Forwarded-For", "203.0.113.50").statusCode())
 				.isEqualTo(404);
 		assertThat(get(portA, "/api/actuator/metrics").statusCode()).isEqualTo(200);

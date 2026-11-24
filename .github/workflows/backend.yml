@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - 'backend/**'
+      - 'docs/api/**'
       - '.github/workflows/backend.yml'
   push:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'docs/api/**'
       - '.github/workflows/backend.yml'
 
 permissions:
@@ -37,6 +39,19 @@ jobs:
             backend/*.gradle
             backend/gradle/wrapper/gradle-wrapper.properties
 
-      # Spotless, all tests (including integration), and the JaCoCo coverage gate.
+      # Spotless, all tests (including integration), and the JaCoCo coverage gate. OpenApiConfigIntegrationTest
+      # regenerates docs/api/openapi.json along the way.
       - name: Check
         run: ./gradlew check --console=plain
+
+      # The committed contract must match the code. To update it:
+      # cd backend && ./gradlew test --tests '*OpenApiConfigIntegrationTest', then commit docs/api/openapi.json.
+      - name: OpenAPI drift check
+        run: |
+          # status, not just diff, so a missing or untracked file also fails.
+          if [ -n "$(git status --porcelain -- ../docs/api)" ]; then
+            git status --short -- ../docs/api
+            git diff -- ../docs/api
+            echo "::error file=docs/api/openapi.json::docs/api/openapi.json is out of date. Run ./gradlew test --tests '*OpenApiConfigIntegrationTest' in backend/ and commit the result."
+            exit 1
+          fi

@@ -42,14 +42,16 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.RateLimitException;
 import app.confuzion.backend.model.record.ErrorResponseBodyRecord;
+import app.confuzion.backend.model.record.ResponseRecord;
 
 /**
  * Global REST Controller advice exception handling.
  * <p>
- * Every response carries only a generic message for its status plus a fresh
- * correlation ID, which is also sent as the {@value #CORRELATION_ID_HEADER}
- * header. The exception details are logged server-side under that ID and never
- * sent to the client.
+ * Every response is the standard {@link ResponseRecord} envelope around an
+ * {@link ErrorResponseBodyRecord} (D-010). It carries only a generic message
+ * for its status plus a fresh correlation ID, which is also sent as the
+ * {@value #CORRELATION_ID_HEADER} header. The exception details are logged
+ * server-side under that ID and never sent to the client.
  *
  * @author mcawful
  */
@@ -74,7 +76,7 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code TOO MANY REQUESTS}
 	 */
 	@ExceptionHandler(RateLimitException.class)
-	public ResponseEntity<ErrorResponseBodyRecord> handleTooManyRequests(Exception e) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleTooManyRequests(Exception e) {
 		return respond(HttpStatus.TOO_MANY_REQUESTS, e);
 	}
 
@@ -87,7 +89,7 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code CONFLICT}
 	 */
 	@ExceptionHandler(DataIntegrityViolationException.class)
-	public ResponseEntity<ErrorResponseBodyRecord> handleConflict(Exception e) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleConflict(Exception e) {
 		return respond(HttpStatus.CONFLICT, e);
 	}
 
@@ -100,7 +102,7 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code METHOD NOT ALLOWED}
 	 */
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-	public ResponseEntity<ErrorResponseBodyRecord> handleMethodNotAllowed(Exception e) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleMethodNotAllowed(Exception e) {
 		return respond(HttpStatus.METHOD_NOT_ALLOWED, e);
 	}
 
@@ -113,7 +115,7 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code NOT FOUND}
 	 */
 	@ExceptionHandler({ NoSuchElementException.class, EmptyResultDataAccessException.class })
-	public ResponseEntity<ErrorResponseBodyRecord> handleNotFound(Exception e) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleNotFound(Exception e) {
 		return respond(HttpStatus.NOT_FOUND, e);
 	}
 
@@ -128,7 +130,7 @@ public class GlobalControllerExceptionHandler {
 	@ExceptionHandler({ IllegalArgumentException.class, MissingServletRequestParameterException.class,
 			PropertyValueException.class, InvalidInputException.class, HttpMessageNotReadableException.class,
 			MethodArgumentTypeMismatchException.class })
-	public ResponseEntity<ErrorResponseBodyRecord> handleBadRequest(Exception e) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleBadRequest(Exception e) {
 		return respond(HttpStatus.BAD_REQUEST, e);
 	}
 
@@ -143,7 +145,7 @@ public class GlobalControllerExceptionHandler {
 	 *         {@code INTERNAL SERVER ERROR}
 	 */
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ErrorResponseBodyRecord> handleUnexpected(Exception e) {
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleUnexpected(Exception e) {
 		var status = e instanceof ErrorResponse errorResponse ? errorResponse.getStatusCode()
 				: HttpStatus.INTERNAL_SERVER_ERROR;
 		return respond(status, e);
@@ -163,9 +165,10 @@ public class GlobalControllerExceptionHandler {
 	 * @param status the response {@link HttpStatusCode}
 	 * @param e      the failure, or {@code null} when there is none to log
 	 * @return a {@link ResponseEntity} with a generic
-	 *         {@link ErrorResponseBodyRecord}
+	 *         {@link ErrorResponseBodyRecord} in the {@link ResponseRecord}
+	 *         envelope
 	 */
-	public static ResponseEntity<ErrorResponseBodyRecord> respond(HttpStatusCode status, Throwable e) {
+	public static ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> respond(HttpStatusCode status, Throwable e) {
 		var correlationId = UUID.randomUUID().toString();
 		var type = e == null ? "an error dispatch" : e.getClass().getName();
 		if (status.is5xxServerError())
@@ -181,7 +184,8 @@ public class GlobalControllerExceptionHandler {
 			headers.addAll(errorResponse.getHeaders());
 		headers.set(CORRELATION_ID_HEADER, correlationId);
 		headers.setContentType(MediaType.APPLICATION_JSON);
-		return ResponseEntity.status(status).headers(headers).body(ErrorResponseBodyRecord.of(status, correlationId));
+		return ResponseEntity.status(status).headers(headers)
+				.body(new ResponseRecord<>(ErrorResponseBodyRecord.of(status, correlationId)));
 	}
 
 	/**
