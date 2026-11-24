@@ -23,7 +23,7 @@ Summary of the plan's section B11 (security) and B12 (admin). Reviewers (the `re
 | XSS | React escaping only. User text is plain text: no HTML or Markdown rendering, no `dangerouslySetInnerHTML`. Strict CSP |
 | IDOR / broken authorization | Deny by default. Explicit checks in every service method. Public UUIDs. 404 for invisible resources. Authorization matrix test covering every endpoint × 7 actor types |
 | Information leakage | Generic error bodies with a correlation ID. No exception text in responses. No bodies, cookies, tokens, or emails in logs |
-| Spam / abuse / floods | Per-user and per-IP rate limits (Valkey). WAF rate rules. Caps (20 events per host per day, 10 reports per user per day). Single-use invites that expire after 24h. Blocks, reports, suspensions, bans |
+| Spam / abuse / floods | Per-user and per-IP rate limits (Valkey). The client IP comes from Tomcat's RemoteIpValve, never raw `X-Forwarded-For`; M6 must make CloudFront a trusted hop (plan B10). WAF rate rules. Caps (20 events per host per day, 10 reports per user per day). Single-use invites that expire after 24h. Blocks, reports, suspensions, bans |
 | Harassment at meetups | Report → moderator queue. Block. Location hidden until confirmed. Hidden events. Bans by Discord ID that survive account deletion |
 | Admin compromise | MODERATOR/ADMIN authority only when Discord `mfa_enabled=true`. Role changes purge sessions. Insert-only `audit_log`. The last ADMIN can't be removed |
 | Secret leakage | Secrets Manager → ECS. Hooks block writing or printing secret files. GitHub secret scanning + push protection, plus gitleaks in CI |

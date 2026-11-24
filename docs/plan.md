@@ -181,7 +181,7 @@ Reuse the existing pieces:
 - `ResponseRecord` / `ResponseType`: register new body types.
 - `GlobalControllerExceptionHandler`: add 403/404/409 handlers.
 - `LoggerAspect`: make sure it never logs tokens or emails.
-- `HttpUtil.getRemoteAddr`: behind the ALB, use `request.getRemoteAddr()`, which `forward-headers-strategy=framework` already resolves. Raw `X-Forwarded-For` can be spoofed.
+- `HttpUtil.getRemoteAddr`: use `request.getRemoteAddr()` with `server.forward-headers-strategy=native` (#21). Tomcat's RemoteIpValve reads `X-Forwarded-For` right to left and stops at the first untrusted address. `framework` takes the left-most value, which the client controls. Never read `X-Forwarded-For` directly.
 
 New backend dependencies, kept to the minimum:
 - `validation`
@@ -236,6 +236,7 @@ Each change inserts a `notification` row in the same transaction. A `@Scheduled`
   - VPC across 2 AZs.
   - Aurora Serverless v2 and ElastiCache Serverless.
   - ECS service with autoscaling, ALB, and CloudFront + WAF. The container uses a JRE 25 base image.
+  - **Client IP behind CloudFront:** RemoteIpValve trusts only private-range proxies by default, so behind CloudFront → ALB every anonymous user would appear as a CloudFront edge address and share one rate-limit bucket. Fix it in M6: either add CloudFront's published origin-facing IP ranges to `server.tomcat.remoteip.internal-proxies` (kept current from AWS's managed prefix list), or have CloudFront send `CloudFront-Viewer-Address` and resolve the IP from that header, accepting it only from CloudFront. Test it with an end-to-end check that two clients get separate buckets.
   - ACM, Secrets Manager, CloudWatch alarms.
   - CD on merge, with staging and prod environments.
 - **M7** Polish + **launch gates**: accessibility, account deletion, donation links, artist asset swap, privacy policy and terms pages, the **load test** and the **security pass** (ZAP + manual review) against staging. Both must pass before launch.
