@@ -53,7 +53,8 @@ dependencies {
 spotless {
     java {
         target 'src/*/java/**/*.java'
-        // Pinned so local and CI runs format identically whatever JDK runs Gradle.
+        // Pinned so local and CI runs format identically whatever JDK runs Gradle. 4.31 is the newest JDT that runs
+        // on JDK 17; it knows Java 21 syntax, so bump it once Gradle itself runs on JDK 21+ everywhere.
         eclipse('4.31').configFile('config/spotless/eclipse-formatter.xml')
         licenseHeaderFile 'config/spotless/license-header.txt'
     }
@@ -68,8 +69,9 @@ def excludedTags = providers.gradleProperty('excludeTags')
 tasks.named('test') {
     useJUnitPlatform {
         // ./gradlew test -PexcludeTags=integration[,slow]
-        if (excludedTags.isPresent()) {
-            excludeTags(*excludedTags.get().split(',')*.trim())
+        def tags = excludedTags.getOrElse('').split(',')*.trim().findAll { it }
+        if (tags) {
+            excludeTags(*tags)
         }
     }
     finalizedBy jacocoTestReport
