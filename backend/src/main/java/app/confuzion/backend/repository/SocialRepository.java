@@ -205,16 +205,6 @@ public class SocialRepository {
 	}
 
 	/**
-	 * Uses up all of a user's unused invites, so none outlives a block they make.
-	 *
-	 * @param inviterId the inviter's ID
-	 */
-	public void useUpInvites(UUID inviterId) {
-		jdbc.sql("UPDATE friend_invite SET used_at = now() WHERE inviter_id = :inviter AND used_at IS NULL")
-				.param("inviter", inviterId).update();
-	}
-
-	/**
 	 * Returns whether either user has blocked the other.
 	 *
 	 * @param a a user ID

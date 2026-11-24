@@ -66,10 +66,8 @@ public class BlockService {
 	 * Blocks a user and applies the cutoff, in one transaction under a lock on the
 	 * pair. An unknown user ID does nothing, so the caller learns nothing. While
 	 * the block exists, preview and accept refuse every invite between the pair,
-	 * both ways. The blocker's own unused invites are also used up, so one they
-	 * already showed the other can't be accepted after an unblock. The blocked
-	 * user's invites are left alone: invites aren't addressed to anyone, and
-	 * blocking someone mustn't be a way to cancel their invites to others.
+	 * both ways, so no invite row changes: the blocker's links to other people keep
+	 * working (D-011).
 	 *
 	 * @param me     the blocker's ID
 	 * @param userId the user to block
@@ -85,7 +83,6 @@ public class BlockService {
 		socialRepository.deleteFriendship(me, userId);
 		socialRepository.deleteFromEachOthersCircles(me, userId);
 		socialRepository.deleteFromEachOthersEvents(me, userId);
-		socialRepository.useUpInvites(me);
 	}
 
 	/**
