@@ -171,7 +171,7 @@ Context · Decision · Consequences · Trigger to revisit
   - **Cancelling** (`DELETE`) keeps the row with `status = CANCELLED`.
   - **The cap:** a host can create at most **20 events a day**. One more is a 429 with errorType `EVENT_LIMIT`, a
     domain errorType as D-011 allows.
-- **Rules this contract adds (for the owner to confirm):**
+- **Rules this contract adds (confirmed by the owner, 2026-11-24):**
   - **A `GUILD` entry needs the host to be discoverable there too**, now, not just when the event was made. Turning
     off discoverability, or leaving the server, stops that server from reaching anyone or exposing the host. The host
     can only add a server where they're discoverable, and while they aren't, that entry's `label` is `null`.
