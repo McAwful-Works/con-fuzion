@@ -29,6 +29,28 @@ build/
 hs_err_pid*
 replay_pid*
 
-# Allow Gradle wrapper JAR
-!gradle/wrapper/gradle-wrapper.jar
-!gradle/wrapper/gradle-wrapper.properties
+# Allow Gradle wrapper JAR (any depth, e.g. backend/gradle/wrapper)
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.properties
+
+# Secrets / local config (never commit)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+**/application-local.*
+**/application-secret.*
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Claude Code: personal settings and hook state
+.claude/settings.local.json
+.claude/.stop-checks-ok
