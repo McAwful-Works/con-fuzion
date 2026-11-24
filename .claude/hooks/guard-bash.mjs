@@ -106,6 +106,12 @@ function scan(cmd, startDir, depth = 0) {
 			if (sub === 'update-ref' && args.some((a) => /refs\/heads\/(main|master)$/.test(a))) {
 				decide('deny', 'guard-bash: updating refs/heads/main is blocked.');
 			}
+			if (sub === 'tag' && args.some((a) => !a.startsWith('-') || ['-a', '-s', '-d', '-f'].includes(a)) && !args.includes('-l') && !args.includes('--list')) {
+				decide('deny', 'guard-bash: creating, moving or deleting tags is the owner\'s job (docs/releasing.md).');
+			}
+			if (sub === 'push' && args.some((a) => a === '--tags' || a === '--follow-tags' || /(^|:)refs\/tags\//.test(a) || /^\+?(release\/|refs\/heads\/release\/)/.test(a.split(':').pop()))) {
+				decide('deny', 'guard-bash: pushing tags or to release/* is blocked. Releases are cut by the owner (docs/releasing.md).');
+			}
 			if (sub === 'push') {
 				const force = args.some((a) => a === '--force' || a === '-f' || /^\+/.test(a) || /^-[a-z]*f[a-z]*$/.test(a));
 				if (force && !args.some((a) => a.startsWith('--force-with-lease'))) {
@@ -122,6 +128,9 @@ function scan(cmd, startDir, depth = 0) {
 			const [sub, ...args] = tokens.slice(firstWord(tokens, idx + 1, ['-R', '--repo']));
 			if (sub === 'pr' && args.includes('merge')) {
 				decide('deny', 'guard-bash: Claude never merges PRs. Tell the user the PR is ready; the owner merges.');
+			}
+			if (sub === 'release' && ['create', 'edit', 'delete', 'upload'].includes(args[0])) {
+				decide('deny', 'guard-bash: releases are cut by the owner (docs/releasing.md).');
 			}
 			if (sub === 'api' && args.some((a) => /\/pulls\/\d+\/merge\b|\/merges\b/.test(a))) {
 				decide('deny', 'guard-bash: merging via the API is blocked. The owner merges.');

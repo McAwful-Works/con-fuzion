@@ -64,3 +64,11 @@ Context · Decision · Consequences · Trigger to revisit
 - **Consequences:** Jackson 3, Spring Framework 7, Jakarta EE 11 and some starter renames land before any domain
   code exists, which is the cheapest time to absorb them. Java 25 needs JaCoCo 0.8.14 or later (the 0.8.13 pin is
   bumped in #7) and Lombok 1.18.40 or later. Dependabot PRs #3–#6 close once #7 merges.
+
+## D-009 Trunk-based development with release tags (2026-11-24) — Accepted
+- **Decision:** `main` is the only long-lived branch. Short-lived branches merge into it through squash PRs, and
+  releases are SemVer `v*` tags on `main` that only admins create (`v1.0.0` = MVP launch). A `release/X.Y` branch is
+  cut from a tag only for a hotfix that can't wait for `main`. Rulesets protect `main`, `release/*` and `v*` tags.
+  From M6, `main` deploys to staging and tags deploy to prod. See `docs/releasing.md`.
+- **Rejected:** a `develop` branch (GitFlow), because it adds a second integration branch, drift and merge work with
+  no benefit for a single-team web app.
