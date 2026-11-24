@@ -106,10 +106,17 @@ function scan(cmd, startDir, depth = 0) {
 			if (sub === 'update-ref' && args.some((a) => /refs\/heads\/(main|master)$/.test(a))) {
 				decide('deny', 'guard-bash: updating refs/heads/main is blocked.');
 			}
-			if (sub === 'tag' && args.some((a) => !a.startsWith('-') || ['-a', '-s', '-d', '-f'].includes(a)) && !args.includes('-l') && !args.includes('--list')) {
+			// `git tag` lists unless it is given a name to create, or a create/move/delete flag. List-mode flags win.
+			const TAG_LIST = /^(-l|--list|-n\d*|--contains|--no-contains|--merged|--no-merged|--points-at|--sort|--format|--column|--no-column|-v|--verify|-i|--ignore-case)(=|$)/;
+			const TAG_WRITE = /^(-a|--annotate|-s|--sign|-u|--local-user|-d|--delete|-f|--force|-m|--message|-F|--file)(=|$)/;
+			const tagWrites = args.some((a) => TAG_WRITE.test(a)) || (args.some((a) => !a.startsWith('-')) && !args.some((a) => TAG_LIST.test(a)));
+			if (sub === 'tag' && tagWrites && !(args.some((a) => TAG_LIST.test(a)) && !args.some((a) => /^(-d|--delete|-f|--force)$/.test(a)))) {
 				decide('deny', 'guard-bash: creating, moving or deleting tags is the owner\'s job (docs/releasing.md).');
 			}
-			if (sub === 'push' && args.some((a) => a === '--tags' || a === '--follow-tags' || /(^|:)refs\/tags\//.test(a) || /^\+?(release\/|refs\/heads\/release\/)/.test(a.split(':').pop()))) {
+			// Tags pushed by short name (`git push origin v1.0.0`) count too: any refspec side that looks like a v-tag.
+			const refs = args.filter((a) => !a.startsWith('-')).slice(1);
+			const tagLike = (r) => r.replace(/^\+/, '').split(':').some((side) => /^v\d/.test(side) || /^refs\/tags\//.test(side));
+			if (sub === 'push' && (args.some((a) => a === '--tags' || a === '--follow-tags') || refs.some(tagLike) || refs.some((r) => /^\+?(release\/|refs\/heads\/release\/)/.test(r.split(':').pop())))) {
 				decide('deny', 'guard-bash: pushing tags or to release/* is blocked. Releases are cut by the owner (docs/releasing.md).');
 			}
 			if (sub === 'push') {
