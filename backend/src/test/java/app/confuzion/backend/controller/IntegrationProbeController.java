@@ -32,7 +32,7 @@ import jakarta.servlet.http.HttpSession;
  * exists. It lives in the controller package so both aspects apply to it, and
  * it exists only on the test classpath, and only under the {@value #PROFILE}
  * profile, so other test contexts (such as a future endpoint matrix) never see
- * it.
+ * it. {@code IntegrationProbeSecurity} lets anonymous callers reach it.
  *
  * @author mcawful
  */

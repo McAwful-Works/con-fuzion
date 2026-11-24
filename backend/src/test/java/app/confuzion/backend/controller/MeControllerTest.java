@@ -19,6 +19,13 @@
 package app.confuzion.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -26,6 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -35,21 +44,30 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import app.confuzion.backend.aspect.GlobalControllerExceptionHandler;
+import app.confuzion.backend.model.record.GuildListResponse;
+import app.confuzion.backend.model.record.GuildResponse;
+import app.confuzion.backend.model.record.MeResponse;
 import app.confuzion.backend.model.record.UpdateGuildsRequest;
+import app.confuzion.backend.model.record.UpdateMeRequest;
+import app.confuzion.backend.service.UserService;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 /**
- * Unit tests for the contract stubs in {@link MeController}: each answers 501
- * in the error envelope, and request validation already turns a bad request
- * into a 400 in the same envelope.
+ * Unit tests for {@link MeController}: valid requests reach the
+ * {@link UserService} with the session's user ID, and request validation turns
+ * a bad request into a 400 in the error envelope before the service is called.
  *
  * @author mcawful
  */
@@ -65,27 +83,63 @@ class MeControllerTest {
 	private static final String SECRET = "Secret/Rejected_Value";
 
 	/**
+	 * The signed-in user's ID.
+	 */
+	private static final UUID USER_ID = UUID.randomUUID();
+
+	/**
+	 * The signed-in user's {@link Authentication}.
+	 */
+	private static final Authentication AUTHENTICATION = UsernamePasswordAuthenticationToken
+			.authenticated(USER_ID.toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+	/**
+	 * A profile the mocked service returns.
+	 */
+	private static final MeResponse ME = new MeResponse(USER_ID, "user", null,
+			"https://cdn.discordapp.com/embed/avatars/0.png", null, false, List.of(MeResponse.Role.USER), false);
+
+	/**
+	 * A server list the mocked service returns.
+	 */
+	private static final GuildListResponse GUILDS = new GuildListResponse(
+			List.of(new GuildResponse(GUILD_ID, "Con", null, true)));
+
+	/**
+	 * The mocked {@link UserService}.
+	 */
+	private final UserService userService = mock(UserService.class);
+
+	/**
 	 * The {@link MockMvc}, with the real exception handler and Bean Validation.
 	 */
-	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MeController())
+	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MeController(userService))
 			.setControllerAdvice(new GlobalControllerExceptionHandler()).build();
 
 	/**
-	 * Tests that {@code GET /api/me} is a 501 stub.
+	 * Tests that {@code GET /api/me} returns the service's profile in the envelope.
 	 */
 	@Test
-	void testGetMeIsNotImplemented() throws Exception {
-		assertError(get("/api/me"), HttpStatus.NOT_IMPLEMENTED);
+	void testGetMe() throws Exception {
+		when(userService.getMe(eq(USER_ID), any())).thenReturn(ME);
+
+		mockMvc.perform(get("/api/me").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("ME"))
+				.andExpect(jsonPath("$.body.id").value(USER_ID.toString()));
 	}
 
 	/**
-	 * Tests that a valid {@code PATCH /api/me} is a 501 stub.
+	 * Tests that a valid {@code PATCH /api/me} reaches the service.
 	 */
 	@Test
-	void testUpdateMeIsNotImplemented() throws Exception {
-		assertError(json(patch("/api/me"), "{\"timeZone\":\"America/Chicago\",\"pushEnabled\":true}"),
-				HttpStatus.NOT_IMPLEMENTED);
-		assertError(json(patch("/api/me"), "{}"), HttpStatus.NOT_IMPLEMENTED);
+	void testUpdateMe() throws Exception {
+		var request = new UpdateMeRequest("America/Chicago", true);
+		when(userService.updateMe(eq(USER_ID), any(), eq(request))).thenReturn(ME);
+
+		mockMvc.perform(json(patch("/api/me"), "{\"timeZone\":\"America/Chicago\",\"pushEnabled\":true}")
+				.principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("ME"));
+		verify(userService).updateMe(eq(USER_ID), any(), eq(request));
 	}
 
 	/**
@@ -109,19 +163,27 @@ class MeControllerTest {
 	}
 
 	/**
-	 * Tests that {@code GET /api/me/guilds} is a 501 stub.
+	 * Tests that {@code GET /api/me/guilds} returns the service's list.
 	 */
 	@Test
-	void testGetGuildsIsNotImplemented() throws Exception {
-		assertError(get("/api/me/guilds"), HttpStatus.NOT_IMPLEMENTED);
+	void testGetGuilds() throws Exception {
+		when(userService.getGuilds(USER_ID)).thenReturn(GUILDS);
+
+		mockMvc.perform(get("/api/me/guilds").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("GUILD_LIST"))
+				.andExpect(jsonPath("$.body.guilds[0].id").value(GUILD_ID));
 	}
 
 	/**
-	 * Tests that a valid {@code PUT /api/me/guilds/{guildId}} is a 501 stub.
+	 * Tests that a valid {@code PUT /api/me/guilds/{guildId}} reaches the service.
 	 */
 	@Test
-	void testUpdateGuildIsNotImplemented() throws Exception {
-		assertError(json(put("/api/me/guilds/" + GUILD_ID), "{\"discoverable\":true}"), HttpStatus.NOT_IMPLEMENTED);
+	void testUpdateGuild() throws Exception {
+		when(userService.updateGuild(USER_ID, GUILD_ID, true)).thenReturn(GUILDS.guilds().getFirst());
+
+		mockMvc.perform(json(put("/api/me/guilds/" + GUILD_ID), "{\"discoverable\":true}").principal(AUTHENTICATION))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("GUILD"))
+				.andExpect(jsonPath("$.body.discoverable").value(true));
 	}
 
 	/**
@@ -146,13 +208,17 @@ class MeControllerTest {
 	}
 
 	/**
-	 * Tests that a valid bulk {@code PUT /api/me/guilds} is a 501 stub, at both
-	 * ends of the size limit.
+	 * Tests that a valid bulk {@code PUT /api/me/guilds} reaches the service, at
+	 * both ends of the size limit.
 	 */
 	@Test
-	void testUpdateGuildsIsNotImplemented() throws Exception {
-		assertError(json(put("/api/me/guilds"), bulk(1)), HttpStatus.NOT_IMPLEMENTED);
-		assertError(json(put("/api/me/guilds"), bulk(UpdateGuildsRequest.MAX_GUILDS)), HttpStatus.NOT_IMPLEMENTED);
+	void testUpdateGuilds() throws Exception {
+		when(userService.updateGuilds(eq(USER_ID), any())).thenReturn(GUILDS);
+
+		for (var count : List.of(1, UpdateGuildsRequest.MAX_GUILDS))
+			mockMvc.perform(json(put("/api/me/guilds"), bulk(count)).principal(AUTHENTICATION))
+					.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("GUILD_LIST"));
+		verify(userService, times(2)).updateGuilds(eq(USER_ID), any());
 	}
 
 	/**
@@ -220,8 +286,7 @@ class MeControllerTest {
 	 * @param body    the JSON body
 	 * @return the request builder
 	 */
-	private static RequestBuilder json(
-			org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request, String body) {
+	private static MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder request, String body) {
 		return request.contentType(MediaType.APPLICATION_JSON).content(body);
 	}
 
@@ -233,11 +298,13 @@ class MeControllerTest {
 	 * @return the {@link ResultActions}
 	 */
 	private ResultActions assertError(RequestBuilder request, HttpStatus status) throws Exception {
-		return mockMvc.perform(request).andExpect(status().is(status.value()))
+		var result = mockMvc.perform(request).andExpect(status().is(status.value()))
 				.andExpect(header().exists(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER))
 				.andExpect(jsonPath("$.responseType").value("ERROR"))
 				.andExpect(jsonPath("$.body.errorType").value(status.name()))
 				.andExpect(jsonPath("$.body.errorMessage").value(status.getReasonPhrase()))
 				.andExpect(jsonPath("$.body.correlationId").isNotEmpty());
+		verifyNoInteractions(userService);
+		return result;
 	}
 }

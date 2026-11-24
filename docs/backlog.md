@@ -15,3 +15,5 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | Privacy-respecting analytics | |
 | Convention directory / convention entity | Rejected for the MVP (events are standalone) |
 | Native apps, i18n | |
+| 30-day absolute session timeout | `docs/security.md` lists it; #11 ships the 14-day idle timeout only. Needs a session-creation timestamp check |
+| Clean the session principal index without keyspace events | #11 sets `configure-action=none` because ElastiCache refuses `CONFIG`. Expired session IDs accumulate in the per-user index set (harmless, since lookups skip them) |

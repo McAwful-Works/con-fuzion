@@ -18,6 +18,49 @@
     "name" : "me"
   } ],
   "paths" : {
+    "/api/auth/logout" : {
+      "post" : {
+        "description" : "Ends this session and clears the XSRF-TOKEN cookie. Answers 204 even when no one is signed in.",
+        "operationId" : "logout",
+        "responses" : {
+          "204" : {
+            "description" : "Signed out."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Sign the user out on this device",
+        "tags" : [ "auth" ]
+      }
+    },
     "/api/auth/logout-everywhere" : {
       "post" : {
         "operationId" : "logoutEverywhere",

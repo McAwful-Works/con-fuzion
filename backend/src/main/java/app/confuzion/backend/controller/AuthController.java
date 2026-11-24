@@ -19,19 +19,24 @@
 package app.confuzion.backend.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
+import app.confuzion.backend.service.SessionService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * The {@link RestController} for session endpoints of our own. Sign-in and
- * single-session logout come from Spring Security in #11. Every method is a
- * contract stub that answers 501 until #11 implements it.
+ * The {@link RestController} for session endpoints of our own. Sign-in
+ * ({@code /api/oauth2/authorization/discord}) and single-session logout
+ * ({@code POST /api/auth/logout}) come from Spring Security; see
+ * {@code SecurityConfig}.
  *
  * @author mcawful
  */
@@ -40,13 +45,32 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "auth", description = "Sessions")
 public class AuthController {
 	/**
+	 * The {@link SessionService}.
+	 */
+	private final SessionService sessionService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param sessionService the {@link SessionService}
+	 */
+	public AuthController(SessionService sessionService) {
+		this.sessionService = sessionService;
+	}
+
+	/**
 	 * Ends every session of the signed-in user, on every device, including this
 	 * one.
+	 *
+	 * @param authentication the session's {@link Authentication}
+	 * @param request        the {@link HttpServletRequest}
+	 * @param response       the {@link HttpServletResponse}
 	 */
 	@PostMapping("/logout-everywhere")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Sign the user out on every device, including this one")
-	public void logoutEverywhere() {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	public void logoutEverywhere(@Parameter(hidden = true) Authentication authentication, HttpServletRequest request,
+			HttpServletResponse response) {
+		sessionService.logoutEverywhere(request, response, authentication);
 	}
 }
