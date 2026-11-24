@@ -32,7 +32,10 @@ export function ServerList() {
   if (guilds.isError)
     return <ErrorState error={guilds.error} onRetry={() => void guilds.refetch()} />;
 
-  const list = guilds.data;
+  // The API sorts case-sensitively, which pushes lowercase and emoji names last.
+  const list = [...guilds.data].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  );
   if (list.length === 0) {
     return (
       <p className="text-ink-muted">
