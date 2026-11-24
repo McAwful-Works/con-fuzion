@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router';
 import { SIGN_IN_URL, useMe } from '../api/me';
+import { pendingInvite } from '../features/social/pendingInvite';
 
 export function Landing() {
   const me = useMe();
   const [params, setParams] = useSearchParams();
+  const [hasInvite] = useState(() => pendingInvite.get() !== null);
   // Remember the failure, then drop `?login=failed` so a reload doesn't show it again.
   const [failed] = useState(() => params.get('login') === 'failed');
   useEffect(() => {
@@ -22,6 +24,11 @@ export function Landing() {
       {failed && (
         <p role="alert" className="border-line bg-surface-raised rounded-card border p-4">
           Sign-in didn’t complete. Please try again.
+        </p>
+      )}
+      {hasInvite && (
+        <p className="border-line bg-surface-raised rounded-card border p-4">
+          Sign in to answer your friend’s invite.
         </p>
       )}
       <p className="text-lg">Host convention meetups and open them to the people you choose.</p>
