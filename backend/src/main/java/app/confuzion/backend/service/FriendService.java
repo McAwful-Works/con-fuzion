@@ -181,6 +181,8 @@ public class FriendService {
 	 */
 	@Transactional
 	public void deleteFriend(UUID me, UUID friend) {
+		// The pair lock keeps a concurrent circle add from re-adding the ex-friend.
+		socialRepository.lockUsers(me, friend);
 		if (socialRepository.deleteFriendship(me, friend) > 0)
 			socialRepository.deleteFromEachOthersCircles(me, friend);
 	}

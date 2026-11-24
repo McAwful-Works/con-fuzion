@@ -155,7 +155,8 @@ class BlockControllerIntegrationTest {
 
 	/**
 	 * Tests that unblocking removes only the caller's own block and restores
-	 * nothing, and is a 204 when there was no block.
+	 * nothing, not even an invite the blocker made before blocking, and is a 204
+	 * when there was no block. The blocked user's invites stay usable for others.
 	 */
 	@Test
 	void unblockRestoresNothing() throws Exception {
@@ -163,6 +164,8 @@ class BlockControllerIntegrationTest {
 		var them = fixtures.user("them", null);
 		fixtures.friends(me, them);
 		var circle = fixtures.circle(me, them);
+		var shownToThem = fixtures.invite(me, "1 day", false);
+		var theirs = fixtures.invite(them, "1 day", false);
 		mockMvc.perform(put("/api/blocks/" + them).with(login(me)).with(csrf())).andExpect(status().isNoContent());
 		fixtures.block(them, me);
 
@@ -173,6 +176,19 @@ class BlockControllerIntegrationTest {
 		assertThat(blocked(them)).containsExactly(me.toString());
 		assertThat(fixtures.areFriends(me, them)).isFalse();
 		assertThat(fixtures.members(circle)).isEmpty();
+		assertThat(unused(shownToThem)).isFalse();
+		assertThat(unused(theirs)).isTrue();
+	}
+
+	/**
+	 * Returns whether an invite is still unused.
+	 *
+	 * @param token the invite token
+	 * @return {@code true} when it hasn't been used
+	 */
+	private boolean unused(String token) {
+		return jdbcTemplate.queryForObject("SELECT used_at IS NULL FROM friend_invite WHERE token_hash = ?",
+				Boolean.class, SocialFixtures.sha256(token));
 	}
 
 	/**
