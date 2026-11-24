@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import app.confuzion.backend.aspect.GlobalControllerExceptionHandler;
 import jakarta.servlet.RequestDispatcher;
@@ -47,7 +48,7 @@ class ErrorControllerMVCTest {
 		var request = new MockHttpServletRequest();
 		request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 404);
 
-		var response = errorControllerMVC.handleError(request);
+		var response = errorControllerMVC.handleError(request, new MockHttpServletResponse());
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(response.getBody()).isNotNull();
@@ -65,7 +66,7 @@ class ErrorControllerMVCTest {
 		var request = new MockHttpServletRequest();
 		request.setAttribute(RequestDispatcher.ERROR_EXCEPTION, new IllegalStateException("valkey host 10.0.0.9"));
 
-		var response = errorControllerMVC.handleError(request);
+		var response = errorControllerMVC.handleError(request, new MockHttpServletResponse());
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 		assertThat(response.getBody()).isNotNull();
