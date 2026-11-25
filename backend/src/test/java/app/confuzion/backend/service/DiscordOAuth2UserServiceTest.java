@@ -21,10 +21,12 @@ package app.confuzion.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,7 +41,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -61,8 +63,10 @@ import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
+import app.confuzion.backend.model.record.AuditEntryResponse.Action;
 import app.confuzion.backend.model.record.DiscordGuild;
 import app.confuzion.backend.model.record.DiscordUser;
+import app.confuzion.backend.model.record.GrantedRole;
 
 /**
  * Unit tests for {@link DiscordOAuth2UserService}, with Discord stubbed by
@@ -82,7 +86,7 @@ class DiscordOAuth2UserServiceTest {
 	private static final String GUILDS_URI = USER_URI + "/guilds?limit=200";
 
 	/**
-	 * The admin's Discord ID.
+	 * A role holder's Discord ID.
 	 */
 	private static final long ADMIN_ID = 700000000000000001L;
 
@@ -114,8 +118,9 @@ class DiscordOAuth2UserServiceTest {
 		var builder = RestClient.builder();
 		discord = MockRestServiceServer.bindTo(builder).build();
 		userService = mock(UserService.class);
-		when(userService.recordLogin(any(), any())).thenReturn(new UserService.LoginResult(USER_ID, true));
-		service = new DiscordOAuth2UserService(builder.build(), userService, Set.of(ADMIN_ID));
+		when(userService.recordLogin(any(), any())).thenReturn(new UserService.LoginResult(USER_ID, true, List.of()));
+		when(userService.signInRefusal(anyLong())).thenReturn(Optional.empty());
+		service = new DiscordOAuth2UserService(builder.build(), userService);
 	}
 
 	/**
@@ -143,15 +148,17 @@ class DiscordOAuth2UserServiceTest {
 	}
 
 	/**
-	 * Tests that a bootstrap ID gets ADMIN with MFA on, and not with MFA off or
-	 * missing.
+	 * Tests that the granted roles from {@code user_role} become authorities with
+	 * MFA on, and not with MFA off or missing.
 	 */
 	@Test
-	void bootstrapAdminNeedsMfa() {
+	void grantedRolesNeedMfa() {
+		when(userService.recordLogin(any(), any())).thenReturn(
+				new UserService.LoginResult(USER_ID, false, List.of(GrantedRole.MODERATOR, GrantedRole.ADMIN)));
 		expect(USER_URI).andRespond(json(user(Long.toString(ADMIN_ID), true)));
 		expect(GUILDS_URI).andRespond(json("[]"));
 		assertThat(authorities(service.loadUser(request()).getAuthorities())).containsExactlyInAnyOrder("ROLE_USER",
-				"ROLE_ADMIN");
+				"ROLE_MODERATOR", "ROLE_ADMIN");
 
 		discord.reset();
 		expect(USER_URI).andRespond(json(user(Long.toString(ADMIN_ID), false)));
@@ -162,6 +169,22 @@ class DiscordOAuth2UserServiceTest {
 		expect(USER_URI).andRespond(json("{\"id\":\"" + ADMIN_ID + "\",\"username\":\"admin\"}"));
 		expect(GUILDS_URI).andRespond(json("[]"));
 		assertThat(authorities(service.loadUser(request()).getAuthorities())).containsExactly("ROLE_USER");
+	}
+
+	/**
+	 * Tests that a banned or suspended user is refused with the neutral error code
+	 * before their guilds are fetched or their login recorded.
+	 */
+	@Test
+	void refusedSignInSyncsNothing() {
+		when(userService.signInRefusal(ADMIN_ID)).thenReturn(Optional.of(Action.ACCOUNT_BANNED));
+		expect(USER_URI).andRespond(json(user(Long.toString(ADMIN_ID), true)));
+
+		assertThatThrownBy(() -> service.loadUser(request())).isInstanceOfSatisfying(
+				OAuth2AuthenticationException.class,
+				e -> assertThat(e.getError().getErrorCode()).isEqualTo(DiscordOAuth2UserService.SIGN_IN_REFUSED));
+		verify(userService, never()).recordLogin(any(), any());
+		discord.verify();
 	}
 
 	/**

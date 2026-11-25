@@ -24,8 +24,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,8 +36,12 @@ import org.springframework.transaction.annotation.Transactional;
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.model.entity.AppUser;
 import app.confuzion.backend.model.entity.UserGuild;
+import app.confuzion.backend.model.record.AuditDetails;
+import app.confuzion.backend.model.record.AuditEntryResponse.Action;
+import app.confuzion.backend.model.record.AuditEntryResponse.TargetType;
 import app.confuzion.backend.model.record.DiscordGuild;
 import app.confuzion.backend.model.record.DiscordUser;
+import app.confuzion.backend.model.record.GrantedRole;
 import app.confuzion.backend.model.record.GuildListResponse;
 import app.confuzion.backend.model.record.GuildResponse;
 import app.confuzion.backend.model.record.MeResponse;
@@ -42,7 +49,9 @@ import app.confuzion.backend.model.record.MeResponse.Role;
 import app.confuzion.backend.model.record.UpdateGuildsRequest;
 import app.confuzion.backend.model.record.UpdateMeRequest;
 import app.confuzion.backend.repository.AppUserRepository;
+import app.confuzion.backend.repository.AuditLogRepository;
 import app.confuzion.backend.repository.UserGuildRepository;
+import app.confuzion.backend.repository.UserRoleRepository;
 import jakarta.persistence.EntityManager;
 
 /**
@@ -82,17 +91,61 @@ public class UserService {
 	private final EntityManager entityManager;
 
 	/**
+	 * The {@link UserRoleRepository}.
+	 */
+	private final UserRoleRepository userRoleRepository;
+
+	/**
+	 * The {@link AuditLogRepository}.
+	 */
+	private final AuditLogRepository auditLogRepository;
+
+	/**
+	 * The Discord IDs that get ADMIN at sign-in when they don't hold it.
+	 */
+	private final Set<Long> bootstrapAdminIds;
+
+	/**
 	 * Creates the service.
 	 *
 	 * @param appUserRepository   the {@link AppUserRepository}
 	 * @param userGuildRepository the {@link UserGuildRepository}
 	 * @param entityManager       the {@link EntityManager}
+	 * @param userRoleRepository  the {@link UserRoleRepository}
+	 * @param auditLogRepository  the {@link AuditLogRepository}
+	 * @param bootstrapAdminIds   the Discord IDs in
+	 *                            {@code con-fuzion.admin.bootstrap-discord-ids}
 	 */
 	public UserService(AppUserRepository appUserRepository, UserGuildRepository userGuildRepository,
-			EntityManager entityManager) {
+			EntityManager entityManager, UserRoleRepository userRoleRepository, AuditLogRepository auditLogRepository,
+			@Value("${con-fuzion.admin.bootstrap-discord-ids:}") Set<Long> bootstrapAdminIds) {
 		this.appUserRepository = appUserRepository;
 		this.userGuildRepository = userGuildRepository;
 		this.entityManager = entityManager;
+		this.userRoleRepository = userRoleRepository;
+		this.auditLogRepository = auditLogRepository;
+		this.bootstrapAdminIds = Set.copyOf(bootstrapAdminIds);
+	}
+
+	/**
+	 * Returns why a Discord ID may not sign in, if it may not: a ban, or a
+	 * suspension that hasn't ended (D-015 rule 5). A refusal writes
+	 * {@code SIGN_IN_REFUSED} and commits it in this method's own transaction,
+	 * before the sign-in fails, since the failed sign-in records nothing else.
+	 *
+	 * @param discordId the Discord user ID
+	 * @return {@link Action#ACCOUNT_BANNED} or {@link Action#USER_SUSPENDED}, or
+	 *         empty when the sign-in may go ahead
+	 */
+	@Transactional
+	public Optional<Action> signInRefusal(long discordId) {
+		var refusal = appUserRepository.findSignInRefusal(discordId);
+		if (refusal == null)
+			return Optional.empty();
+		var cause = Action.valueOf(refusal);
+		auditLogRepository.insert(null, Action.SIGN_IN_REFUSED, TargetType.DISCORD_ACCOUNT, Long.toString(discordId),
+				new AuditDetails(null, null, null, null, null, cause, null));
+		return Optional.of(cause);
 	}
 
 	/**
@@ -101,18 +154,33 @@ public class UserService {
 	 * known ones get their new name and icon (their {@code discoverable} choice is
 	 * kept), and servers the user has left are deleted.
 	 *
+	 * <p>
+	 * A bootstrap ID that doesn't hold ADMIN gets it, with a {@code ROLES_CHANGED}
+	 * row that has no actor (D-015 rule 3). That happens at every sign-in, MFA or
+	 * not, so an account added to the config later, or a lost last admin, is
+	 * recovered at the next sign-in; the role is in effect only with MFA. The
+	 * upsert holds the user's row lock, so this can't interleave with an admin's
+	 * role change for the same user.
+	 *
 	 * @param user   the Discord user, already validated
 	 * @param guilds the user's servers, or {@code null} to keep the last known list
 	 *               because Discord didn't return one
-	 * @return the user ID and whether this was the first login
+	 * @return the user ID, whether this was the first login, and the granted roles
 	 */
 	@Transactional
 	public LoginResult recordLogin(DiscordUser user, List<DiscordGuild> guilds) {
-		var row = appUserRepository.upsertFromDiscord(Long.parseLong(user.id()), user.username(), user.globalName(),
-				user.avatar(), Boolean.TRUE.equals(user.mfaEnabled()));
+		var discordId = Long.parseLong(user.id());
+		var row = appUserRepository.upsertFromDiscord(discordId, user.username(), user.globalName(), user.avatar(),
+				Boolean.TRUE.equals(user.mfaEnabled()));
 		if (guilds != null)
 			syncGuilds(row.getId(), guilds);
-		return new LoginResult(row.getId(), Boolean.TRUE.equals(row.getInserted()));
+		var roles = userRoleRepository.findRoles(row.getId());
+		if (bootstrapAdminIds.contains(discordId) && userRoleRepository.grant(row.getId(), GrantedRole.ADMIN, null)) {
+			roles = userRoleRepository.findRoles(row.getId());
+			auditLogRepository.insert(null, Action.ROLES_CHANGED, TargetType.USER, row.getId().toString(),
+					new AuditDetails(null, null, null, null, roles, null, null));
+		}
+		return new LoginResult(row.getId(), Boolean.TRUE.equals(row.getInserted()), roles);
 	}
 
 	/**
@@ -256,17 +324,22 @@ public class UserService {
 	}
 
 	/**
-	 * Maps a user to the {@link MeResponse}.
+	 * Maps a user to the {@link MeResponse}. {@code mfaRequired} is true when the
+	 * user holds a granted role that isn't in effect for this session (D-015 rule
+	 * 2). A role change ends every session, so the only thing that keeps a granted
+	 * role out of a session is MFA being off when it signed in.
 	 *
 	 * @param user        the {@link AppUser}
 	 * @param authorities the session's authorities
 	 * @return the {@link MeResponse}
 	 */
-	private static MeResponse toMeResponse(AppUser user, Collection<? extends GrantedAuthority> authorities) {
+	private MeResponse toMeResponse(AppUser user, Collection<? extends GrantedAuthority> authorities) {
+		var roles = roles(authorities);
+		var mfaRequired = userRoleRepository.findRoles(user.getId()).stream()
+				.anyMatch(granted -> !roles.contains(Role.valueOf(granted.name())));
 		return new MeResponse(user.getId(), user.getUsername(), user.getGlobalName(),
-				avatarUrl(user.getDiscordId(), user.getAvatarHash()), user.getTimeZone(), user.isPushEnabled(),
-				// TODO(#84): mfaRequired from user_role once roles are stored.
-				roles(authorities), user.isMfaEnabled(), false);
+				avatarUrl(user.getDiscordId(), user.getAvatarHash()), user.getTimeZone(), user.isPushEnabled(), roles,
+				user.isMfaEnabled(), mfaRequired);
 	}
 
 	/**
@@ -300,8 +373,10 @@ public class UserService {
 	 *
 	 * @param userId     the user ID
 	 * @param firstLogin whether the user was just created
+	 * @param roles      the user's granted roles, MODERATOR before ADMIN, in effect
+	 *                   only if Discord reports MFA on
 	 * @author mcawful
 	 */
-	public record LoginResult(UUID userId, boolean firstLogin) {
+	public record LoginResult(UUID userId, boolean firstLogin, List<GrantedRole> roles) {
 	}
 }

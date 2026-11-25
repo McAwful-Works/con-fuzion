@@ -57,6 +57,22 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
 			@Param("mfaEnabled") boolean mfaEnabled);
 
 	/**
+	 * Returns why a Discord ID may not sign in (D-015 rule 5): a ban on the ID,
+	 * checked first, or a suspension of its account that hasn't ended.
+	 *
+	 * @param discordId the Discord user ID
+	 * @return {@code ACCOUNT_BANNED}, {@code USER_SUSPENDED}, or {@code null} when
+	 *         the sign-in may go ahead
+	 */
+	@Query(value = """
+			SELECT CASE
+				WHEN EXISTS (SELECT 1 FROM banned_account WHERE discord_id = :discordId) THEN 'ACCOUNT_BANNED'
+				WHEN EXISTS (SELECT 1 FROM app_user WHERE discord_id = :discordId AND suspended_until > now())
+					THEN 'USER_SUSPENDED'
+			END""", nativeQuery = true)
+	String findSignInRefusal(@Param("discordId") long discordId);
+
+	/**
 	 * The result of {@link AppUserRepository#upsertFromDiscord}.
 	 *
 	 * @author mcawful

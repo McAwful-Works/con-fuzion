@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,11 +49,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.authority.AuthorityUtils;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -61,7 +58,6 @@ import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.DiscordStub;
 import app.confuzion.backend.TestcontainersConfiguration;
-import app.confuzion.backend.service.DiscordOAuth2UserService;
 
 /**
  * Drives the real sign-in flow over HTTP against a {@link DiscordStub}: the
@@ -149,38 +145,44 @@ class SecurityConfigIntegrationTest {
 	/**
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
 	 * needs: {@code MODERATOR} for the moderator routes (which ADMIN also passes)
-	 * and {@code ADMIN} for the rest. All are 501 stubs until #84 to #86.
+	 * and {@code ADMIN} for the rest, and the status a caller with the role gets.
+	 * The user is unknown. Reports, moderation, suspensions and bans are 501 stubs
+	 * until #85 and #86.
 	 */
 	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
-			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR"),
-			new AdminEndpoint("GET", "/api/admin/reports/7", null, "MODERATOR"),
-			new AdminEndpoint("POST", "/api/admin/reports/7/resolve", "{\"resolution\":\"DISMISSED\"}", "MODERATOR"),
+			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR", 501),
+			new AdminEndpoint("GET", "/api/admin/reports/7", null, "MODERATOR", 501),
+			new AdminEndpoint("POST", "/api/admin/reports/7/resolve", "{\"resolution\":\"DISMISSED\"}", "MODERATOR",
+					501),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/hide",
-					"{\"reason\":\"Unsafe\"}", "MODERATOR"),
+					"{\"reason\":\"Unsafe\"}", "MODERATOR", 501),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/unhide", null,
-					"MODERATOR"),
+					"MODERATOR", 501),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/cancel",
-					"{\"reason\":\"Unsafe\"}", "MODERATOR"),
-			new AdminEndpoint("GET", "/api/admin/users?q=con", null, "MODERATOR"),
+					"{\"reason\":\"Unsafe\"}", "MODERATOR", 501),
+			new AdminEndpoint("GET", "/api/admin/users?q=con", null, "MODERATOR", 501),
 			new AdminEndpoint("POST", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/suspend",
-					"{\"until\":\"" + Instant.now().plus(Duration.ofDays(7)) + "\",\"reason\":\"Spam\"}", "MODERATOR"),
+					"{\"until\":\"" + Instant.now().plus(Duration.ofDays(7)) + "\",\"reason\":\"Spam\"}", "MODERATOR",
+					501),
 			new AdminEndpoint("POST", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/unsuspend", null,
-					"MODERATOR"),
+					"MODERATOR", 501),
 			new AdminEndpoint("POST", "/api/admin/bans", "{\"discordId\":\"80351110224678912\",\"reason\":\"Spam\"}",
-					"ADMIN"),
-			new AdminEndpoint("DELETE", "/api/admin/bans/80351110224678912", null, "ADMIN"),
-			new AdminEndpoint("GET", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles", null, "ADMIN"),
+					"ADMIN", 501),
+			new AdminEndpoint("DELETE", "/api/admin/bans/80351110224678912", null, "ADMIN", 501),
+			new AdminEndpoint("GET", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles", null, "ADMIN", 404),
 			new AdminEndpoint("PUT", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles",
-					"{\"roles\":[\"MODERATOR\"]}", "ADMIN"),
-			new AdminEndpoint("DELETE", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles", null, "ADMIN"),
-			new AdminEndpoint("GET", "/api/admin/audit", null, "ADMIN"),
+					"{\"roles\":[\"MODERATOR\"]}", "ADMIN", 404),
+			new AdminEndpoint("DELETE", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles", null, "ADMIN",
+					404),
+			new AdminEndpoint("GET", "/api/admin/audit", null, "ADMIN", 200),
 			// Not routes: denied to everyone signed in, whatever their role.
-			new AdminEndpoint("GET", "/api/admin", null, null),
-			new AdminEndpoint("GET", "/api/admin/unknown", null, null),
-			new AdminEndpoint("GET", "/api/admin/reports/", null, null),
-			new AdminEndpoint("POST", "/api/admin/reports", "{}", null),
-			new AdminEndpoint("DELETE", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/suspend", null, null),
-			new AdminEndpoint("GET", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null, null));
+			new AdminEndpoint("GET", "/api/admin", null, null, 403),
+			new AdminEndpoint("GET", "/api/admin/unknown", null, null, 403),
+			new AdminEndpoint("GET", "/api/admin/reports/", null, null, 403),
+			new AdminEndpoint("POST", "/api/admin/reports", "{}", null, 403),
+			new AdminEndpoint("DELETE", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/suspend", null, null,
+					403),
+			new AdminEndpoint("GET", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null, null, 403));
 
 	/**
 	 * The stub Discord.
@@ -214,6 +216,13 @@ class SecurityConfigIntegrationTest {
 	 */
 	@Autowired
 	private RedisIndexedSessionRepository sessionRepository;
+
+	/**
+	 * The {@link JdbcTemplate}, to set up roles, bans and suspensions and to read
+	 * the audit log.
+	 */
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
 	/**
 	 * Points the Discord provider at the stub.
@@ -566,22 +575,23 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
-	 * Tests that a bootstrap admin gets ADMIN only with Discord MFA on.
-	 */
-	/**
 	 * Tests the {@code /api/admin} rule (D-015) for every admin operation: signed
 	 * out is a 401, signed in without the role a 403, and with it the operation
-	 * runs (a 501 stub). ADMIN passes every moderator route, a moderator gets a 403
-	 * from the ADMIN-only ones, and anything else under {@code /api/admin} is a 403
-	 * even for an admin. A bootstrap admin without MFA has no admin access.
+	 * runs. ADMIN passes every moderator route, a moderator gets a 403 from the
+	 * ADMIN-only ones, and anything else under {@code /api/admin} is a 403 even for
+	 * an admin. A moderator or bootstrap admin who signed in without MFA has no
+	 * admin access.
 	 */
 	@Test
 	void adminRoutesNeedTheirRole() throws Exception {
 		DISCORD.reset("100000000000000110", "plain_user", true);
 		var user = login().session();
 		DISCORD.reset("100000000000000111", "moderator", true);
+		login();
+		grantRole("100000000000000111", "MODERATOR");
 		var moderator = login().session();
-		grant(moderator, "ROLE_USER", "ROLE_MODERATOR");
+		DISCORD.reset("100000000000000111", "moderator", false);
+		var moderatorWithoutMfa = login().session();
 		DISCORD.reset(ADMIN_ID, "admin", true);
 		var admin = login().session();
 		DISCORD.reset(ADMIN_ID, "admin", false);
@@ -592,16 +602,16 @@ class SecurityConfigIntegrationTest {
 			var what = endpoint.method() + " " + endpoint.path();
 			assertError(send(endpoint.method(), endpoint.path(), null, endpoint.body(), "Cookie",
 					"XSRF-TOKEN=" + anonymousCsrf, "X-XSRF-TOKEN", anonymousCsrf), 401, "UNAUTHORIZED");
-			for (var session : List.of(user, adminWithoutMfa))
+			for (var session : List.of(user, moderatorWithoutMfa, adminWithoutMfa))
 				assertThat(sendWithCsrf(endpoint.method(), endpoint.path(), session, endpoint.body()).statusCode())
 						.as(what).isEqualTo(403);
 			assertThat(sendWithCsrf(endpoint.method(), endpoint.path(), moderator, endpoint.body()).statusCode())
-					.as(what).isEqualTo("MODERATOR".equals(endpoint.role()) ? 501 : 403);
+					.as(what).isEqualTo("MODERATOR".equals(endpoint.role()) ? endpoint.status() : 403);
 			var asAdmin = sendWithCsrf(endpoint.method(), endpoint.path(), admin, endpoint.body());
-			if (endpoint.role() == null)
-				assertError(asAdmin, 403, "FORBIDDEN");
+			if (endpoint.status() == 200)
+				assertThat(asAdmin.statusCode()).as(what).isEqualTo(200);
 			else
-				assertError(asAdmin, 501, "NOT_IMPLEMENTED");
+				assertError(asAdmin, endpoint.status(), HttpStatus.valueOf(endpoint.status()).name());
 			if (!endpoint.method().equals("GET"))
 				assertError(send(endpoint.method(), endpoint.path(), admin, endpoint.body()), 403, "FORBIDDEN");
 		}
@@ -609,24 +619,196 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
-	 * Tests that {@code /api/me} reports no 2FA note for users who need none
-	 * (D-015). #84 sets it for a granted role without MFA.
+	 * Tests that {@code /api/me} asks for 2FA exactly when a granted role is out of
+	 * effect because Discord reported MFA off at sign-in (D-015 rule 2).
 	 */
 	@Test
 	void meReportsMfaRequired() throws Exception {
 		DISCORD.reset("100000000000000120", "no_role", false);
-		var me = send("GET", "/api/me", login().session(), null);
+		assertThat(mfaRequired(login().session())).isFalse();
 
-		assertThat(JsonPath.<Boolean>read(me.body(), "$.body.mfaRequired")).isFalse();
+		DISCORD.reset("100000000000000121", "mod_no_mfa", false);
+		login();
+		grantRole("100000000000000121", "MODERATOR");
+		var withoutMfa = login().session();
+		assertThat(roles(withoutMfa)).containsExactly("USER");
+		assertThat(mfaRequired(withoutMfa)).isTrue();
+
+		DISCORD.reset("100000000000000121", "mod_no_mfa", true);
+		var withMfa = login().session();
+		assertThat(roles(withMfa)).containsExactly("USER", "MODERATOR");
+		assertThat(mfaRequired(withMfa)).isFalse();
 	}
 
+	/**
+	 * Tests that a bootstrap ID gets an ADMIN row at sign-in, MFA or not, with a
+	 * {@code ROLES_CHANGED} audit row that has no actor, and only when it has no
+	 * ADMIN row yet. The role is in effect only with MFA.
+	 */
 	@Test
 	void bootstrapAdminNeedsMfa() throws Exception {
 		DISCORD.reset(ADMIN_ID, "admin", false);
-		assertThat(roles(login().session())).containsExactly("USER");
+		var withoutMfa = login().session();
+		var adminId = userId(ADMIN_ID);
+		var bootstrapRows = auditDetails("ROLES_CHANGED", adminId.toString(), true);
+		assertThat(bootstrapRows).isNotEmpty().last().isEqualTo("{\"roles\": [\"ADMIN\"]}");
+		assertThat(jdbcTemplate.queryForList("SELECT role FROM user_role WHERE user_id = ?", String.class, adminId))
+				.containsExactly("ADMIN");
+		assertThat(roles(withoutMfa)).containsExactly("USER");
+		assertThat(mfaRequired(withoutMfa)).isTrue();
 
 		DISCORD.reset(ADMIN_ID, "admin", true);
-		assertThat(roles(login().session())).containsExactly("USER", "ADMIN");
+		var withMfa = login().session();
+		assertThat(roles(withMfa)).containsExactly("USER", "ADMIN");
+		assertThat(mfaRequired(withMfa)).isFalse();
+		assertThat(auditDetails("ROLES_CHANGED", adminId.toString(), true)).isEqualTo(bootstrapRows);
+	}
+
+	/**
+	 * Tests that a banned Discord ID, and an account whose suspension hasn't ended,
+	 * are refused at sign-in with the same neutral redirect and no session (D-015
+	 * rule 5). A banned ID with no account doesn't get one. Each refusal writes a
+	 * {@code SIGN_IN_REFUSED} row with no actor, and an ended suspension doesn't
+	 * stop a sign-in.
+	 */
+	@Test
+	void bannedOrSuspendedSignInIsRefused() throws Exception {
+		var banned = "100000000000000130";
+		jdbcTemplate.update("INSERT INTO banned_account (discord_id, reason) VALUES (?, 'Spam')",
+				Long.parseLong(banned));
+		DISCORD.reset(banned, "banned", true);
+		var refused = login();
+		assertThat(refused.location()).isEqualTo(SecurityConfig.LOGIN_REFUSED_URL);
+		assertThat(send("GET", "/api/me", refused.session(), null).statusCode()).isEqualTo(401);
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM app_user WHERE discord_id = ?", Long.class,
+				Long.parseLong(banned))).isZero();
+		assertThat(auditDetails("SIGN_IN_REFUSED", banned, true)).containsExactly("{\"cause\": \"ACCOUNT_BANNED\"}");
+
+		var suspended = "100000000000000131";
+		DISCORD.reset(suspended, "suspended", true);
+		login();
+		jdbcTemplate.update("UPDATE app_user SET suspended_until = now() + interval '1 day' WHERE discord_id = ?",
+				Long.parseLong(suspended));
+		refused = login();
+		assertThat(refused.location()).isEqualTo(SecurityConfig.LOGIN_REFUSED_URL);
+		assertThat(send("GET", "/api/me", refused.session(), null).statusCode()).isEqualTo(401);
+		assertThat(auditDetails("SIGN_IN_REFUSED", suspended, true)).containsExactly("{\"cause\": \"USER_SUSPENDED\"}");
+
+		jdbcTemplate.update("UPDATE app_user SET suspended_until = now() - interval '1 minute' WHERE discord_id = ?",
+				Long.parseLong(suspended));
+		var again = login();
+		assertThat(again.location()).isEqualTo("/");
+		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(200);
+	}
+
+	/**
+	 * Tests the roles endpoints end to end: a change is audit-logged with its
+	 * actor, ends every session of the user, and takes effect at their next
+	 * sign-in; the same set again, or removing roles from a user with none, changes
+	 * and writes nothing.
+	 */
+	@Test
+	void roleChangeEndsTheUsersSessions() throws Exception {
+		DISCORD.reset(ADMIN_ID, "admin", true);
+		var admin = login().session();
+		var adminId = userId(ADMIN_ID).toString();
+		var target = "100000000000000140";
+		DISCORD.reset(target, "target", true);
+		var phone = login().session();
+		var laptop = login().session();
+		var targetId = userId(target).toString();
+		var path = "/api/admin/users/" + targetId + "/roles";
+
+		var set = sendWithCsrf("PUT", path, admin, "{\"roles\":[\"MODERATOR\"]}");
+		assertThat(set.statusCode()).isEqualTo(200);
+		assertThat(JsonPath.<List<String>>read(set.body(), "$.body.roles")).containsExactly("MODERATOR");
+		assertThat(JsonPath.<Boolean>read(set.body(), "$.body.mfaEnabled")).isTrue();
+		assertThat(send("GET", "/api/me", phone, null).statusCode()).isEqualTo(401);
+		assertThat(send("GET", "/api/me", laptop, null).statusCode()).isEqualTo(401);
+		assertThat(jdbcTemplate.queryForList("""
+				SELECT action || ' ' || actor_id || ' ' || details::text FROM audit_log WHERE target_id = ?
+				ORDER BY id""", String.class, targetId)).containsExactly(
+				"ROLES_CHANGED " + adminId + " {\"roles\": [\"MODERATOR\"]}",
+				"SESSIONS_PURGED " + adminId + " {\"cause\": \"ROLES_CHANGED\", \"sessions\": 2}");
+
+		var again = login().session();
+		assertThat(roles(again)).containsExactly("USER", "MODERATOR");
+		assertThat(sendWithCsrf("PUT", path, admin, "{\"roles\":[\"MODERATOR\"]}").statusCode()).isEqualTo(200);
+		assertThat(send("GET", "/api/me", again, null).statusCode()).isEqualTo(200);
+		var get = send("GET", path, admin, null);
+		assertThat(JsonPath.<List<String>>read(get.body(), "$.body.roles")).containsExactly("MODERATOR");
+		assertThat(auditDetails("ROLES_CHANGED", targetId, false)).hasSize(1);
+
+		assertThat(sendWithCsrf("DELETE", path, admin, null).statusCode()).isEqualTo(204);
+		assertThat(send("GET", "/api/me", again, null).statusCode()).isEqualTo(401);
+		assertThat(auditDetails("ROLES_CHANGED", targetId, false)).containsExactly("{\"roles\": [\"MODERATOR\"]}",
+				"{\"roles\": []}");
+		assertThat(auditDetails("SESSIONS_PURGED", targetId, false)).last()
+				.isEqualTo("{\"cause\": \"ROLES_CHANGED\", \"sessions\": 1}");
+		assertThat(sendWithCsrf("DELETE", path, admin, null).statusCode()).isEqualTo(204);
+		assertThat(auditDetails("ROLES_CHANGED", targetId, false)).hasSize(2);
+	}
+
+	/**
+	 * Tests that the only ADMIN can't remove their own ADMIN, with or without
+	 * keeping another role (409 {@code LAST_ADMIN}), and that once another user
+	 * holds ADMIN they can, which ends their own session too.
+	 */
+	@Test
+	void lastAdminCantBeRemoved() throws Exception {
+		DISCORD.reset(ADMIN_ID, "admin", true);
+		var admin = login().session();
+		var adminId = userId(ADMIN_ID);
+		jdbcTemplate.update("DELETE FROM user_role WHERE role = 'ADMIN' AND user_id <> ?", adminId);
+		var path = "/api/admin/users/" + adminId + "/roles";
+
+		assertError(sendWithCsrf("DELETE", path, admin, null), 409, "LAST_ADMIN");
+		assertError(sendWithCsrf("PUT", path, admin, "{\"roles\":[\"MODERATOR\"]}"), 409, "LAST_ADMIN");
+		assertThat(jdbcTemplate.queryForList("SELECT role FROM user_role WHERE user_id = ?", String.class, adminId))
+				.containsExactly("ADMIN");
+
+		DISCORD.reset("100000000000000150", "second_admin", true);
+		login();
+		var second = userId("100000000000000150");
+		assertThat(sendWithCsrf("PUT", "/api/admin/users/" + second + "/roles", admin, "{\"roles\":[\"ADMIN\"]}")
+				.statusCode()).isEqualTo(200);
+		assertThat(sendWithCsrf("DELETE", path, admin, null).statusCode()).isEqualTo(204);
+		assertThat(send("GET", "/api/me", admin, null).statusCode()).isEqualTo(401);
+	}
+
+	/**
+	 * Tests that the audit log reads newest first in pages joined by
+	 * {@code nextCursor}, and that a cursor it didn't issue is a 400.
+	 */
+	@Test
+	void auditLogPagesNewestFirst() throws Exception {
+		DISCORD.reset(ADMIN_ID, "admin", true);
+		var admin = login().session();
+		var banned = "100000000000000160";
+		jdbcTemplate.update("INSERT INTO banned_account (discord_id, reason) VALUES (?, 'Spam')",
+				Long.parseLong(banned));
+		DISCORD.reset(banned, "banned_again", true);
+		login();
+		login();
+
+		var first = send("GET", "/api/admin/audit?limit=1", admin, null);
+		assertThat(first.statusCode()).isEqualTo(200);
+		assertThat(JsonPath.<String>read(first.body(), "$.responseType")).isEqualTo("AUDIT_PAGE");
+		assertThat(JsonPath.<List<Object>>read(first.body(), "$.body.items")).hasSize(1);
+		assertThat(JsonPath.<String>read(first.body(), "$.body.items[0].action")).isEqualTo("SIGN_IN_REFUSED");
+		assertThat(JsonPath.<String>read(first.body(), "$.body.items[0].targetType")).isEqualTo("DISCORD_ACCOUNT");
+		assertThat(JsonPath.<String>read(first.body(), "$.body.items[0].targetId")).isEqualTo(banned);
+		assertThat(JsonPath.<Object>read(first.body(), "$.body.items[0].actorId")).isNull();
+		assertThat(JsonPath.<String>read(first.body(), "$.body.items[0].details.cause")).isEqualTo("ACCOUNT_BANNED");
+		var firstId = JsonPath.<Integer>read(first.body(), "$.body.items[0].id");
+
+		var next = send("GET",
+				"/api/admin/audit?limit=50&cursor=" + JsonPath.<String>read(first.body(), "$.body.nextCursor"), admin,
+				null);
+		assertThat(JsonPath.<List<Integer>>read(next.body(), "$.body.items[*].id")).isNotEmpty()
+				.allMatch(id -> id < firstId).isSortedAccordingTo(Comparator.reverseOrder());
+		assertThat(JsonPath.<String>read(next.body(), "$.body.items[0].targetId")).isEqualTo(banned);
+		assertError(send("GET", "/api/admin/audit?cursor=AAAA", admin, null), 400, "BAD_REQUEST");
 	}
 
 	/**
@@ -701,32 +883,58 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
+	 * Returns whether {@code /api/me} asks the session's user to turn on 2FA.
+	 *
+	 * @param session the session cookie value
+	 * @return {@code mfaRequired}
+	 */
+	private boolean mfaRequired(String session) throws Exception {
+		return JsonPath.read(send("GET", "/api/me", session, null).body(), "$.body.mfaRequired");
+	}
+
+	/**
+	 * Returns a signed-up user's ID.
+	 *
+	 * @param discordId the user's Discord ID
+	 * @return the user ID
+	 */
+	private UUID userId(String discordId) {
+		return jdbcTemplate.queryForObject("SELECT id FROM app_user WHERE discord_id = ?", UUID.class,
+				Long.parseLong(discordId));
+	}
+
+	/**
+	 * Grants a role in {@code user_role}, as an admin would. It takes effect at the
+	 * user's next sign-in.
+	 *
+	 * @param discordId the user's Discord ID
+	 * @param role      {@code MODERATOR} or {@code ADMIN}
+	 */
+	private void grantRole(String discordId, String role) {
+		jdbcTemplate.update("INSERT INTO user_role (user_id, role) VALUES (?, ?) ON CONFLICT DO NOTHING",
+				userId(discordId), role);
+	}
+
+	/**
+	 * Returns the details of a target's audit rows for one action, oldest first, as
+	 * Postgres prints them.
+	 *
+	 * @param action   the action
+	 * @param targetId the target ID
+	 * @param system   {@code true} for only the rows with no actor
+	 * @return the details
+	 */
+	private List<String> auditDetails(String action, String targetId, boolean system) {
+		return jdbcTemplate.queryForList("SELECT details::text FROM audit_log WHERE action = ? AND target_id = ?"
+				+ (system ? " AND actor_id IS NULL" : "") + " ORDER BY id", String.class, action, targetId);
+	}
+
+	/**
 	 * Returns whether any Valkey value contains one of the given strings.
 	 *
 	 * @param needles the strings
 	 * @return {@code true} when one is found
 	 */
-	/**
-	 * Replaces a session's authorities, as #84 will grant them from
-	 * {@code user_role}, so the admin rule can be tested for a moderator before
-	 * roles are stored.
-	 *
-	 * @param session     the {@code SESSION} cookie value
-	 * @param authorities the new authorities
-	 */
-	private void grant(String session, String... authorities) {
-		var stored = sessionRepository.findById(sessionId(session));
-		SecurityContext context = stored.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
-		var token = (OAuth2AuthenticationToken) context.getAuthentication();
-		var granted = AuthorityUtils.createAuthorityList(authorities);
-		var principal = new DefaultOAuth2User(granted, token.getPrincipal().getAttributes(),
-				DiscordOAuth2UserService.USER_ID_ATTRIBUTE);
-		context.setAuthentication(
-				new OAuth2AuthenticationToken(principal, granted, token.getAuthorizedClientRegistrationId()));
-		stored.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
-		sessionRepository.save(stored);
-	}
-
 	private boolean sessionStoreContainsAny(List<String> needles) {
 		try (var connection = redisConnectionFactory.getConnection()) {
 			var values = new java.util.ArrayList<byte[]>();
@@ -851,9 +1059,11 @@ class SecurityConfigIntegrationTest {
 	 * @param body   the JSON body, or {@code null}
 	 * @param role   {@code MODERATOR}, {@code ADMIN}, or {@code null} for a path
 	 *               that is denied to everyone
+	 * @param status the status a signed-in caller with the role and the CSRF token
+	 *               gets
 	 * @author mcawful
 	 */
-	private record AdminEndpoint(String method, String path, String body, String role) {
+	private record AdminEndpoint(String method, String path, String body, String role, int status) {
 	}
 
 	/**
