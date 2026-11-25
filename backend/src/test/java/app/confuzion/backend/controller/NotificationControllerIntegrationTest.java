@@ -308,6 +308,24 @@ class NotificationControllerIntegrationTest {
 	}
 
 	/**
+	 * Tests that cancelling an event that has already ended cancels it but tells
+	 * nobody.
+	 */
+	@Test
+	void testCancellingAnEndedEventNotifiesNobody() throws Exception {
+		var host = fixtures.user("Host");
+		var event = fixtures.rsvpEvent(host, null, "now() - interval '5 hours'", "NULL");
+		var guest = fixtures.user("Guest");
+		rsvp(event, guest, "CONFIRMED", null);
+
+		assertThat(status(delete("/api/events/" + event.publicId()).with(login(host)).with(csrf()))).isEqualTo(204);
+
+		assertThat(jdbcTemplate.queryForObject("SELECT status FROM event WHERE id = ?", String.class, event.id()))
+				.isEqualTo("CANCELLED");
+		assertThat(rows(guest)).isEmpty();
+	}
+
+	/**
 	 * Tests that accepting a friend invite notifies the inviter, with the new
 	 * friend's ID and no name or event, and nobody else.
 	 */

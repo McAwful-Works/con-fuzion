@@ -66,12 +66,12 @@ class NotificationControllerTest {
 	/**
 	 * The mocked {@link NotificationService}.
 	 */
-	private static final NotificationService NOTIFICATION_SERVICE = mock(NotificationService.class);
+	private final NotificationService notificationService = mock(NotificationService.class);
 
 	/**
 	 * The {@link MockMvc}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new NotificationController(NOTIFICATION_SERVICE));
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new NotificationController(notificationService));
 
 	/**
 	 * Tests that a page request passes the caller, cursor and limit to the service
@@ -80,7 +80,7 @@ class NotificationControllerTest {
 	@Test
 	void testGetNotificationsReturnsThePage() throws Exception {
 		var page = new NotificationPageResponse(List.of(), "MTI", 3);
-		when(NOTIFICATION_SERVICE.getInbox(USER_ID, "abc_123-X", 50)).thenReturn(page);
+		when(notificationService.getInbox(USER_ID, "abc_123-X", 50)).thenReturn(page);
 
 		mockMvc.perform(get("/api/notifications?cursor=abc_123-X&limit=50").principal(AUTHENTICATION))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("NOTIFICATION_PAGE"))
@@ -93,7 +93,7 @@ class NotificationControllerTest {
 	 */
 	@Test
 	void testGetNotificationsDefaults() throws Exception {
-		when(NOTIFICATION_SERVICE.getInbox(USER_ID, null, 20))
+		when(notificationService.getInbox(USER_ID, null, 20))
 				.thenReturn(new NotificationPageResponse(List.of(), null, 0));
 
 		mockMvc.perform(get("/api/notifications").principal(AUTHENTICATION)).andExpect(status().isOk());
@@ -107,7 +107,7 @@ class NotificationControllerTest {
 		mockMvc.perform(json(post("/api/notifications/read"), "{\"upTo\":42}").principal(AUTHENTICATION))
 				.andExpect(status().isNoContent());
 
-		verify(NOTIFICATION_SERVICE).markRead(USER_ID, 42L);
+		verify(notificationService).markRead(USER_ID, 42L);
 	}
 
 	/**

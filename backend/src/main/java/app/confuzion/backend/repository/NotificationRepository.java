@@ -195,19 +195,19 @@ public class NotificationRepository {
 	/**
 	 * Locks an event if it is still due a reminder: published, not started, and
 	 * within the lead time. The lock lasts until the transaction ends, so a cancel,
-	 * an edit or a block can't interleave with the reminders.
+	 * an edit or a block can't interleave with the reminders. An event that
+	 * something else holds locked is skipped, and the next run picks it up.
 	 *
 	 * @param eventId the event's internal ID
 	 * @param lead    how long before the start a reminder goes out
 	 * @return its title and start, or empty when it isn't due
 	 */
 	public Optional<DueEvent> lockDueEvent(long eventId, Duration lead) {
-		return jdbc
-				.sql("""
-						SELECT title, starts_at FROM event
-						WHERE id = :eventId AND status = 'PUBLISHED' AND starts_at > now() AND starts_at <= now() + CAST(:leadSeconds AS bigint) * interval '1 second'
-						FOR NO KEY UPDATE""")
-				.param("eventId", eventId).param("leadSeconds", lead.toSeconds())
+		return jdbc.sql("""
+					SELECT title, starts_at FROM event
+					WHERE id = :eventId AND status = 'PUBLISHED' AND starts_at > statement_timestamp()
+				AND starts_at <= statement_timestamp() + CAST(:leadSeconds AS bigint) * interval '1 second'
+					FOR NO KEY UPDATE""").param("eventId", eventId).param("leadSeconds", lead.toSeconds())
 				.query((rs, row) -> new DueEvent(rs.getString("title"), rs.getTimestamp("starts_at").toInstant()))
 				.optional();
 	}

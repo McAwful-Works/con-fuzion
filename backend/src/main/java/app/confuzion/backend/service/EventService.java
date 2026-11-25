@@ -300,7 +300,7 @@ public class EventService {
 	/**
 	 * Cancels an event the caller hosts, and tells everyone with an active RSVP but
 	 * the host, in the same transaction (D-014). Cancelling it again is a no-op
-	 * that notifies nobody.
+	 * that notifies nobody, and so is cancelling one that has already ended.
 	 *
 	 * @param hostId  the signed-in user's ID
 	 * @param eventId the event's public ID
@@ -312,8 +312,9 @@ public class EventService {
 		if (event.getStatus() == Status.CANCELLED)
 			return;
 		eventRepository.cancel(eventId, hostId);
-		notificationRepository.insertForActiveRsvps(event.getId(), hostId, Type.EVENT_CANCELLED,
-				new NotificationPayload(event.getTitle(), null, null, null, null));
+		if (end(event).isAfter(Instant.now()))
+			notificationRepository.insertForActiveRsvps(event.getId(), hostId, Type.EVENT_CANCELLED,
+					new NotificationPayload(event.getTitle(), null, null, null, null));
 	}
 
 	/**
