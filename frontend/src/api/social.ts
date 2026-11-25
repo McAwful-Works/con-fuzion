@@ -33,7 +33,7 @@ export const PEOPLE_QUERY_MAX = 50;
 export const CIRCLE_NAME_MAX = 50;
 
 /** Refresh everything a friendship or block change can touch. */
-function useInvalidateSocial() {
+export function useInvalidateSocial() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: social });
 }
@@ -94,10 +94,15 @@ export function useBlocks() {
   });
 }
 
+/** `PUT /api/blocks/{userId}`. The report sheet calls it too, and refreshes the lists itself when it closes. */
+export function blockUser(userId: string) {
+  return api<void>(fillPath(BLOCK, { userId }), { method: 'PUT' });
+}
+
 export function useBlock() {
   const invalidate = useInvalidateSocial();
   return useMutation({
-    mutationFn: (userId: string) => api<void>(fillPath(BLOCK, { userId }), { method: 'PUT' }),
+    mutationFn: blockUser,
     onSuccess: invalidate,
   });
 }

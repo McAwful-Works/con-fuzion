@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useFriends, type Person } from '../../api/social';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
+import { ReportSheet } from '../reports/ReportSheet';
 import { BlockConfirm, RemoveFriendConfirm } from './PersonActions';
 import { PersonRow } from './PersonRow';
 
 function FriendRow({ person }: { person: Person }) {
-  const [asking, setAsking] = useState<'remove' | 'block' | null>(null);
+  const [asking, setAsking] = useState<'remove' | 'block' | 'report' | null>(null);
   const done = () => setAsking(null);
   return (
     <PersonRow
@@ -15,6 +16,15 @@ function FriendRow({ person }: { person: Person }) {
         <>
           {asking === 'remove' && <RemoveFriendConfirm person={person} onDone={done} />}
           {asking === 'block' && <BlockConfirm person={person} onDone={done} />}
+          {asking === 'report' && (
+            <ReportSheet
+              targetType="USER"
+              targetId={person.id}
+              label={person.displayName}
+              blockable={person}
+              onDone={done}
+            />
+          )}
         </>
       }
     >
@@ -33,6 +43,14 @@ function FriendRow({ person }: { person: Person }) {
         onClick={() => setAsking('block')}
       >
         Block
+      </button>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        aria-label={`Report ${person.displayName}`}
+        onClick={() => setAsking('report')}
+      >
+        Report
       </button>
     </PersonRow>
   );

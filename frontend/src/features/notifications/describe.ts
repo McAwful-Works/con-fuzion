@@ -22,7 +22,7 @@ function listChanges(changes: Change[]): string {
  * is user text, so it only ever goes into plain text.
  */
 export function describeNotification(n: Notification, nowMs: number): string {
-  const { eventTitle, offerExpiresAt, startsAt, changes } = n.payload;
+  const { eventTitle, offerExpiresAt, startsAt, changes, reason } = n.payload;
   const title = eventTitle ? `“${eventTitle}”` : 'An event';
   switch (n.type) {
     case 'SPOT_OFFERED': {
@@ -38,7 +38,18 @@ export function describeNotification(n: Notification, nowMs: number): string {
         startsAt ? ` It now starts ${formatDeadline(startsAt)}.` : ''
       }`;
     case 'EVENT_CANCELLED':
-      return `${title} was cancelled.`;
+      // A reason comes only with the host's copy of a moderator's cancel (D-015 rule 11).
+      return reason
+        ? `${title} was cancelled by the moderators. Reason: ${reason}`
+        : `${title} was cancelled.`;
+    case 'EVENT_HIDDEN':
+      return `${title} was hidden by the moderators. Only you and the moderators can see it now.${
+        reason ? ` Reason: ${reason}` : ''
+      }`;
+    case 'REPORT_REVIEWED':
+      return 'The moderators reviewed a report you sent. Thank you for telling us.';
+    case 'REPORT_RECEIVED':
+      return 'A new report is waiting for review.';
     case 'EVENT_REMINDER':
       return startsAt
         ? `${title} starts soon, ${formatDeadline(startsAt)}.`

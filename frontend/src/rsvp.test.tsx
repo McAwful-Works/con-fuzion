@@ -48,6 +48,7 @@ const walk: Schemas['EventResponse'] = {
   locationVisibility: 'VIEWERS',
   tag: null,
   host: ada,
+  hiddenReason: null,
   isHost: false,
   myStatus: 'NONE',
   status: 'PUBLISHED',
