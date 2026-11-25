@@ -15,7 +15,13 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | | Sign-in and onboarding screens (+ failed-sign-in message, generated logout, case-insensitive sort) | done | #12 → #27, #30 |
 | | Serve the built PWA from the backend jar | done | #13 → #24 |
 | | Playwright end-to-end tests against the jar with a fake Discord | done | #31 → #32 |
-| **M2** Social + events | friends (QR invites), circles, blocks · events CRUD + audiences + visibility + feed | todo | — |
+| **M2** Social + events | API contracts: social graph (D-011) and events (D-012) | done | #34 → #41, #35 → #42 |
+| | Backend social: invite links, people search, circles, block cutoff (+ blocks keep other invites) | done | #36 → #47, #49 |
+| | Backend events: create/edit/cancel, the one visibility rule, feed | done | #37 → #50 |
+| | Frontend social: friends, QR invites, invite accept page, circles, blocking | done | #38 → #45 |
+| | Frontend events: feed + Hosting, create/edit with audience picker, event detail | done | #39 → #48 |
+| | End-to-end tests for M2 flows (block break check) | done | #40 → #51 |
+| | Fixes found along the way: e2e rate limits; session-ID race on sign-in (500s for up to 14 days) | done | #43, #44 → #46 |
 | **M3** FCFS RSVP | atomic claim, waitlist, offers + expiry, `/spots` polling, My schedule | todo | — |
 | **M4** Notifications | inbox, Web Push sender, reminders, PWA install flow | todo | — |
 | **M5** Safety & admin | reports, admin area, roles + MFA gate, suspend/ban, audit log, maintenance mode | todo | — |

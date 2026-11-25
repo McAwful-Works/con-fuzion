@@ -14,13 +14,13 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
-          pattern='^(feat|fix|refactor|test|docs|chore|ci|build|perf)(\((auth|events|rsvp|social|notify|admin|web|infra|deps|deps-dev|docs|ci)\))?!?: [^ ].{2,}$'
+          pattern='^(feat|fix|refactor|test|docs|chore|ci|build|perf)(\((auth|events|rsvp|social|notify|admin|web|infra|deps|deps-dev|docs|ci|e2e)\))?!?: [^ ].{2,}$'
           if [[ "$TITLE" =~ $pattern ]]; then
             echo "OK: $TITLE"
           else
             echo "::error::PR title must be a Conventional Commit, e.g. 'feat(rsvp): add waitlist auto-promotion'."
             echo "Types: feat fix refactor test docs chore ci build perf"
-            echo "Scopes (optional): auth events rsvp social notify admin web infra deps deps-dev docs ci"
+            echo "Scopes (optional): auth events rsvp social notify admin web infra deps deps-dev docs ci e2e"
             echo "Got: $TITLE"
             exit 1
           fi
