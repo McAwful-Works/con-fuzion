@@ -57,6 +57,7 @@ import app.confuzion.backend.model.record.EventResponse.AudienceEntry;
 import app.confuzion.backend.model.record.EventResponse.AudienceType;
 import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.EventResponse.Status;
+import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.PersonResponse;
 import app.confuzion.backend.repository.AppUserRepository;
 import app.confuzion.backend.repository.EventAudienceRepository;
@@ -141,9 +142,10 @@ public class EventService {
 	}
 
 	/**
-	 * Creates and publishes an event hosted by the caller. The count of the host's
-	 * recent events runs under a lock on their {@code app_user} row, so concurrent
-	 * creates can't overshoot the cap.
+	 * Creates and publishes an event hosted by the caller, who holds its first spot
+	 * with a confirmed RSVP (D-013). The count of the host's recent events runs
+	 * under a lock on their {@code app_user} row, so concurrent creates can't
+	 * overshoot the cap.
 	 *
 	 * @param hostId  the signed-in user's ID
 	 * @param request the validated {@link EventRequest}
@@ -167,6 +169,7 @@ public class EventService {
 		event.setStatus(Status.PUBLISHED);
 		apply(event, request);
 		eventRepository.save(event);
+		eventRepository.addHostRsvp(event.getId());
 		audienceRepository.saveAll(refs.stream().map(ref -> new EventAudience(event.getId(), ref)).toList());
 		return toResponses(hostId, List.of(event)).getFirst();
 	}
@@ -383,6 +386,8 @@ public class EventService {
 				event.getTitle(), event.getDescription(), locationHidden ? null : event.getLocationText(),
 				locationHidden, event.getLocationVisibility(), event.getTag(), event.getStartsAt(), event.getEndsAt(),
 				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getStatus(), isHost,
+				// Until joining is built (#54), the host's RSVP is the only one there is.
+				isHost ? MyStatus.CONFIRMED : MyStatus.NONE,
 				isHost ? audiences.getOrDefault(event.getId(), List.of()) : null);
 	}
 

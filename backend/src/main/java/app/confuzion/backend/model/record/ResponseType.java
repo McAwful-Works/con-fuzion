@@ -85,6 +85,21 @@ public enum ResponseType {
 	EVENT_PAGE,
 
 	/**
+	 * Indicates an {@link RsvpResponse} body.
+	 */
+	RSVP,
+
+	/**
+	 * Indicates an {@link AttendeesResponse} body.
+	 */
+	ATTENDEES,
+
+	/**
+	 * Indicates a {@link SpotsResponse} body.
+	 */
+	SPOTS,
+
+	/**
 	 * Indicates the response body is unknown.
 	 */
 	UNKNOWN

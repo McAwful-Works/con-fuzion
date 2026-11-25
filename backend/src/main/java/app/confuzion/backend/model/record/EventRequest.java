@@ -55,8 +55,8 @@ import jakarta.validation.constraints.Size;
  * @param endsAt             when it ends, after {@code startsAt} and at most 7
  *                           days later, or {@code null}
  * @param timeZone           the IANA time zone to show times in
- * @param capacity           the number of spots, 1 to 10,000, or {@code null}
- *                           for unlimited
+ * @param capacity           the number of spots, the host's included, 2 to
+ *                           10,000, or {@code null} for unlimited (D-013)
  * @param signupOpensAt      when sign-up opens, before {@code startsAt}, or
  *                           {@code null} to open it at once
  * @param locationVisibility who may see the location
@@ -71,7 +71,7 @@ public record EventRequest(
 		@Schema(requiredMode = RequiredMode.REQUIRED, description = "In the future when creating, and within a year of now either way. An update may keep a start that has passed, but can't move the start into the past.") @NotNull @Future(groups = EventRequest.Create.class) Instant startsAt,
 		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "After startsAt and at most 7 days later.") Instant endsAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "America/Chicago", maxLength = IanaTimeZone.MAX_LENGTH) @NotNull @IanaTimeZone String timeZone,
-		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true) @Min(1) @Max(10000) Integer capacity,
+		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "The headcount, the host included (the host always holds a spot), so at least 2. Null for unlimited. An update can't make it smaller than the number already confirmed.") @Min(2) @Max(10000) Integer capacity,
 		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "Before startsAt and at most a year earlier.") Instant signupOpensAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED) @NotNull LocationVisibility locationVisibility,
 		@Schema(requiredMode = RequiredMode.REQUIRED, description = "1 to 50 entries, each at most once.") @NotNull @Size(min = 1, max = EventRequest.MAX_AUDIENCE) List<@NotNull @Valid AudienceEntry> audience) {

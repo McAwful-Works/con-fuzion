@@ -29,10 +29,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 
 /**
- * An event as the viewer may see it (D-012). The location is withheld from
- * everyone but the host when it is {@link LocationVisibility#CONFIRMED} (until
- * RSVP in M3 lets confirmed attendees see it too), and only the host gets the
- * audience.
+ * An event as the viewer may see it (D-012, D-013). The location is withheld
+ * from everyone but the host and confirmed attendees when it is
+ * {@link LocationVisibility#CONFIRMED}, and only the host gets the audience.
  *
  * @param id                 the event's public ID, used in URLs
  * @param host               the host's public profile
@@ -49,9 +48,11 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * @param timeZone           the IANA time zone the host shows times in
  * @param signupOpensAt      when sign-up opens, or {@code null} when it opens
  *                           as soon as the event is published
- * @param capacity           the number of spots, or {@code null} for unlimited
+ * @param capacity           the headcount, the host included, or {@code null}
+ *                           for unlimited
  * @param status             whether the event is on or cancelled
  * @param isHost             whether the viewer is the host
+ * @param myStatus           where the viewer stands on the event
  * @param audience           who the event is for: the host's entries, or
  *                           {@code null} for every other viewer
  * @author mcawful
@@ -60,7 +61,7 @@ public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID i
 		@Schema(requiredMode = RequiredMode.REQUIRED) PersonResponse host,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "Cosplay photo walk") String title,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true) String description,
-		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "Hall B fountain") String location,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "Hall B fountain", description = "Null when locationHidden: the location is CONFIRMED-only and the viewer is neither the host nor confirmed.") String location,
 		@Schema(requiredMode = RequiredMode.REQUIRED) boolean locationHidden,
 		@Schema(requiredMode = RequiredMode.REQUIRED) LocationVisibility locationVisibility,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "Photoshoot") String tag,
@@ -68,9 +69,10 @@ public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID i
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true) Instant endsAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "America/Chicago") String timeZone,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true) Instant signupOpensAt,
-		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "1", maximum = "10000") Integer capacity,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "2", maximum = "10000", description = "The headcount, the host included. Null for unlimited.") Integer capacity,
 		@Schema(requiredMode = RequiredMode.REQUIRED) Status status,
 		@JsonProperty("isHost") @Schema(name = "isHost", requiredMode = RequiredMode.REQUIRED) boolean isHost,
+		@Schema(requiredMode = RequiredMode.REQUIRED, description = "Where the viewer stands. CONFIRMED for the host. The waitlist position is in GET /api/events/{eventId}/spots.") MyStatus myStatus,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Only the host gets this; it is null for everyone else.") List<AudienceEntry> audience)
 		implements ResponseBodyObject {
 	/**

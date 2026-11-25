@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import app.confuzion.backend.exception.ConflictException;
 import app.confuzion.backend.exception.EventNotEditableException;
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.LimitExceededException;
@@ -114,6 +115,22 @@ public class GlobalControllerExceptionHandler {
 	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleConflict(Exception e,
 			HttpServletResponse response) {
 		return respond(HttpStatus.CONFLICT, e, response);
+	}
+
+	/**
+	 * Handles a documented state conflict: a 409 whose errorType is the
+	 * {@link ConflictException.Conflict} name instead of the status name (D-013).
+	 * The message stays generic.
+	 *
+	 * @param e        the {@link ConflictException}
+	 * @param response the {@link HttpServletResponse}
+	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
+	 *         {@code CONFLICT}
+	 */
+	@ExceptionHandler(ConflictException.class)
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleDomainConflict(ConflictException e,
+			HttpServletResponse response) {
+		return respond(HttpStatus.CONFLICT, e, e.getConflict().name(), response);
 	}
 
 	/**

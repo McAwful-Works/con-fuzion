@@ -254,6 +254,26 @@ class EventControllerIntegrationTest {
 	}
 
 	/**
+	 * Tests that a new event's host holds its first spot (D-013): a confirmed RSVP
+	 * and a confirmed count of 1. The host's view says CONFIRMED, and anyone else's
+	 * says NONE.
+	 */
+	@Test
+	void createGivesTheHostTheFirstSpot() throws Exception {
+		var response = content(json(post("/api/events"), body(Map.of("capacity", 2))).with(login(host)).with(csrf()),
+				201);
+		var event = JsonPath.<String>read(response, "$.body.id");
+
+		assertThat(JsonPath.<String>read(response, "$.body.myStatus")).isEqualTo("CONFIRMED");
+		assertThat(jdbcTemplate.queryForMap("SELECT e.confirmed_count, r.user_id, r.status FROM event e "
+				+ "JOIN rsvp r ON r.event_id = e.id WHERE e.public_id = ?", UUID.fromString(event)))
+				.containsEntry("confirmed_count", 1).containsEntry("user_id", host)
+				.containsEntry("status", "CONFIRMED");
+		assertThat(JsonPath.<String>read(content(get(path(event)).with(login(friend)), 200), "$.body.myStatus"))
+				.isEqualTo("NONE");
+	}
+
+	/**
 	 * Tests that every entry a host can't use is the same 404, with nothing saved.
 	 */
 	@Test

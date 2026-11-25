@@ -175,6 +175,21 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	int cancel(@Param("publicId") UUID publicId, @Param("hostId") UUID hostId);
 
 	/**
+	 * Gives a new event its host's confirmed RSVP, so the host holds the first spot
+	 * from the start (D-013).
+	 *
+	 * @param eventId the event's internal ID
+	 * @return 1
+	 */
+	@Modifying
+	@Query(value = """
+			WITH host_rsvp AS (INSERT INTO rsvp (event_id, user_id, status)
+				SELECT id, host_id, 'CONFIRMED' FROM event WHERE id = :eventId)
+			UPDATE event SET confirmed_count = 1 WHERE id = :eventId
+			""", nativeQuery = true)
+	int addHostRsvp(@Param("eventId") long eventId);
+
+	/**
 	 * Locks the host's {@code app_user} row until the transaction ends, so that two
 	 * creates by one host count their recent events one after the other.
 	 * {@code NO KEY UPDATE} still conflicts with itself but not with the key-share
