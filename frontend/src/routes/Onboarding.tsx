@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { InstallHint } from '../features/install/InstallHint';
-import { useInstallHint } from '../features/install/install';
+import { installHintDismissed, useInstallHint } from '../features/install/install';
 import { PushSetting, usePushAvailability } from '../features/push/PushSetting';
 import { PrivacyNote, ServerList } from '../features/servers/ServerList';
 
@@ -54,7 +54,12 @@ export function Onboarding() {
         </>
       )}
       {next === undefined ? (
-        <Link to="/" className="btn btn-primary w-full sm:w-auto">
+        <Link
+          to="/"
+          className="btn btn-primary w-full sm:w-auto"
+          // Leaving the install step by any way counts as dismissing it: it isn't shown again.
+          onClick={step === 'install' ? () => installHintDismissed.set() : undefined}
+        >
           Continue
         </Link>
       ) : (

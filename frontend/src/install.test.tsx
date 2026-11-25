@@ -120,8 +120,10 @@ describe('onboarding: servers, notifications, install', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
     await waitFor(() => expect(prompt).toHaveBeenCalledTimes(1));
-    // The prompt used up, the step stays put instead of falling back to the one before it.
+    // The prompt used up, the step stays put with a note, instead of falling back or going empty.
     expect(screen.getByRole('heading', { name: 'One last thing' })).toBeInTheDocument();
+    expect(screen.getByText(/you’ll find Con-Fuzion with your other apps/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Install' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue' })).toHaveAttribute('href', '/');
   });
 
@@ -150,9 +152,30 @@ describe('onboarding: servers, notifications, install', () => {
 
     // A later visit goes straight to the end after the servers step.
     cleanup();
-    const second = renderApp('/onboarding');
-    await waitFor(() => expect(second.state.location.pathname).toBe('/onboarding'));
-    expect(await screen.findAllByRole('link', { name: 'Continue' })).not.toHaveLength(0);
+    renderApp('/onboarding');
+    await screen.findByRole('heading', { name: 'Where can people find you?' });
+    expect(screen.getByRole('link', { name: 'Continue' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
+  });
+
+  it('counts Continue on the install step as dismissing it', async () => {
+    useIphone();
+    signedIn();
+    renderApp('/onboarding');
+    await screen.findByRole('heading', { name: 'Where can people find you?' });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('heading', { name: 'One last thing' });
+    fireEvent.click(screen.getByRole('link', { name: 'Continue' }));
+
+    expect(localStorage.getItem('cf-install-hint-dismissed')).toBe('1');
+  });
+
+  it('catches an install offer the browser made before the page rendered', async () => {
+    signedIn();
+    offerInstall();
+    renderApp('/onboarding');
+    await screen.findByRole('heading', { name: 'Where can people find you?' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('button', { name: 'Install' })).toBeInTheDocument();
   });
 });

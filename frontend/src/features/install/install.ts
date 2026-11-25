@@ -40,7 +40,11 @@ export function useInstallPrompt() {
       // The event works once, and a dismissed browser prompt isn't offered again this visit.
       deferred = null;
       emit();
-      await event.prompt();
+      try {
+        await event.prompt();
+      } catch {
+        // A stale event or a missing gesture: the browser's own menu can still install it.
+      }
     },
   };
 }
