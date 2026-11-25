@@ -43,6 +43,7 @@ const walk: Schemas['EventResponse'] = {
   title: 'Cosplay photo walk',
   description: null,
   location: 'Hall B fountain',
+  confirmWindowMinutes: 30,
   locationHidden: false,
   locationVisibility: 'VIEWERS',
   tag: null,
@@ -75,6 +76,7 @@ function spotsFor(overrides: Partial<Schemas['SpotsResponse']> = {}): Schemas['S
     spotsLeft: 7,
     myStatus: 'NONE',
     myPosition: null,
+    offerExpiresAt: null,
     ...overrides,
   };
 }
@@ -332,12 +334,13 @@ describe('the attendee list', () => {
   it('shows the host the confirmed list and the waitlist in order, and removes only after confirming', async () => {
     let attendees: Schemas['AttendeesResponse'] = {
       confirmed: [meAsPerson, bo],
+      offered: null,
       waitlist: [cy, ada],
     };
     const calls = signedIn((call) => {
       if (call.method === 'DELETE' && call.path === `/api/events/${mine.id}/rsvps/${bo.id}`) {
         // The next person in line is promoted.
-        attendees = { confirmed: [meAsPerson, cy], waitlist: [ada] };
+        attendees = { confirmed: [meAsPerson, cy], offered: null, waitlist: [ada] };
         return noContent();
       }
       if (call.path === `/api/events/${mine.id}/attendees`) return envelope('ATTENDEES', attendees);

@@ -41,6 +41,7 @@ const walk: Schemas['EventResponse'] = {
   title: 'Cosplay photo walk',
   description: 'Bring <b>props</b>.\nSecond line.',
   location: 'Hall B fountain',
+  confirmWindowMinutes: 30,
   locationHidden: false,
   locationVisibility: 'VIEWERS',
   tag: 'Photoshoot',
@@ -360,6 +361,8 @@ describe('creating an event', () => {
     fill('Starts', soon());
     fireEvent.click(screen.getByLabelText('Show location only to confirmed attendees'));
     fill('Capacity', '25');
+    expect(screen.getByLabelText('Offer window (minutes)')).toHaveValue('30');
+    fill('Offer window (minutes)', '45');
 
     // Only the server where the host is discoverable is offered, with the opt-in note.
     expect(await screen.findByLabelText('Cosplay Corner')).toBeInTheDocument();
@@ -391,6 +394,7 @@ describe('creating an event', () => {
       locationVisibility: 'CONFIRMED',
       timeZone: 'America/Chicago',
       capacity: 25,
+      confirmWindowMinutes: 45,
       endsAt: null,
       signupOpensAt: null,
       audience: [
@@ -491,6 +495,8 @@ describe('editing an event', () => {
       location: 'Hall B fountain',
       locationVisibility: 'CONFIRMED',
       capacity: 20,
+      // The current window goes back, explicitly.
+      confirmWindowMinutes: 30,
       // An untouched time is sent back exactly as it was received.
       startsAt: mine.startsAt,
       endsAt: mine.endsAt,

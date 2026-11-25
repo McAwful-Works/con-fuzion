@@ -11,6 +11,7 @@ export type MyStatus = Event['myStatus'];
 
 const RSVP = '/events/{eventId}/rsvp' satisfies ContractPath;
 const RSVP_OF = '/events/{eventId}/rsvps/{userId}' satisfies ContractPath;
+const ACCEPT = '/events/{eventId}/rsvp/accept' satisfies ContractPath;
 const SPOTS = '/events/{eventId}/spots' satisfies ContractPath;
 const ATTENDEES = '/events/{eventId}/attendees' satisfies ContractPath;
 
@@ -83,6 +84,9 @@ export function useAttendees(eventId: string, enabled: boolean) {
   return useQuery({
     queryKey: [...events, 'attendees', eventId],
     enabled,
+    // An offer being accepted doesn't change the counts `/spots` reports, so while any are open, look again.
+    refetchInterval: (query) =>
+      (query.state.data?.offered?.length ?? 0) > 0 ? POLL_SLOW_MS : false,
     queryFn: async () =>
       (await api<Schemas['ResponseRecordAttendeesResponse']>(fillPath(ATTENDEES, { eventId })))
         .body,
@@ -111,6 +115,22 @@ export function useJoin(eventId: string) {
   });
 }
 
+/** Takes up an open offer (D-014 rule 4). A 409 means it ran out or is gone: refetch to show what's true now. */
+export function useAccept(eventId: string) {
+  const refresh = useRefreshEvents();
+  return useMutation({
+    mutationFn: async () =>
+      (
+        await api<Schemas['ResponseRecordRsvpResponse']>(fillPath(ACCEPT, { eventId }), {
+          method: 'POST',
+        })
+      ).body,
+    onSuccess: refresh,
+    onError: () => void refresh(),
+  });
+}
+
+/** Leaving, which while offered is declining (D-014 rule 5). */
 export function useLeave(eventId: string) {
   const refresh = useRefreshEvents();
   return useMutation({
