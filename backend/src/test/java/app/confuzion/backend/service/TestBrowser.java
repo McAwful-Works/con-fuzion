@@ -18,118 +18,26 @@
  */
 package app.confuzion.backend.service;
 
-import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.SecureRandom;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
-import java.security.spec.ECPoint;
-import java.security.spec.ECPublicKeySpec;
-import java.util.Arrays;
 import java.util.Base64;
 
-import javax.crypto.Cipher;
-import javax.crypto.KeyAgreement;
-import javax.crypto.Mac;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-
 /**
- * A browser's side of Web Push, for tests: a P-256 key pair and an
- * authentication secret generated at run time, and the RFC 8291
- * ({@code aes128gcm}) decryption a browser does. Nothing here is a fixture:
- * every key is thrown away when the test ends.
+ * Web Push keys for tests, generated at run time and thrown away when the test
+ * ends. Nothing here is a fixture, so no key is ever committed.
  *
  * @author mcawful
  */
 public final class TestBrowser {
 	/**
-	 * The browser's key pair.
+	 * Not instantiated.
 	 */
-	private final KeyPair keyPair;
-
-	/**
-	 * The 16-byte authentication secret.
-	 */
-	private final byte[] auth;
-
-	/**
-	 * Creates a browser with fresh keys.
-	 */
-	TestBrowser() {
-		this.keyPair = generateKeyPair();
-		this.auth = new byte[16];
-		new SecureRandom().nextBytes(auth);
-	}
-
-	/**
-	 * Returns the browser's public key as a subscription carries it.
-	 *
-	 * @return the base64url uncompressed point
-	 */
-	String p256dh() {
-		return base64Url(uncompressed((ECPublicKey) keyPair.getPublic()));
-	}
-
-	/**
-	 * Returns the authentication secret as a subscription carries it.
-	 *
-	 * @return the base64url secret
-	 */
-	String auth() {
-		return base64Url(auth);
-	}
-
-	/**
-	 * Decrypts a push message body (RFC 8291 and RFC 8188, one record).
-	 *
-	 * @param body the request body
-	 * @return the plaintext
-	 * @throws GeneralSecurityException when it doesn't decrypt with this browser's
-	 *                                  keys
-	 */
-	String decrypt(byte[] body) throws GeneralSecurityException {
-		var buffer = ByteBuffer.wrap(body);
-		var salt = new byte[16];
-		buffer.get(salt);
-		buffer.getInt(); // the record size
-		var serverKey = new byte[buffer.get() & 0xff];
-		buffer.get(serverKey);
-		var ciphertext = new byte[buffer.remaining()];
-		buffer.get(ciphertext);
-
-		var agreement = KeyAgreement.getInstance("ECDH");
-		agreement.init(keyPair.getPrivate());
-		agreement.doPhase(publicKey(serverKey), true);
-		var prkKey = hmac(auth, agreement.generateSecret());
-		var keyInfo = concat("WebPush: info\0".getBytes(StandardCharsets.US_ASCII),
-				uncompressed((ECPublicKey) keyPair.getPublic()), serverKey, new byte[] { 1 });
-		var ikm = Arrays.copyOf(hmac(prkKey, keyInfo), 32);
-		var prk = hmac(salt, ikm);
-		var cek = Arrays.copyOf(
-				hmac(prk,
-						concat("Content-Encoding: aes128gcm\0".getBytes(StandardCharsets.US_ASCII), new byte[] { 1 })),
-				16);
-		var nonce = Arrays.copyOf(
-				hmac(prk, concat("Content-Encoding: nonce\0".getBytes(StandardCharsets.US_ASCII), new byte[] { 1 })),
-				12);
-
-		var cipher = Cipher.getInstance("AES/GCM/NoPadding");
-		cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(cek, "AES"), new GCMParameterSpec(128, nonce));
-		var plain = cipher.doFinal(ciphertext);
-		var end = plain.length - 1;
-		while (end > 0 && plain[end] == 0)
-			end--;
-		if (plain[end] != 2)
-			throw new GeneralSecurityException("The last record's padding delimiter is missing");
-		return new String(plain, 0, end, StandardCharsets.UTF_8);
+	private TestBrowser() {
 	}
 
 	/**
@@ -139,58 +47,22 @@ public final class TestBrowser {
 	 *         scalar)
 	 */
 	public static String[] vapidKeys() {
-		var pair = generateKeyPair();
-		return new String[] { base64Url(uncompressed((ECPublicKey) pair.getPublic())),
-				base64Url(fixed(((ECPrivateKey) pair.getPrivate()).getS())) };
-	}
-
-	/**
-	 * Generates a P-256 key pair.
-	 *
-	 * @return the key pair
-	 */
-	static KeyPair generateKeyPair() {
+		KeyPair pair;
 		try {
 			var generator = KeyPairGenerator.getInstance("EC");
 			generator.initialize(new ECGenParameterSpec("secp256r1"));
-			return generator.generateKeyPair();
+			pair = generator.generateKeyPair();
 		} catch (GeneralSecurityException e) {
 			throw new IllegalStateException(e);
 		}
-	}
-
-	/**
-	 * Reads an uncompressed P-256 point.
-	 *
-	 * @param point the 65 bytes
-	 * @return the public key
-	 * @throws GeneralSecurityException when it isn't a P-256 point
-	 */
-	static ECPublicKey publicKey(byte[] point) throws GeneralSecurityException {
-		var curve = ((ECPublicKey) generateKeyPair().getPublic()).getParams();
-		return (ECPublicKey) KeyFactory.getInstance("EC")
-				.generatePublic(new ECPublicKeySpec(new ECPoint(new BigInteger(1, Arrays.copyOfRange(point, 1, 33)),
-						new BigInteger(1, Arrays.copyOfRange(point, 33, 65))), curve));
-	}
-
-	/**
-	 * Encodes a public key as an uncompressed point.
-	 *
-	 * @param key the key
-	 * @return the 65 bytes
-	 */
-	static byte[] uncompressed(ECPublicKey key) {
-		return concat(new byte[] { 4 }, fixed(key.getW().getAffineX()), fixed(key.getW().getAffineY()));
-	}
-
-	/**
-	 * Encodes bytes as base64url without padding.
-	 *
-	 * @param bytes the bytes
-	 * @return the text
-	 */
-	static String base64Url(byte[] bytes) {
-		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+		var point = ((ECPublicKey) pair.getPublic()).getW();
+		var uncompressed = new byte[65];
+		uncompressed[0] = 4;
+		System.arraycopy(fixed(point.getAffineX()), 0, uncompressed, 1, 32);
+		System.arraycopy(fixed(point.getAffineY()), 0, uncompressed, 33, 32);
+		var encoder = Base64.getUrlEncoder().withoutPadding();
+		return new String[] { encoder.encodeToString(uncompressed),
+				encoder.encodeToString(fixed(((ECPrivateKey) pair.getPrivate()).getS())) };
 	}
 
 	/**
@@ -205,32 +77,5 @@ public final class TestBrowser {
 		var length = Math.min(bytes.length, 32);
 		System.arraycopy(bytes, bytes.length - length, out, 32 - length, length);
 		return out;
-	}
-
-	/**
-	 * Computes an HMAC-SHA-256.
-	 *
-	 * @param key  the key
-	 * @param data the data
-	 * @return the MAC
-	 * @throws GeneralSecurityException never, in practice
-	 */
-	private static byte[] hmac(byte[] key, byte[] data) throws GeneralSecurityException {
-		var mac = Mac.getInstance("HmacSHA256");
-		mac.init(new SecretKeySpec(key, "HmacSHA256"));
-		return mac.doFinal(data);
-	}
-
-	/**
-	 * Joins byte arrays.
-	 *
-	 * @param parts the arrays
-	 * @return the joined bytes
-	 */
-	private static byte[] concat(byte[]... parts) {
-		var out = new ByteArrayOutputStream();
-		for (var part : parts)
-			out.writeBytes(part);
-		return out.toByteArray();
 	}
 }
