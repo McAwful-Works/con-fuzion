@@ -16,10 +16,16 @@ const WHEN = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 });
 
-/** Where an entry leads: its event, or the friends list for a friend invite. */
+/** Where an entry leads: its event, the friends list for a friend invite, or the admin area for a report. */
 function targetOf(n: Notification): string | null {
   if (n.eventId) return `/events/${n.eventId}`;
-  return n.type === 'FRIEND_ACCEPTED' ? '/friends' : null;
+  if (n.type === 'FRIEND_ACCEPTED') return '/friends';
+  return n.type === 'REPORT_RECEIVED' ? '/admin' : null;
+}
+
+function linkLabel(n: Notification, checking: boolean): string {
+  if (n.eventId) return checking ? 'Opening…' : 'View event';
+  return n.type === 'REPORT_RECEIVED' ? 'Open reports' : 'View friends';
 }
 
 function Entry({ n, now }: { n: Notification; now: number }) {
@@ -74,7 +80,7 @@ function Entry({ n, now }: { n: Notification; now: number }) {
             onClick={(e) => void open(e)}
             className="inline-flex min-h-11 items-center text-sm underline"
           >
-            {n.eventId ? (checking ? 'Opening…' : 'View event') : 'View friends'}
+            {linkLabel(n, checking)}
           </Link>
         )
       )}
