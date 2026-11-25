@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { api, type ContractPath } from './client';
-import { clearOfflineCache, forgetOtherUsersCache } from './offlineCache';
+import { endOfflineSession, forgetOtherUsersCache } from './offlineCache';
 import type { components } from './schema';
 
 type Schemas = components['schemas'];
@@ -114,7 +114,7 @@ export function useSignOut(everywhere: boolean) {
     onSuccess: () => {
       queryClient.clear();
       // The service worker keeps the last My schedule response for offline use; it must not outlive the session.
-      clearOfflineCache();
+      endOfflineSession();
     },
   });
 }

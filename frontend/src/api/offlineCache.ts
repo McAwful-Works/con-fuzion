@@ -8,6 +8,16 @@ export function clearOfflineCache(): void {
   if ('caches' in globalThis) void caches.delete(OFFLINE_CACHE);
 }
 
+/** The session has ended (sign-out, or a 401): drop the saved responses and who they belonged to. */
+export function endOfflineSession(): void {
+  clearOfflineCache();
+  try {
+    localStorage.removeItem(LAST_USER_KEY);
+  } catch {
+    // Storage is unavailable; there is nothing stored to remove.
+  }
+}
+
 /**
  * Called with each `/api/me` answer. When a different person is signed in than last time on this
  * device (a session expired, someone else signed in), the saved responses are the previous person's.

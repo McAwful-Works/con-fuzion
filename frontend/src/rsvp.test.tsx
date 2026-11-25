@@ -553,6 +553,8 @@ describe('the offline copy of My schedule', () => {
     );
     renderApp('/');
     await waitFor(() => expect(del).toHaveBeenCalledWith('my-schedule'));
+    // And it forgets whose copy it was, so the next sign-in starts clean.
+    expect(localStorage.getItem('cf-last-user')).toBeNull();
   });
 
   it('is cleared when a different person signs in on this device', async () => {
