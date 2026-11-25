@@ -45,7 +45,8 @@ function psql(statement) {
       },
     );
   } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+    // The container is only the stand-in for a local database; a database somewhere else needs a real psql.
+    if (error.code !== 'ENOENT' || process.env.CONFUZION_DB_HOST) throw error;
     out = execFileSync(
       'docker',
       [

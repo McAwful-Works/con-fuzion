@@ -130,8 +130,8 @@ export async function crowd(join, count) {
 }
 
 /**
- * A freed spot is offered to the next person in line (D-014). The UI to accept comes in #68, so this checks that
- * `player` is offered the spot (`/spots`) and accepts it through the API.
+ * A freed spot is offered to the next person in line (D-014). For the M3 tests, which are not about the accept UI (offers.spec.mjs
+ * covers that), this checks that `player` is offered the spot (`/spots`) and accepts it through the API.
  */
 export async function acceptOffer(player, eventId) {
   const spots = await player.page.request.get(`/api/events/${eventId}/spots`);
