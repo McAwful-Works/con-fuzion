@@ -173,12 +173,14 @@ class DiscordOAuth2UserServiceTest {
 
 	/**
 	 * Tests that a banned or suspended user is refused with the neutral error code
-	 * before their guilds are fetched or their login recorded.
+	 * and their login isn't recorded. The guilds are fetched first, so the check
+	 * runs right before the login would be recorded.
 	 */
 	@Test
-	void refusedSignInSyncsNothing() {
+	void refusedSignInRecordsNothing() {
 		when(userService.signInRefusal(ADMIN_ID)).thenReturn(Optional.of(Action.ACCOUNT_BANNED));
 		expect(USER_URI).andRespond(json(user(Long.toString(ADMIN_ID), true)));
+		expect(GUILDS_URI).andRespond(json("[]"));
 
 		assertThatThrownBy(() -> service.loadUser(request())).isInstanceOfSatisfying(
 				OAuth2AuthenticationException.class,

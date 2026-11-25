@@ -87,8 +87,10 @@ public class UserRoleRepository {
 
 	/**
 	 * Locks every ADMIN row until the transaction ends and returns who holds them.
-	 * A transaction that waited for the lock sees the rows as the one before it
-	 * left them.
+	 * A transaction that waited for the lock gets the rows it found, re-checked
+	 * after the one before it committed: a row that one deleted is left out. An
+	 * ADMIN row inserted meanwhile isn't seen, which can only make the last-ADMIN
+	 * check stricter.
 	 *
 	 * @return the IDs of the users holding ADMIN
 	 */

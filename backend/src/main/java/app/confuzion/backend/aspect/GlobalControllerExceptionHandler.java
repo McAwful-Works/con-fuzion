@@ -137,7 +137,9 @@ public class GlobalControllerExceptionHandler {
 	/**
 	 * Handles a service's own authorization check failing after the security filter
 	 * chain let the request through, such as an admin whose role was removed while
-	 * their request waited for a lock: a 403 {@code (FORBIDDEN)}.
+	 * their request waited for a lock: a 403 {@code (FORBIDDEN)}. The caller is
+	 * always signed in here. If method security is ever added, an anonymous
+	 * caller's denial would land here too and needs to stay a 401.
 	 *
 	 * @param e        the {@link AccessDeniedException}
 	 * @param response the {@link HttpServletResponse}

@@ -325,9 +325,10 @@ public class UserService {
 
 	/**
 	 * Maps a user to the {@link MeResponse}. {@code mfaRequired} is true when the
-	 * user holds a granted role that isn't in effect for this session (D-015 rule
-	 * 2). A role change ends every session, so the only thing that keeps a granted
-	 * role out of a session is MFA being off when it signed in.
+	 * user holds a granted role that isn't in effect for this session, and Discord
+	 * reported MFA off at their last sign-in (D-015 rule 2). The second part keeps
+	 * the note away from a session that signed in before a bootstrap grant made
+	 * elsewhere, which purges nothing, when MFA is in fact on.
 	 *
 	 * @param user        the {@link AppUser}
 	 * @param authorities the session's authorities
@@ -335,7 +336,7 @@ public class UserService {
 	 */
 	private MeResponse toMeResponse(AppUser user, Collection<? extends GrantedAuthority> authorities) {
 		var roles = roles(authorities);
-		var mfaRequired = userRoleRepository.findRoles(user.getId()).stream()
+		var mfaRequired = !user.isMfaEnabled() && userRoleRepository.findRoles(user.getId()).stream()
 				.anyMatch(granted -> !roles.contains(Role.valueOf(granted.name())));
 		return new MeResponse(user.getId(), user.getUsername(), user.getGlobalName(),
 				avatarUrl(user.getDiscordId(), user.getAvatarHash()), user.getTimeZone(), user.isPushEnabled(), roles,

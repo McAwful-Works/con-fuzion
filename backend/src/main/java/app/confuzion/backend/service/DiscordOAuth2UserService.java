@@ -63,7 +63,7 @@ import app.confuzion.backend.model.record.GuildResponse;
  * servers.
  * <p>
  * A banned Discord ID, or a user whose suspension hasn't ended, is refused
- * before anything is synced, with {@link #SIGN_IN_REFUSED}. Otherwise the
+ * before anything is recorded, with {@link #SIGN_IN_REFUSED}. Otherwise the
  * principal gets {@code ROLE_USER}, plus a {@code ROLE_} authority for each
  * role in {@code user_role}, but only while Discord reports MFA on (D-015).
  *
@@ -159,10 +159,14 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
 
 		UserService.LoginResult login;
 		try {
-			// A refused sign-in syncs nothing and creates no account (D-015 rule 5).
+			// The guild call (which may wait out a 429) comes first, so the refusal check
+			// runs right before the login is recorded and the session saved: a ban or
+			// suspension landing in between finds as little as possible to miss. A refused
+			// sign-in records nothing and creates no account (D-015 rule 5).
+			var guilds = fetchGuilds(userUri + GUILDS_QUERY, token);
 			if (userService.signInRefusal(Long.parseLong(user.id())).isPresent())
 				throw new OAuth2AuthenticationException(new OAuth2Error(SIGN_IN_REFUSED));
-			login = userService.recordLogin(user, fetchGuilds(userUri + GUILDS_QUERY, token));
+			login = userService.recordLogin(user, guilds);
 		} catch (DataAccessException e) {
 			// Fail the login cleanly (a redirect to the sign-in page) rather than a 500 on
 			// the callback.
