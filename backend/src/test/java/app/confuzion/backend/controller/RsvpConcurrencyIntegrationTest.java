@@ -22,7 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -40,6 +42,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.controller.EventFixtures.SeededEvent;
 import app.confuzion.backend.model.record.RsvpResponse;
+import app.confuzion.backend.service.BlockService;
 import app.confuzion.backend.service.RsvpService;
 
 /**
@@ -70,6 +73,12 @@ class RsvpConcurrencyIntegrationTest {
 	 */
 	@Autowired
 	private RsvpService rsvpService;
+
+	/**
+	 * The {@link BlockService}, for blocks racing joins.
+	 */
+	@Autowired
+	private BlockService blockService;
 
 	/**
 	 * The seeding helpers.
@@ -163,6 +172,57 @@ class RsvpConcurrencyIntegrationTest {
 		assertThat(confirmed).isEqualTo(5);
 		assertThat(waitlisted).isEqualTo(120 - 30 + 1 - 5);
 		assertThat(count(event, "LEFT")).isEqualTo(30);
+	}
+
+	/**
+	 * Tests blocks racing joins and leaves (D-013 rule 11): the host blocks some
+	 * guests and some guests block the host while everyone joins and some leave.
+	 * Nothing deadlocks, nobody in a block with the host keeps an active RSVP, the
+	 * count matches the confirmed rows, and the spots stay filled.
+	 */
+	@Test
+	void testBlocksRacingJoinsAndLeaves() throws Exception {
+		var event = event(5);
+		var guests = guests(80);
+		var blocked = new HashSet<UUID>();
+		var tasks = new ArrayList<Callable<Object>>();
+		for (var i = 0; i < guests.size(); i++) {
+			var guest = guests.get(i);
+			var leaves = i % 4 == 1;
+			if (i % 8 == 0 || i % 8 == 4) {
+				blocked.add(guest);
+				var hostBlocks = i % 8 == 0;
+				tasks.add(() -> {
+					if (hostBlocks)
+						blockService.block(host, guest);
+					else
+						blockService.block(guest, host);
+					return guest;
+				});
+			}
+			tasks.add(() -> {
+				try {
+					rsvpService.join(guest, event.publicId());
+					if (leaves)
+						rsvpService.leave(guest, event.publicId());
+				} catch (NoSuchElementException e) {
+					// Only a guest whose block landed first can't see the event.
+					assertThat(blocked).contains(guest);
+				}
+				return guest;
+			});
+		}
+		Collections.shuffle(tasks);
+
+		parallel(tasks);
+
+		var active = jdbcTemplate.queryForList(
+				"SELECT user_id FROM rsvp WHERE event_id = ? AND status IN ('CONFIRMED', 'WAITLISTED')", UUID.class,
+				event.id());
+		assertThat(active).doesNotContainAnyElementsOf(blocked).hasSize(80 - 20 - blocked.size() + 1);
+		var confirmed = count(event, "CONFIRMED");
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(confirmed);
+		assertThat(confirmed).isEqualTo(5);
 	}
 
 	/**

@@ -53,14 +53,16 @@ public class RsvpRepository {
 	private static final String ACTIVE = "('CONFIRMED', 'WAITLISTED')";
 
 	/**
-	 * Selects waitlisted RSVP IDs of {@code :eventId} in queue order, but only
-	 * while the event is published and hasn't started: nobody is promoted after
-	 * that (D-013 rule 2). Ends with {@code LIMIT}, so callers append the count.
+	 * Selects the next waitlisted RSVP of {@code :eventId}, but only while the
+	 * event is published and hasn't started: nobody is promoted after that (D-013
+	 * rule 2). The start is compared with the statement's time, not the
+	 * transaction's, since a write may wait for locks across the start.
 	 */
 	private static final String NEXT_IN_LINE = """
 			SELECT w.id FROM rsvp w JOIN event e ON e.id = w.event_id
-			WHERE w.event_id = :eventId AND w.status = 'WAITLISTED' AND e.status = 'PUBLISHED' AND e.starts_at > now()
-			ORDER BY w.id LIMIT\s""";
+			WHERE w.event_id = :eventId AND w.status = 'WAITLISTED' AND e.status = 'PUBLISHED'
+				AND e.starts_at > statement_timestamp()
+			ORDER BY w.id LIMIT 1""";
 
 	/**
 	 * The {@link JdbcClient}.
@@ -198,7 +200,7 @@ public class RsvpRepository {
 	 */
 	public void freeSpot(long eventId) {
 		jdbc.sql("WITH next AS (UPDATE rsvp SET status = 'CONFIRMED', updated_at = now() WHERE id = (" + NEXT_IN_LINE
-				+ "1) RETURNING id) UPDATE event SET confirmed_count = confirmed_count - 1 "
+				+ ") RETURNING id) UPDATE event SET confirmed_count = confirmed_count - 1 "
 				+ "WHERE id = :eventId AND NOT EXISTS (SELECT 1 FROM next)").param("eventId", eventId).update();
 	}
 
