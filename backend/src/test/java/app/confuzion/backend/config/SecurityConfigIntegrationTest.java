@@ -131,7 +131,7 @@ class SecurityConfigIntegrationTest {
 			new Endpoint("GET", "/api/push/key", null, 501),
 			new Endpoint("POST", "/api/push/subscriptions",
 					"{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"," + "\"keys\":{\"p256dh\":\"B"
-							+ "A".repeat(86) + "\",\"auth\":\"c2VjcmV0LXNlY3JldC0xMg\"}}",
+							+ "A".repeat(86) + "\",\"auth\":\"" + "a".repeat(22) + "\"}}",
 					501),
 			new Endpoint("DELETE", "/api/push/subscriptions",
 					"{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}", 501));

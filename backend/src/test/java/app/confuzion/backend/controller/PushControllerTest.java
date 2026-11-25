@@ -61,7 +61,7 @@ class PushControllerTest {
 	/**
 	 * A browser's authentication secret: 16 bytes of base64url.
 	 */
-	static final String AUTH = "c2VjcmV0LXNlY3JldC0xMg";
+	static final String AUTH = "a".repeat(22);
 
 	/**
 	 * The {@link MockMvc}.
