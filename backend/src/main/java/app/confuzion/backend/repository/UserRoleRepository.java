@@ -90,12 +90,15 @@ public class UserRoleRepository {
 	 * A transaction that waited for the lock gets the rows it found, re-checked
 	 * after the one before it committed: a row that one deleted is left out. An
 	 * ADMIN row inserted meanwhile isn't seen, which can only make the last-ADMIN
-	 * check stricter.
+	 * check stricter. The rows are locked in {@code user_id} order, whatever plan
+	 * the query gets, so two of these can't lock them in different orders and
+	 * deadlock.
 	 *
-	 * @return the IDs of the users holding ADMIN
+	 * @return the IDs of the users holding ADMIN, in {@code user_id} order
 	 */
 	public List<UUID> lockAdmins() {
-		return jdbc.sql("SELECT user_id FROM user_role WHERE role = 'ADMIN' FOR UPDATE").query(UUID.class).list();
+		return jdbc.sql("SELECT user_id FROM user_role WHERE role = 'ADMIN' ORDER BY user_id FOR UPDATE")
+				.query(UUID.class).list();
 	}
 
 	/**
