@@ -30,7 +30,8 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * @param id        the notification's ID, higher for newer ones
  * @param type      what happened
  * @param eventId   the event's public ID, or {@code null} for
- *                  {@code FRIEND_ACCEPTED}
+ *                  {@code FRIEND_ACCEPTED}, {@code REPORT_RECEIVED} and
+ *                  {@code REPORT_REVIEWED}
  * @param payload   what the notification says
  * @param createdAt when it was made
  * @param read      whether the caller has marked it read
@@ -39,13 +40,13 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 public record NotificationResponse(
 		@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "1", description = "Higher for newer notifications. Send it as upTo to POST /api/notifications/read.") long id,
 		@Schema(requiredMode = RequiredMode.REQUIRED) Type type,
-		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "The event's public ID. Null for FRIEND_ACCEPTED.") UUID eventId,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "The event's public ID. Null for FRIEND_ACCEPTED, REPORT_RECEIVED and REPORT_REVIEWED.") UUID eventId,
 		@Schema(requiredMode = RequiredMode.REQUIRED) NotificationPayload payload,
 		@Schema(requiredMode = RequiredMode.REQUIRED) Instant createdAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED) boolean read) {
 	/**
-	 * What a notification is about (D-014). Nothing is sent when the host removes
-	 * someone.
+	 * What a notification is about (D-014, D-015). Nothing is sent when the host
+	 * removes someone.
 	 *
 	 * @author mcawful
 	 */
@@ -80,6 +81,24 @@ public record NotificationResponse(
 		/**
 		 * Someone accepted the recipient's friend invite.
 		 */
-		FRIEND_ACCEPTED
+		FRIEND_ACCEPTED,
+
+		/**
+		 * A new report is in the moderation queue. Sent to every user whose MODERATOR
+		 * or ADMIN role is in effect (D-015).
+		 */
+		REPORT_RECEIVED,
+
+		/**
+		 * A moderator resolved the recipient's report. It says nothing about the
+		 * outcome (D-015).
+		 */
+		REPORT_REVIEWED,
+
+		/**
+		 * Moderators hid an event the recipient hosts, with their reason. Attendees
+		 * aren't told (D-015).
+		 */
+		EVENT_HIDDEN
 	}
 }

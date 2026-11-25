@@ -431,7 +431,7 @@ class NotificationControllerIntegrationTest {
 	 */
 	private long seed(UUID userId, SeededEvent event) {
 		return notificationRepository.insert(userId, Type.EVENT_CANCELLED, event.id(),
-				new NotificationPayload("Seeded", null, null, null, null));
+				new NotificationPayload("Seeded", null, null, null, null, null, null, null));
 	}
 
 	/**
@@ -442,7 +442,7 @@ class NotificationControllerIntegrationTest {
 	 */
 	private void friendAccepted(UUID userId, UUID friendId) {
 		notificationRepository.insert(userId, Type.FRIEND_ACCEPTED, null,
-				new NotificationPayload(null, null, null, null, friendId));
+				new NotificationPayload(null, null, null, null, friendId, null, null, null));
 	}
 
 	/**

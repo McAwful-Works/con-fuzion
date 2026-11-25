@@ -33,6 +33,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import app.confuzion.backend.model.record.NotificationPayload;
+import app.confuzion.backend.model.record.ReportResponse;
 import app.confuzion.backend.model.record.NotificationPayload.Change;
 import app.confuzion.backend.model.record.NotificationResponse.Type;
 
@@ -100,14 +101,14 @@ class PushSenderTest {
 	 */
 	@Test
 	void testLockScreenText() {
-		var title = new NotificationPayload("Photo walk", null, null, null, null);
+		var title = new NotificationPayload("Photo walk", null, null, null, null, null, null, null);
 		assertThat(PushSender.text(Type.SPOT_OFFERED,
-				new NotificationPayload("Photo walk", Instant.now(), null, null, null)))
+				new NotificationPayload("Photo walk", Instant.now(), null, null, null, null, null, null)))
 				.isEqualTo("A spot opened up for you at Photo walk. Accept it before the offer runs out.");
 		assertThat(PushSender.text(Type.SPOT_CONFIRMED, title)).isEqualTo("You're confirmed for Photo walk.");
 		assertThat(PushSender.text(Type.EVENT_CANCELLED, title)).isEqualTo("Photo walk was cancelled.");
 		assertThat(PushSender.text(Type.EVENT_REMINDER,
-				new NotificationPayload("Photo walk", null, Instant.now(), null, null)))
+				new NotificationPayload("Photo walk", null, Instant.now(), null, null, null, null, null)))
 				.isEqualTo("Photo walk starts in about an hour.");
 		assertThat(PushSender.text(Type.EVENT_CHANGED, changed(List.of(Change.LOCATION))))
 				.isEqualTo("Photo walk has a new location.");
@@ -117,8 +118,22 @@ class PushSenderTest {
 				.isEqualTo("Photo walk has a new start time, end time and location.");
 		assertThat(PushSender.text(Type.EVENT_CHANGED, changed(List.of()))).isEqualTo("Photo walk was updated.");
 		var friend = UUID.randomUUID();
-		assertThat(PushSender.text(Type.FRIEND_ACCEPTED, new NotificationPayload(null, null, null, null, friend)))
+		assertThat(PushSender.text(Type.FRIEND_ACCEPTED,
+				new NotificationPayload(null, null, null, null, friend, null, null, null)))
 				.isEqualTo("Someone accepted your friend invite.").doesNotContain(friend.toString());
+		assertThat(PushSender.text(Type.REPORT_RECEIVED,
+				new NotificationPayload(null, null, null, null, null, 7L, ReportResponse.TargetType.USER, null)))
+				.isEqualTo("A new report is waiting in the moderation queue.");
+		assertThat(PushSender.text(Type.REPORT_REVIEWED,
+				new NotificationPayload(null, null, null, null, null, null, null, null)))
+				.isEqualTo("We reviewed your report. Thank you for helping keep meetups safe.");
+		var reason = "Reported location is unsafe";
+		assertThat(PushSender.text(Type.EVENT_HIDDEN,
+				new NotificationPayload("Photo walk", null, null, null, null, null, null, reason)))
+				.isEqualTo("Photo walk was hidden by the moderators. Open the app to see why.").doesNotContain(reason);
+		assertThat(PushSender.text(Type.EVENT_CANCELLED,
+				new NotificationPayload("Photo walk", null, null, null, null, null, null, reason)))
+				.isEqualTo("Photo walk was cancelled.");
 	}
 
 	/**
@@ -139,6 +154,6 @@ class PushSenderTest {
 	 * @return the payload
 	 */
 	private static NotificationPayload changed(List<Change> changes) {
-		return new NotificationPayload("Photo walk", Instant.now(), null, changes, null);
+		return new NotificationPayload("Photo walk", Instant.now(), null, changes, null, null, null, null);
 	}
 }

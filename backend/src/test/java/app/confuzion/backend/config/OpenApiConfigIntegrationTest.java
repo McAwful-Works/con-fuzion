@@ -116,7 +116,12 @@ class OpenApiConfigIntegrationTest {
 				"/api/blocks/{userId}", "/api/events", "/api/events/{eventId}", "/api/events/{eventId}/rsvp",
 				"/api/events/{eventId}/attendees", "/api/events/{eventId}/rsvps/{userId}",
 				"/api/events/{eventId}/spots", "/api/events/{eventId}/rsvp/accept", "/api/notifications",
-				"/api/notifications/read", "/api/push/key", "/api/push/subscriptions");
+				"/api/notifications/read", "/api/push/key", "/api/push/subscriptions", "/api/reports",
+				"/api/admin/reports", "/api/admin/reports/{reportId}", "/api/admin/reports/{reportId}/resolve",
+				"/api/admin/events/{eventId}/hide", "/api/admin/events/{eventId}/unhide",
+				"/api/admin/events/{eventId}/cancel", "/api/admin/users", "/api/admin/users/{userId}/suspend",
+				"/api/admin/users/{userId}/unsuspend", "/api/admin/bans", "/api/admin/bans/{discordId}",
+				"/api/admin/users/{userId}/roles", "/api/admin/audit");
 		assertThat(paths.get("/api/me")).containsOnlyKeys("get", "patch");
 		assertThat(paths.get("/api/me/guilds")).containsOnlyKeys("get", "put");
 		assertThat(paths.get("/api/me/guilds/{guildId}")).containsOnlyKeys("put");
@@ -144,6 +149,114 @@ class OpenApiConfigIntegrationTest {
 		assertThat(paths.get("/api/notifications/read")).containsOnlyKeys("post");
 		assertThat(paths.get("/api/push/key")).containsOnlyKeys("get");
 		assertThat(paths.get("/api/push/subscriptions")).containsOnlyKeys("post", "delete");
+		assertThat(paths.get("/api/reports")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/admin/reports")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/admin/reports/{reportId}")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/admin/reports/{reportId}/resolve")).containsOnlyKeys("post");
+		for (var action : List.of("hide", "unhide", "cancel"))
+			assertThat(paths.get("/api/admin/events/{eventId}/" + action)).containsOnlyKeys("post");
+		assertThat(paths.get("/api/admin/users")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/admin/users/{userId}/suspend")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/admin/users/{userId}/unsuspend")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/admin/bans")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/admin/bans/{discordId}")).containsOnlyKeys("delete");
+		assertThat(paths.get("/api/admin/users/{userId}/roles")).containsOnlyKeys("get", "put", "delete");
+		assertThat(paths.get("/api/admin/audit")).containsOnlyKeys("get");
+	}
+
+	/**
+	 * Tests the report and admin operations (D-015): typed envelopes, 204s for
+	 * actions, the documented 409s and 429, a 403 on every {@code /api/admin}
+	 * operation for a caller without the role, and the role named in each summary.
+	 */
+	@Test
+	void adminOperations() {
+		assertThat(responses("/api/reports", "post")).containsKeys("204", "400", "403", "404", "429")
+				.doesNotContainKey("200");
+		assertThat(document.<String>read("$.paths['/api/reports'].post.responses['429'].description"))
+				.contains(LimitExceededException.Limit.REPORT_LIMIT.name());
+		assertThat(successRef("/api/admin/reports", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordReportPageResponse");
+		assertThat(document.<List<String>>read("$.paths['/api/admin/reports'].get.parameters[*].name"))
+				.containsExactlyInAnyOrder("status", "cursor", "limit");
+		assertThat(successRef("/api/admin/reports/{reportId}", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordReportResponse");
+		assertThat(successRef("/api/admin/reports/{reportId}/resolve", "post"))
+				.isEqualTo("#/components/schemas/ResponseRecordReportResponse");
+		assertThat(conflicts("/api/admin/reports/{reportId}/resolve", "post"))
+				.contains(Conflict.REPORT_RESOLVED.name());
+		assertThat(successRef("/api/admin/users", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordAdminUserListResponse");
+		assertThat(conflicts("/api/admin/users/{userId}/suspend", "post")).contains(Conflict.TARGET_HAS_ROLE.name());
+		assertThat(conflicts("/api/admin/bans", "post")).contains(Conflict.TARGET_HAS_ROLE.name());
+		assertThat(successRef("/api/admin/users/{userId}/roles", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordRolesResponse");
+		assertThat(successRef("/api/admin/users/{userId}/roles", "put"))
+				.isEqualTo("#/components/schemas/ResponseRecordRolesResponse");
+		assertThat(conflicts("/api/admin/users/{userId}/roles", "put")).contains(Conflict.LAST_ADMIN.name());
+		assertThat(conflicts("/api/admin/users/{userId}/roles", "delete")).contains(Conflict.LAST_ADMIN.name());
+		assertThat(successRef("/api/admin/audit", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordAuditPageResponse");
+		for (var action : List.of(List.of("/api/admin/events/{eventId}/hide", "post"),
+				List.of("/api/admin/events/{eventId}/unhide", "post"),
+				List.of("/api/admin/events/{eventId}/cancel", "post"),
+				List.of("/api/admin/users/{userId}/suspend", "post"),
+				List.of("/api/admin/users/{userId}/unsuspend", "post"), List.of("/api/admin/bans", "post"),
+				List.of("/api/admin/bans/{discordId}", "delete"), List.of("/api/admin/users/{userId}/roles", "delete")))
+			assertThat(responses(action.get(0), action.get(1))).containsKey("204").doesNotContainKey("200");
+
+		document.<Map<String, Map<String, Map<String, Object>>>>read("$.paths").forEach((path, item) -> {
+			if (path.startsWith("/api/admin/"))
+				item.values().forEach(operation -> {
+					assertThat((String) operation.get("summary")).as(path).containsAnyOf("(MODERATOR or ADMIN)",
+							"(ADMIN)");
+					assertThat(JsonPath.<String>read(operation, "$.responses['403'].description")).as(path)
+							.contains("role");
+				});
+		});
+		assertThat(document.<String>read("$.paths['/api/admin/bans'].post.summary")).endsWith("(ADMIN)");
+		assertThat(document.<String>read("$.paths['/api/admin/audit'].get.summary")).endsWith("(ADMIN)");
+		assertThat(document.<String>read("$.paths['/api/admin/users/{userId}/roles'].put.summary")).endsWith("(ADMIN)");
+		assertThat(responses("/api/reports", "post").get("403").toString()).doesNotContain("role");
+	}
+
+	/**
+	 * Tests the report and admin schemas: what moderators see about a user (never
+	 * servers, friends, circles or RSVPs), the report and audit fields, details
+	 * with only optional per-action fields, and the length caps.
+	 */
+	@Test
+	void adminSchemas() {
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.AdminUserResponse.properties"))
+				.containsOnlyKeys("id", "discordId", "username", "globalName", "createdAt", "lastLoginAt",
+						"suspendedUntil", "ban", "reportCount");
+		assertThat(document.<Integer>read("$.components.schemas.AdminUserListResponse.properties.items.maxItems"))
+				.isEqualTo(20);
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.ReportRequest.properties"))
+				.containsOnlyKeys("targetType", "targetId", "reason", "note");
+		assertThat(document.<Integer>read("$.components.schemas.ReportRequest.properties.note.maxLength"))
+				.isEqualTo(1000);
+		assertThat(document.<List<String>>read("$.components.schemas.ReportRequest.properties.reason.enum"))
+				.containsExactly("HARASSMENT", "UNSAFE", "SPAM", "INAPPROPRIATE", "OTHER");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.ReportResponse.properties"))
+				.containsOnlyKeys("id", "targetType", "targetId", "targetLabel", "reason", "note", "status",
+						"reporterId", "createdAt", "handledBy", "handledAt", "resolutionNote");
+		assertThat(document.<List<String>>read("$.components.schemas.ResolveReportRequest.properties.resolution.enum"))
+				.containsExactly("ACTIONED", "DISMISSED");
+		assertThat(document.<Integer>read("$.components.schemas.ModerationRequest.properties.reason.maxLength"))
+				.isEqualTo(500);
+		assertThat(document.<List<String>>read("$.components.schemas.RolesRequest.properties.roles.items.enum"))
+				.containsExactly("MODERATOR", "ADMIN");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.AuditEntryResponse.properties"))
+				.containsOnlyKeys("id", "actorId", "action", "targetType", "targetId", "details", "createdAt");
+		assertThat(document.<List<String>>read("$.components.schemas.AuditEntryResponse.properties.action.enum"))
+				.containsExactly("ROLES_CHANGED", "SESSIONS_PURGED", "SIGN_IN_REFUSED", "REPORT_RESOLVED",
+						"EVENT_HIDDEN", "EVENT_UNHIDDEN", "EVENT_CANCELLED", "USER_SUSPENDED", "USER_UNSUSPENDED",
+						"ACCOUNT_BANNED", "ACCOUNT_UNBANNED");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.AuditDetails.properties"))
+				.containsOnlyKeys("reason", "until", "resolution", "note", "roles", "cause", "sessions");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.AuditDetails"))
+				.doesNotContainKey("required");
 	}
 
 	/**
@@ -273,12 +386,15 @@ class OpenApiConfigIntegrationTest {
 	void notificationSchemas() {
 		Map<String, Map<String, Object>> item = document.read("$.components.schemas.NotificationResponse.properties");
 		assertThat(item).containsOnlyKeys("id", "type", "eventId", "payload", "createdAt", "read");
-		assertThat(item.get("type").get("enum")).isEqualTo(List.of("SPOT_OFFERED", "SPOT_CONFIRMED", "EVENT_CHANGED",
-				"EVENT_CANCELLED", "EVENT_REMINDER", "FRIEND_ACCEPTED"));
+		assertThat(item.get("type").get("enum"))
+				.isEqualTo(List.of("SPOT_OFFERED", "SPOT_CONFIRMED", "EVENT_CHANGED", "EVENT_CANCELLED",
+						"EVENT_REMINDER", "FRIEND_ACCEPTED", "REPORT_RECEIVED", "REPORT_REVIEWED", "EVENT_HIDDEN"));
 		assertThat((List<String>) item.get("eventId").get("type")).contains("null");
 
 		Map<String, Map<String, Object>> payload = document.read("$.components.schemas.NotificationPayload.properties");
-		assertThat(payload).containsOnlyKeys("eventTitle", "offerExpiresAt", "startsAt", "changes", "friendId");
+		assertThat(payload).containsOnlyKeys("eventTitle", "offerExpiresAt", "startsAt", "changes", "friendId",
+				"reportId", "targetType", "reason");
+		assertThat(payload.get("reason")).containsEntry("maxLength", 500);
 		assertThat(document.<Map<String, Object>>read("$.components.schemas.NotificationPayload"))
 				.doesNotContainKey("required");
 		assertThat(
@@ -301,7 +417,8 @@ class OpenApiConfigIntegrationTest {
 		Map<String, Map<String, Object>> properties = document.read("$.components.schemas.EventResponse.properties");
 		assertThat(properties).containsOnlyKeys("id", "host", "title", "description", "location", "locationHidden",
 				"locationVisibility", "tag", "startsAt", "endsAt", "timeZone", "signupOpensAt", "capacity",
-				"confirmWindowMinutes", "status", "isHost", "myStatus", "audience");
+				"confirmWindowMinutes", "status", "isHost", "myStatus", "audience", "hiddenReason");
+		assertThat((List<String>) properties.get("hiddenReason").get("type")).contains("null");
 		assertThat(properties.get("myStatus").get("enum")).isEqualTo(MY_STATUSES);
 		assertThat(document.<List<String>>read("$.components.schemas.EventResponse.required"))
 				.contains("confirmWindowMinutes");
@@ -404,7 +521,7 @@ class OpenApiConfigIntegrationTest {
 	void everyOperationDocumentsTheErrorEnvelope() {
 		List<Map<String, Map<String, Object>>> responses = document.read("$.paths.*.*.responses");
 
-		assertThat(responses).hasSize(39).allSatisfy(byStatus -> {
+		assertThat(responses).hasSize(55).allSatisfy(byStatus -> {
 			assertThat(byStatus).containsKeys("500", "default");
 			byStatus.forEach((code, response) -> {
 				if (code.startsWith("4") || code.startsWith("5") || code.equals("default"))
@@ -449,7 +566,7 @@ class OpenApiConfigIntegrationTest {
 		Map<String, Object> properties = document.read("$.components.schemas.MeResponse.properties");
 
 		assertThat(properties).containsOnlyKeys("id", "username", "globalName", "avatarUrl", "timeZone", "pushEnabled",
-				"roles", "mfaEnabled");
+				"roles", "mfaEnabled", "mfaRequired");
 	}
 
 	/**

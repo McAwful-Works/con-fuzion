@@ -48,8 +48,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Integration tests for the migrations on Testcontainers Postgres: M1's
  * {@code app_user} and {@code user_guild}, M2's social graph and events, and
- * M3's RSVPs. Each test rolls back, except the backfill test, which migrates a
- * schema of its own and drops it.
+ * M3's RSVPs, M4's notifications and M5's moderation. Each test rolls back,
+ * except the backfill test, which migrates a schema of its own and drops it.
  *
  * @author mcawful
  */
@@ -203,7 +203,7 @@ class SchemaMigrationIntegrationTest {
 		assertThat(columns("event")).containsExactlyInAnyOrder("id", "public_id", "host_id", "title", "description",
 				"location_text", "tag", "starts_at", "ends_at", "time_zone", "capacity", "confirmed_count",
 				"signup_opens_at", "confirm_window_minutes", "location_visibility", "status", "created_at",
-				"updated_at");
+				"updated_at", "hidden_by_moderation", "moderation_reason");
 		assertThat(columns("event_audience")).containsExactlyInAnyOrder("id", "event_id", "type", "guild_id",
 				"circle_id", "user_id");
 
@@ -431,7 +431,8 @@ class SchemaMigrationIntegrationTest {
 				DataIntegrityViolationException.class);
 		assertRejected(() -> jdbcTemplate.update(insert, guest, "SPOT_OFFERED", eventId, "[]", "NONE"),
 				DataIntegrityViolationException.class);
-		for (var type : List.of("SPOT_OFFERED", "SPOT_CONFIRMED", "EVENT_CHANGED", "EVENT_CANCELLED", "EVENT_REMINDER"))
+		for (var type : List.of("SPOT_OFFERED", "SPOT_CONFIRMED", "EVENT_CHANGED", "EVENT_CANCELLED", "EVENT_REMINDER",
+				"EVENT_HIDDEN"))
 			jdbcTemplate.update(insert, guest, type, eventId, "{}", "PENDING");
 		jdbcTemplate.update(insert, guest, "EVENT_REMINDER", otherEventId, "{}", "SENT");
 		jdbcTemplate.update(insert, host, "FRIEND_ACCEPTED", null, "{}", "FAILED");
@@ -439,7 +440,7 @@ class SchemaMigrationIntegrationTest {
 		jdbcTemplate.update("DELETE FROM event WHERE id = ?", otherEventId);
 		assertThat(
 				jdbcTemplate.queryForObject("SELECT count(*) FROM notification WHERE user_id = ?", Long.class, guest))
-				.isEqualTo(5);
+				.isEqualTo(6);
 		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", guest);
 		assertThat(jdbcTemplate.queryForList("SELECT user_id FROM notification WHERE user_id IN (?, ?)", UUID.class,
 				host, guest)).containsExactly(host);
@@ -478,6 +479,178 @@ class SchemaMigrationIntegrationTest {
 		assertThat(indexDefinition("push_subscription_endpoint_key")).startsWith("CREATE UNIQUE INDEX")
 				.endsWith("(endpoint)");
 		assertThat(indexDefinition("push_subscription_user_idx")).endsWith("(user_id, id)");
+	}
+
+	/**
+	 * Tests that Flyway applied the moderation migration (D-015), with the planned
+	 * columns and defaults.
+	 */
+	@Test
+	void moderationMigrationApplied() {
+		assertThat(jdbcTemplate.queryForObject(
+				"SELECT success FROM flyway_schema_history WHERE version = '202611251800'", Boolean.class)).isTrue();
+		assertThat(columns("user_role")).containsExactlyInAnyOrder("user_id", "role", "granted_by", "granted_at");
+		assertThat(columns("banned_account")).containsExactlyInAnyOrder("discord_id", "reason", "banned_by",
+				"created_at");
+		assertThat(columns("report")).containsExactlyInAnyOrder("id", "reporter_id", "target_type", "target_id",
+				"reason", "note", "status", "handled_by", "handled_at", "resolution_note", "created_at");
+		assertThat(columns("audit_log")).containsExactlyInAnyOrder("id", "actor_id", "action", "target_type",
+				"target_id", "details", "created_at");
+
+		var eventId = insertEvent(insertUser(81384788765712384L), null, null);
+		assertThat(jdbcTemplate.queryForMap("SELECT hidden_by_moderation, moderation_reason FROM event WHERE id = ?",
+				eventId)).containsEntry("hidden_by_moderation", false).containsEntry("moderation_reason", null);
+	}
+
+	/**
+	 * Tests the role and ban rules: known roles, one row per role, a grant that
+	 * goes with its user but survives its granter, and a ban that outlives the
+	 * account.
+	 */
+	@Test
+	void roleAndBanChecks() throws SQLException {
+		var admin = insertUser(81384788765712384L);
+		var user = insertUser(81384788765712385L);
+		var grant = "INSERT INTO user_role (user_id, role, granted_by) VALUES (?, ?, ?)";
+
+		assertRejected(() -> jdbcTemplate.update(grant, user, "USER", admin), DataIntegrityViolationException.class);
+		jdbcTemplate.update(grant, admin, "ADMIN", null);
+		jdbcTemplate.update(grant, user, "MODERATOR", admin);
+		jdbcTemplate.update(grant, user, "ADMIN", admin);
+		assertRejected(() -> jdbcTemplate.update(grant, user, "MODERATOR", admin), DuplicateKeyException.class);
+		jdbcTemplate.update("INSERT INTO banned_account (discord_id, reason, banned_by) VALUES (?, 'Spam', ?)",
+				81384788765712385L, admin);
+		assertRejected(
+				() -> jdbcTemplate
+						.update("INSERT INTO banned_account (discord_id, reason) VALUES (81384788765712385, 'Again')"),
+				DuplicateKeyException.class);
+
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", admin);
+		assertThat(jdbcTemplate.queryForList("SELECT granted_by FROM user_role WHERE user_id = ?", UUID.class, user))
+				.hasSize(2).containsOnlyNulls();
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", user);
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM user_role", Long.class)).isZero();
+		assertThat(jdbcTemplate.queryForMap("SELECT discord_id, banned_by FROM banned_account"))
+				.containsEntry("discord_id", 81384788765712385L).containsEntry("banned_by", null);
+	}
+
+	/**
+	 * Tests the report rules: known targets, reasons and statuses, handled exactly
+	 * when not open, one open report per reporter and target, and a report that
+	 * outlives its target, its reporter and its moderator.
+	 */
+	@Test
+	void reportChecks() throws SQLException {
+		var reporter = insertUser(81384788765712384L);
+		var target = insertUser(81384788765712385L);
+		var moderator = insertUser(81384788765712386L);
+		var report = "INSERT INTO report (reporter_id, target_type, target_id, reason) VALUES (?, ?, ?, ?)";
+
+		assertRejected(() -> jdbcTemplate.update(report, reporter, "CIRCLE", target, "SPAM"),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(report, reporter, "USER", target, "RUDE"),
+				DataIntegrityViolationException.class);
+		assertRejected(
+				() -> jdbcTemplate.update("INSERT INTO report (reporter_id, target_type, target_id, reason, "
+						+ "note) VALUES (?, 'USER', ?, 'SPAM', ?)", reporter, target, "x".repeat(1001)),
+				DataIntegrityViolationException.class);
+		assertRejected(
+				() -> jdbcTemplate.update("INSERT INTO report (reporter_id, target_type, target_id, reason, "
+						+ "status) VALUES (?, 'USER', ?, 'SPAM', 'ACTIONED')", reporter, target),
+				DataIntegrityViolationException.class);
+		var first = jdbcTemplate.queryForObject(report + " RETURNING id", Long.class, reporter, "USER", target,
+				"HARASSMENT");
+		assertRejected(() -> jdbcTemplate.update(report, reporter, "USER", target, "SPAM"),
+				DuplicateKeyException.class);
+		assertRejected(() -> jdbcTemplate
+				.update("UPDATE report SET handled_by = ?, resolution_note = 'Noted' WHERE id = ?", moderator, first),
+				DataIntegrityViolationException.class);
+		jdbcTemplate.update("UPDATE report SET status = 'DISMISSED', handled_by = ?, handled_at = now() WHERE id = ?",
+				moderator, first);
+		jdbcTemplate.update(report, reporter, "USER", target, "SPAM");
+		jdbcTemplate.update(report, reporter, "EVENT", target, "UNSAFE");
+
+		for (var user : List.of(target, reporter, moderator))
+			jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", user);
+		assertThat(jdbcTemplate.queryForList("SELECT target_id FROM report WHERE reporter_id IS NULL", UUID.class))
+				.hasSize(3).containsOnly(target);
+		assertThat(jdbcTemplate.queryForObject("SELECT handled_by FROM report WHERE id = ?", UUID.class, first))
+				.isNull();
+	}
+
+	/**
+	 * Tests that the audit log takes known actions and targets with an object of
+	 * details, and refuses every update, delete and truncate, even of a row whose
+	 * actor has gone.
+	 */
+	@Test
+	void auditLogIsInsertOnly() throws SQLException {
+		var actor = insertUser(81384788765712384L);
+		var insert = "INSERT INTO audit_log (actor_id, action, target_type, target_id, details) "
+				+ "VALUES (?, ?, ?, ?, CAST(? AS jsonb))";
+
+		assertRejected(() -> jdbcTemplate.update(insert, actor, "EVENT_DELETED", "EVENT", "x", "{}"),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, actor, "EVENT_HIDDEN", "CIRCLE", "x", "{}"),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, actor, "EVENT_HIDDEN", "EVENT", "x", "[]"),
+				DataIntegrityViolationException.class);
+		jdbcTemplate.update(insert, actor, "EVENT_HIDDEN", "EVENT", UUID.randomUUID().toString(),
+				"{\"reason\":\"Unsafe\"}");
+		jdbcTemplate.update(insert, null, "SIGN_IN_REFUSED", "DISCORD_ACCOUNT", "81384788765712385",
+				"{\"cause\":\"ACCOUNT_BANNED\"}");
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", actor);
+
+		for (var statement : List.of("UPDATE audit_log SET details = '{}'", "UPDATE audit_log SET actor_id = NULL",
+				"DELETE FROM audit_log", "TRUNCATE audit_log"))
+			assertRejectedWith(statement, "audit_log is insert-only");
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE actor_id = ?", Long.class, actor))
+				.isOne();
+	}
+
+	/**
+	 * Tests the moderation rules on events and notifications: a reason of at most
+	 * 500 characters exactly while hidden, and an event for {@code EVENT_HIDDEN}
+	 * but none for the report notifications.
+	 */
+	@Test
+	void eventModerationAndNotificationChecks() throws SQLException {
+		var host = insertUser(81384788765712384L);
+		var eventId = insertEvent(host, null, null);
+		var notify = "INSERT INTO notification (user_id, type, event_id, payload, push_status) "
+				+ "VALUES (?, ?, ?, '{}', 'NONE')";
+
+		assertRejected(() -> jdbcTemplate.update("UPDATE event SET hidden_by_moderation = true WHERE id = ?", eventId),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update("UPDATE event SET moderation_reason = 'r' WHERE id = ?", eventId),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(
+				"UPDATE event SET hidden_by_moderation = true, moderation_reason = ? WHERE id = ?", "x".repeat(501),
+				eventId), DataIntegrityViolationException.class);
+		jdbcTemplate.update("UPDATE event SET hidden_by_moderation = true, moderation_reason = 'Unsafe' WHERE id = ?",
+				eventId);
+
+		assertRejected(() -> jdbcTemplate.update(notify, host, "EVENT_HIDDEN", null),
+				DataIntegrityViolationException.class);
+		jdbcTemplate.update(notify, host, "EVENT_HIDDEN", eventId);
+		for (var type : List.of("REPORT_RECEIVED", "REPORT_REVIEWED")) {
+			assertRejected(() -> jdbcTemplate.update(notify, host, type, eventId),
+					DataIntegrityViolationException.class);
+			jdbcTemplate.update(notify, host, type, null);
+		}
+	}
+
+	/**
+	 * Tests the report indexes: the queue, one open report per reporter and target,
+	 * the daily cap, and a target's reports.
+	 */
+	@Test
+	void reportIndexes() {
+		assertThat(indexDefinition("report_queue_idx")).endsWith("(status, id)");
+		assertThat(indexDefinition("report_open_key")).startsWith("CREATE UNIQUE INDEX")
+				.endsWith("(reporter_id, target_type, target_id) WHERE ((status)::text = 'OPEN'::text)");
+		assertThat(indexDefinition("report_reporter_idx")).endsWith("(reporter_id, created_at)");
+		assertThat(indexDefinition("report_target_idx")).endsWith("(target_id)");
 	}
 
 	/**
@@ -608,6 +781,23 @@ class SchemaMigrationIntegrationTest {
 		var savepoint = connection.setSavepoint();
 		try {
 			assertThatThrownBy(statement::run).isInstanceOf(type);
+		} finally {
+			connection.rollback(savepoint);
+		}
+	}
+
+	/**
+	 * Asserts that the database rejects a statement with a message. It runs in a
+	 * savepoint, so the test's transaction stays usable afterwards.
+	 *
+	 * @param sql     the statement
+	 * @param message part of the expected message
+	 */
+	private void assertRejectedWith(String sql, String message) throws SQLException {
+		var connection = DataSourceUtils.getConnection(dataSource);
+		var savepoint = connection.setSavepoint();
+		try {
+			assertThatThrownBy(() -> jdbcTemplate.execute(sql)).as(sql).rootCause().hasMessageContaining(message);
 		} finally {
 			connection.rollback(savepoint);
 		}

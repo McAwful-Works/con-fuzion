@@ -75,7 +75,7 @@ class NotificationServiceTest {
 	 */
 	private static NotificationResponse notification(long id) {
 		return new NotificationResponse(id, Type.EVENT_CANCELLED, UUID.randomUUID(),
-				new NotificationPayload("Walk", null, null, null, null), Instant.now(), false);
+				new NotificationPayload("Walk", null, null, null, null, null, null, null), Instant.now(), false);
 	}
 
 	/**
@@ -141,6 +141,7 @@ class NotificationServiceTest {
 		assertThat(service.remind(1)).isZero();
 		assertThat(service.remind(2)).isEqualTo(3);
 
-		verify(repository).insertReminders(2L, new NotificationPayload("Walk", null, startsAt, null, null));
+		verify(repository).insertReminders(2L,
+				new NotificationPayload("Walk", null, startsAt, null, null, null, null, null));
 	}
 }

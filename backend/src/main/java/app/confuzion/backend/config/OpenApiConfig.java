@@ -114,7 +114,7 @@ public class OpenApiConfig {
 
 			openApi.getPaths()
 					.forEach((path, pathItem) -> pathItem.readOperationsMap()
-							.forEach((method, operation) -> addErrorResponses(operation,
+							.forEach((method, operation) -> addErrorResponses(operation, path,
 									method != PathItem.HttpMethod.GET, path.contains("{"), content)));
 			openApi.getPaths().addPathItem(SecurityConfig.LOGOUT_URL, new PathItem().post(logoutOperation(content)));
 		};
@@ -146,18 +146,24 @@ public class OpenApiConfig {
 	 * declares, and gives every error response the envelope as its body.
 	 *
 	 * @param operation    the {@link Operation}
+	 * @param path         the operation's path; {@code /api/admin} routes also
+	 *                     answer 403 for a caller without the role
 	 * @param mutation     whether the operation changes state, so it needs the CSRF
 	 *                     token
 	 * @param hasPathParam whether the path has a parameter, which can name
 	 *                     something that doesn't exist or that the caller can't see
 	 * @param content      the error envelope {@link Content}
 	 */
-	private static void addErrorResponses(Operation operation, boolean mutation, boolean hasPathParam,
+	private static void addErrorResponses(Operation operation, String path, boolean mutation, boolean hasPathParam,
 			Content content) {
 		var responses = operation.getResponses();
 		if (hasPathParam || operation.getRequestBody() != null || operation.getParameters() != null)
 			responses.putIfAbsent("400", error("The request failed validation.", content));
 		responses.putIfAbsent("401", error("Not signed in.", content));
+		if (path.startsWith("/api/admin/"))
+			responses.putIfAbsent("403", error("Signed in without the role this route needs (in its summary), which "
+					+ "is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid.",
+					content));
 		if (mutation)
 			responses.putIfAbsent("403", error("CSRF token missing or invalid. Send the " + CSRF_COOKIE
 					+ " cookie's value in the " + CSRF_HEADER + " header.", content));

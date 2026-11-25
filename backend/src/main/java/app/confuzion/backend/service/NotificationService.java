@@ -109,8 +109,9 @@ public class NotificationService {
 	 */
 	@Transactional
 	public int remind(long eventId) {
-		return notificationRepository.lockDueEvent(eventId, REMINDER_LEAD).map(event -> notificationRepository
-				.insertReminders(eventId, new NotificationPayload(event.title(), null, event.startsAt(), null, null)))
+		return notificationRepository.lockDueEvent(eventId, REMINDER_LEAD)
+				.map(event -> notificationRepository.insertReminders(eventId,
+						new NotificationPayload(event.title(), null, event.startsAt(), null, null, null, null, null)))
 				.orElse(0);
 	}
 

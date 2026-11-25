@@ -71,6 +71,11 @@ public class LimitExceededException extends RuntimeException {
 		/**
 		 * At most 20 events created per host in any 24 hours (D-012).
 		 */
-		EVENT_LIMIT
+		EVENT_LIMIT,
+
+		/**
+		 * A user already made 10 reports in the last 24 hours (D-015).
+		 */
+		REPORT_LIMIT
 	}
 }

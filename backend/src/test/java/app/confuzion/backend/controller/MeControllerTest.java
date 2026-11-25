@@ -97,7 +97,7 @@ class MeControllerTest {
 	 * A profile the mocked service returns.
 	 */
 	private static final MeResponse ME = new MeResponse(USER_ID, "user", null,
-			"https://cdn.discordapp.com/embed/avatars/0.png", null, false, List.of(MeResponse.Role.USER), false);
+			"https://cdn.discordapp.com/embed/avatars/0.png", null, false, List.of(MeResponse.Role.USER), false, false);
 
 	/**
 	 * A server list the mocked service returns.

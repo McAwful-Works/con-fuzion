@@ -418,7 +418,8 @@ public class PushSender {
 
 	/**
 	 * Returns the lock-screen text for a notification: the event's title and what
-	 * happened, never a location or anyone's name (D-014 rule 8).
+	 * happened, never a location or anyone's name (D-014 rule 8), and never a
+	 * moderator's reason or anything about a report's target (D-015).
 	 *
 	 * @param type    what happened
 	 * @param payload what the notification says
@@ -434,6 +435,9 @@ public class PushSender {
 		case EVENT_CANCELLED -> title + " was cancelled.";
 		case EVENT_REMINDER -> title + " starts in about an hour.";
 		case FRIEND_ACCEPTED -> "Someone accepted your friend invite.";
+		case REPORT_RECEIVED -> "A new report is waiting in the moderation queue.";
+		case REPORT_REVIEWED -> "We reviewed your report. Thank you for helping keep meetups safe.";
+		case EVENT_HIDDEN -> title + " was hidden by the moderators. Open the app to see why.";
 		};
 	}
 

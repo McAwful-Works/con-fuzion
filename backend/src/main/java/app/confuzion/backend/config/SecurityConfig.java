@@ -55,9 +55,12 @@ import jakarta.servlet.http.HttpServletResponse;
  * Spring Security: Discord sign-in, sessions, CSRF and security headers
  * ({@code docs/security.md}).
  * <ul>
- * <li>Deny by default. Public: health, the OAuth endpoints, and {@code GET} or
- * {@code HEAD} of anything outside {@code /api} except the API docs, which is
- * only ever the SPA (its shell, assets and deep links).</li>
+ * <li>Deny by default. {@code /api/admin} routes need MODERATOR or ADMIN, as
+ * listed, and the rest of {@code /api/admin} is denied: signed out is a 401,
+ * signed in without the role a 403 (D-015).</li>
+ * <li>Public: health, the OAuth endpoints, and {@code GET} or {@code HEAD} of
+ * anything outside {@code /api} except the API docs, which is only ever the SPA
+ * (its shell, assets and deep links).</li>
  * <li>An unauthenticated {@code /api} request gets a 401 and a failed CSRF
  * check a 403, never a redirect. Both go through {@code /error}, so the body is
  * the standard error envelope (D-010).</li>
@@ -91,6 +94,16 @@ public class SecurityConfig {
 	 * Where a failed sign-in lands: the SPA sign-in page, which shows an error.
 	 */
 	public static final String LOGIN_FAILURE_URL = "/welcome?login=failed";
+
+	/**
+	 * The moderator role, as {@code hasRole} names it ({@code ROLE_MODERATOR}).
+	 */
+	public static final String MODERATOR = "MODERATOR";
+
+	/**
+	 * The admin role, as {@code hasRole} names it ({@code ROLE_ADMIN}).
+	 */
+	public static final String ADMIN = "ADMIN";
 
 	/**
 	 * The Content-Security-Policy.
@@ -141,6 +154,23 @@ public class SecurityConfig {
 				// loopback-only.
 				.requestMatchers("/api/actuator/**").permitAll()
 				.requestMatchers(AUTHORIZATION_BASE_URI + "/**", LOGIN_PROCESSING_URL).permitAll()
+				// Admin (D-015): ADMIN-only routes, then the moderator routes, and every other
+				// /api/admin route is denied. A role is granted only with Discord MFA on. The
+				// {captures} need a character, where * would also match an empty segment.
+				.requestMatchers(HttpMethod.POST, "/api/admin/bans").hasRole(ADMIN)
+				.requestMatchers(HttpMethod.DELETE, "/api/admin/bans/{discordId}").hasRole(ADMIN)
+				.requestMatchers(HttpMethod.GET, "/api/admin/users/{userId}/roles").hasRole(ADMIN)
+				.requestMatchers(HttpMethod.PUT, "/api/admin/users/{userId}/roles").hasRole(ADMIN)
+				.requestMatchers(HttpMethod.DELETE, "/api/admin/users/{userId}/roles").hasRole(ADMIN)
+				.requestMatchers(HttpMethod.GET, "/api/admin/audit").hasRole(ADMIN)
+				.requestMatchers(HttpMethod.GET, "/api/admin/reports", "/api/admin/reports/{reportId}",
+						"/api/admin/users")
+				.hasAnyRole(MODERATOR, ADMIN)
+				.requestMatchers(HttpMethod.POST, "/api/admin/reports/{reportId}/resolve",
+						"/api/admin/events/{eventId}/hide", "/api/admin/events/{eventId}/unhide",
+						"/api/admin/events/{eventId}/cancel", "/api/admin/users/{userId}/suspend",
+						"/api/admin/users/{userId}/unsuspend")
+				.hasAnyRole(MODERATOR, ADMIN).requestMatchers("/api/admin", "/api/admin/**").denyAll()
 				.requestMatchers("/api/**").authenticated()
 				// The API docs aren't part of the SPA, so they need a session too.
 				.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").authenticated()

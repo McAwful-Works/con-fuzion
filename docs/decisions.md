@@ -456,3 +456,154 @@ Context · Decision · Consequences · Trigger to revisit
   four push services.
 - **Revisit:** if the inbox gets slow without a purge (a measured p95), add a retention limit. If a supported browser
   uses a push host outside the list, add it in a contract PR.
+
+## D-015 Roles, reports, moderation and the audit log (2026-11-25) — Accepted
+- **Context:** M5 (#83) adds the safety and admin tooling in plan B11/B12: MFA-gated roles, reports and a moderation
+  queue, hiding and cancelling events, suspensions and bans, an insert-only audit log, and maintenance mode. This pins
+  the API and schema rules so #84 (roles, MFA, audit, maintenance), #85 (reports and event moderation), #86
+  (suspensions, bans and user search), #87 and #88 (frontend) and #89 (e2e) can build in parallel.
+- **Decision (owner):**
+  - **Roles** are USER (implicit), MODERATOR and ADMIN. ADMIN also gets bans, role grants and the audit log.
+    MODERATOR and ADMIN apply **only while Discord reports `mfa_enabled=true` at sign-in**; without it the account acts
+    as a plain user and sees a "turn on Discord 2FA" note.
+  - **The bootstrap IDs** (`con-fuzion.admin.bootstrap-discord-ids`) get ADMIN on first sign-in, and the grant is
+    audit-logged. Taking an ID out of the config revokes nothing. **The last ADMIN can't be removed. A role change
+    deletes that user's sessions.**
+  - **Reports** cover events and users, with the reasons `HARASSMENT`, `UNSAFE`, `SPAM`, `INAPPROPRIATE` and `OTHER`,
+    and a note of up to 1,000 characters. At most 10 per user per day. An open duplicate on the same target returns the
+    existing report. Every moderator and admin is notified (in-app and push). The reporter later gets "we reviewed your
+    report" with no details. The reported user never learns of the report or who made it.
+  - **Hiding an event is silent for attendees.** They lose access, the RSVPs stay, and the host gets the reason. To
+    tell attendees, a moderator cancels instead: the normal cancel notification (no reason), and the host still gets
+    the reason.
+  - **A suspension** (until a date) blocks sign-in and deletes the user's sessions. Their events and RSVPs are left
+    alone.
+  - **A ban** (ADMIN, by Discord ID, kept even if the account goes) blocks sign-in and deletes the user's sessions. It
+    cancels their upcoming hosted events and ends their RSVPs as `LEFT`. The account itself is kept.
+  - **What moderators can see about a user:** display name, Discord ID, when they joined and last signed in, any
+    suspension or ban, and the number of reports against them. Never their servers, friends, circles or RSVPs.
+  - **The audit log** covers every moderator and admin action, refused sign-ins, role changes and session purges. It's
+    insert-only and readable by ADMIN only, with no retention limit in the MVP.
+  - **Maintenance mode is a config flag** (`con-fuzion.maintenance=true`, effective on the next deploy or restart).
+    Every `/api` route except health returns 503.
+- **Rules this contract adds (confirmed by the owner, 2026-11-25):**
+  1. **Who gets 401, 403 and 404 under `/api/admin`.** Signed out is a 401. Signed in without the role a route needs
+     is a **403**, the one exception to "404 rather than 403": the admin routes are listed in the public
+     `openapi.json`, so a 403 reveals nothing that isn't already known. For a caller with the role, a missing report,
+     user or event is a 404. Every other path or method under `/api/admin` is denied (a 403 even for an admin). A write
+     without CSRF is a 403 as everywhere. `SecurityConfig` lists each route with its role: ADMIN for bans, roles and
+     the audit log, MODERATOR or ADMIN for the rest. The authorities are `ROLE_MODERATOR` and `ROLE_ADMIN`.
+  2. **Roles in effect.** `MeResponse.roles` lists the roles in effect for the session (always `USER`).
+     `mfaRequired` is true when the user holds a granted role that MFA keeps out of effect; turning 2FA on takes
+     effect at the next sign-in. `GrantedRole` (`MODERATOR`, `ADMIN`) is what's stored in `user_role` and sent to and
+     from the roles endpoints; `USER` can't be granted (a 400).
+  3. **Role changes.** `PUT /api/admin/users/{userId}/roles {roles}` sets exactly that set, and `DELETE` is the
+     same as an empty set. Sending the current set is a 200 (204 for `DELETE`) that changes nothing: no session purge
+     and no audit row. "The last ADMIN" counts every `user_role` ADMIN row, with or without MFA, so the only admin
+     can't remove themself either (409 `LAST_ADMIN`). A bootstrap grant is a `ROLES_CHANGED` row with no actor.
+  4. **Who can be suspended or banned.** A moderator can suspend only users with no granted role; an admin can also
+     suspend moderators. Nobody can suspend or ban an account that holds ADMIN: remove the role first. Both are a 409
+     `TARGET_HAS_ROLE`, which also covers trying it on yourself. A suspension ends in the future and at most 365 days
+     away (400 otherwise); suspending again replaces the end. A ban needs no account: banning a Discord ID before it
+     signs up works. Banning a banned ID, unbanning one that isn't, and unsuspending someone who isn't suspended are
+     204s that change nothing. Unbanning undoes nothing the ban did.
+  5. **A refused sign-in** (a banned Discord ID, or `suspended_until > now()`) lands on `/welcome?login=refused`, the
+     same for both, so the page shows one neutral message that doesn't say which or mention reports (#87). It writes
+     `SIGN_IN_REFUSED` (no actor, target `DISCORD_ACCOUNT`, `cause` `ACCOUNT_BANNED` or `USER_SUSPENDED`). The user's
+     existing sessions were already purged by the suspension or ban.
+  6. **Reporting** (`POST /api/reports {targetType, targetId, reason, note}`) is a **204** whether the report is new
+     or the caller already has an `OPEN` report on that target; a repeat changes nothing (the first note stands) and
+     doesn't count towards the cap. The cap is 10 reports created in the last 24 hours (429 `REPORT_LIMIT`). A `USER`
+     target is any existing user but the caller. An `EVENT` target is one the caller can see or has ever had an RSVP
+     on, in any status, so a block or a hide never stops someone who was there from reporting it; not one they host.
+     Anything else is a 404, and reporting yourself or your own event is a 400. A block in either direction doesn't
+     stop a report.
+  7. **Report storage.** Event public IDs and user IDs are both UUIDs, so `report.target_id` is one `uuid` column,
+     with `target_type` saying which. It has **no foreign key**: a report outlives the 90-day purge of ended events and
+     account deletion, so moderation history and a user's report count survive. The API returns `targetLabel` (the
+     event's title or the user's display name) as null once the target is gone. `reporter_id` and `handled_by` are
+     `ON DELETE SET NULL`, so a deleted reporter or moderator leaves the report anonymised. Moderators see
+     `reporterId`; the reported user never sees anything.
+  8. **The queue** (`GET /api/admin/reports?status`) defaults to `OPEN`, oldest first, so it's worked in order;
+     `ACTIONED` and `DISMISSED` are newest first. Like the inbox it pages with an opaque `cursor` and a `limit` of 1 to
+     50 (default 20). Moderators open an event target with `GET /api/events/{eventId}`, which shows any event to a
+     moderator, hidden or not, with its location (#85); the attendee list stays host and confirmed only.
+  9. **Resolving** closes one report as `ACTIONED` or `DISMISSED`, with an optional note (1,000 characters, moderators
+     only), and sends its reporter, if they still exist, a `REPORT_REVIEWED` that says nothing about the outcome. A
+     report already resolved is a 409 `REPORT_RESOLVED`. Moderators act on the target first (hide, cancel, suspend, or
+     ask an admin to ban), then resolve.
+  10. **Hiding** sets `hidden_by_moderation` and `moderation_reason` together (a CHECK keeps them in step). The event
+      becomes a 404 for everyone but its host and moderators (`EventRepository.VISIBLE` adds
+      `NOT hidden_by_moderation`, the active-RSVP arm included); attendees keep their RSVPs but can't open, join or
+      leave it. While it's hidden, attendees get no `EVENT_CHANGED` or reminder, and nobody is offered a spot (a freed
+      spot just frees up, as after the start in D-014 rule 2). A cancel, by the host or a moderator, still sends
+      attendees `EVENT_CANCELLED`, so they know the plan is off. The host gets `EVENT_HIDDEN` and sees the reason as `EventResponse.hiddenReason`
+      (null for everyone else and for visible events); they can still edit or cancel it, and it stays hidden.
+      `Event.moderationReason` is read-only in JPA, so a host's edit never writes it back. Hiding a hidden event is a
+      204 that changes nothing. **Unhiding** clears both columns and notifies nobody.
+  11. **A moderator's cancel** works like the host's (`DELETE /api/events/{id}`): cancelling a cancelled or ended event
+      is a 204 that changes nothing, and attendees get the usual `EVENT_CANCELLED` with no reason. The host also gets
+      `EVENT_CANCELLED`, with the reason. A hidden event can be cancelled too (rule 10).
+  12. **Who gets each new notification, and its payload.** As in D-014 rule 8, each type sets only its own fields and
+      never holds a location or a name; no report notification names the reporter or the target.
+
+      | Type | Sent to | `eventId` | Payload |
+      |---|---|---|---|
+      | `REPORT_RECEIVED` | every user with MODERATOR or ADMIN in effect (granted, and MFA on at their last sign-in) | none | `reportId`, `targetType` |
+      | `REPORT_REVIEWED` | the reporter, when their report is resolved either way | none | nothing (`{}`) |
+      | `EVENT_HIDDEN` | the host | the event | `eventTitle`, `reason` |
+      | `EVENT_CANCELLED` (moderator) | the host | the event | `eventTitle`, `reason` |
+
+      `reason` is the one payload field that isn't safe for a lock screen: the push text never quotes it
+      (`PushSender.text`), only the inbox shows it.
+  13. **Caps.** A report note and a resolution note are up to 1,000 characters; a hide, cancel, suspension or ban
+      reason is 1 to 500, all plain text. The user search `q` is 2 to 100 characters and returns at most 20 users.
+  14. **User search** (`GET /api/admin/users?q`) matches an exact user ID or Discord ID, or part of a username or
+      display name, ignoring case, ordered by username. `AdminUserResponse` has exactly the owner's list:
+      `discordId`, `username`, `globalName`, `createdAt`, `lastLoginAt`, `suspendedUntil`, `ban` (reason and date) and
+      `reportCount` (reports naming them, any status).
+  15. **The audit log.** One `AuditLogRepository.insert(actorId, action, targetType, targetId, details)`, called in
+      the same transaction as the change it records. A request that changes nothing writes no row.
+      - **Storage:** `actor_id` and `target_id` are plain values with **no foreign keys**, so an account deletion or
+        the event purge never has to update or delete a row (an `ON DELETE SET NULL` would be an `UPDATE`).
+        `target_id` is text: a user ID or event public ID, a report ID, or a Discord ID. A trigger raises on every
+        `UPDATE`, `DELETE` and `TRUNCATE`. `actor_id` is null for the system (a bootstrap grant, a refused sign-in).
+      - **Actions and details** (`AuditDetails`, JSON `NON_NULL`; details hold IDs, enums, times and moderators' own
+        text, never a name, a reporter's note, a token or an IP):
+
+        | Action | Target | Details |
+        |---|---|---|
+        | `ROLES_CHANGED` | `USER` | `roles` (the new set) |
+        | `SESSIONS_PURGED` | `USER` | `cause` (`ROLES_CHANGED`, `USER_SUSPENDED` or `ACCOUNT_BANNED`), `sessions` |
+        | `SIGN_IN_REFUSED` | `DISCORD_ACCOUNT` | `cause` (`ACCOUNT_BANNED` or `USER_SUSPENDED`) |
+        | `REPORT_RESOLVED` | `REPORT` | `resolution`, `note` |
+        | `EVENT_HIDDEN`, `EVENT_CANCELLED` | `EVENT` | `reason` |
+        | `EVENT_UNHIDDEN` | `EVENT` | nothing |
+        | `USER_SUSPENDED` | `USER` | `until`, `reason` |
+        | `USER_UNSUSPENDED` | `USER` | nothing |
+        | `ACCOUNT_BANNED` | `DISCORD_ACCOUNT` | `reason` |
+        | `ACCOUNT_UNBANNED` | `DISCORD_ACCOUNT` | nothing |
+
+        `SESSIONS_PURGED` is written once per purge that a role change, suspension or ban causes, with the count. A
+        user's own "log out everywhere" isn't audited.
+      - **Reading** (`GET /api/admin/audit`) is newest first, with an opaque `cursor` and a `limit` of 1 to 50 (default
+        20).
+  16. **Maintenance mode** answers every `/api` route except `/api/actuator/health` with a 503 in the D-010 envelope
+      (`errorType` `SERVICE_UNAVAILABLE`), signed in or not, and the client shows a "back soon" page (#87).
+- **For the implementation:**
+  - **#84** grants authorities from `user_role` at sign-in (only with MFA), replacing the in-memory bootstrap grant in
+    `DiscordOAuth2UserService`, sets `MeResponse.mfaRequired` (now always `false` in `UserService`), and builds the
+    roles and audit endpoints, the refused sign-in (rule 5) and the maintenance filter.
+  - **#85** builds reporting, the queue, resolve, hide, unhide and the moderator cancel; adds
+    `NOT hidden_by_moderation` to `VISIBLE` with the host and moderator exceptions; holds back a hidden event's
+    changes, reminders and offers (rule 10); and fans `REPORT_RECEIVED` out in one statement, like `insertForActiveRsvps`.
+  - **#86** builds the search, suspensions and bans. A ban's cancels and `LEFT`s take the event row locks in D-013's
+    lock order.
+  - **Every write path** writes its audit row through `AuditLogRepository.insert`, in its own transaction. Nothing
+    else writes `audit_log`, and M7's account deletion never touches it, the bans, or the reports' target IDs.
+- **Consequences:** moderators can act without seeing anything a user hasn't made public, and attendees are told only
+  when an event is really off. The audit log can't be edited from the app, even by a bug, and outlives every account it
+  names. Reports and audit rows keep the IDs of deleted accounts and purged events, which name nobody once those are
+  gone.
+- **Revisit:** if the audit log or the report table gets slow without a retention limit (a measured p95), add one in a
+  contract PR. If moderators need several reports on one target closed together, add a bulk resolve.

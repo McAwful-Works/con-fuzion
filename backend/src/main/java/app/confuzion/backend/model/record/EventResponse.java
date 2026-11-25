@@ -56,6 +56,9 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * @param myStatus             where the viewer stands on the event
  * @param audience             who the event is for: the host's entries, or
  *                             {@code null} for every other viewer
+ * @param hiddenReason         for the host, the moderator's reason while the
+ *                             event is hidden (D-015), and {@code null}
+ *                             otherwise
  * @author mcawful
  */
 public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID id,
@@ -75,7 +78,8 @@ public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID i
 		@Schema(requiredMode = RequiredMode.REQUIRED) Status status,
 		@JsonProperty("isHost") @Schema(name = "isHost", requiredMode = RequiredMode.REQUIRED) boolean isHost,
 		@Schema(requiredMode = RequiredMode.REQUIRED, description = "Where the viewer stands. CONFIRMED for the host. The waitlist position and an offer's deadline are in GET /api/events/{eventId}/spots.") MyStatus myStatus,
-		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Only the host gets this; it is null for everyone else.") List<AudienceEntry> audience)
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Only the host gets this; it is null for everyone else.") List<AudienceEntry> audience,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, maxLength = 500, description = "Set only for the host, while moderators have hidden the event: their reason, as plain text. Nobody else can see a hidden event (D-015). Null otherwise.") String hiddenReason)
 		implements ResponseBodyObject {
 	/**
 	 * Who may see an event's location.

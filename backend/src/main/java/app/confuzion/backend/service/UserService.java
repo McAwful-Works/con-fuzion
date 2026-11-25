@@ -265,7 +265,8 @@ public class UserService {
 	private static MeResponse toMeResponse(AppUser user, Collection<? extends GrantedAuthority> authorities) {
 		return new MeResponse(user.getId(), user.getUsername(), user.getGlobalName(),
 				avatarUrl(user.getDiscordId(), user.getAvatarHash()), user.getTimeZone(), user.isPushEnabled(),
-				roles(authorities), user.isMfaEnabled());
+				// TODO(#84): mfaRequired from user_role once roles are stored.
+				roles(authorities), user.isMfaEnabled(), false);
 	}
 
 	/**

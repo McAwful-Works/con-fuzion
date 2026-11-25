@@ -291,7 +291,8 @@ public class EventService {
 		eventRepository.flush();
 		if (!changes.isEmpty())
 			notificationRepository.insertForActiveRsvps(event.getId(), hostId, Type.EVENT_CHANGED,
-					new NotificationPayload(event.getTitle(), null, event.getStartsAt(), changes, null));
+					new NotificationPayload(event.getTitle(), null, event.getStartsAt(), changes, null, null, null,
+							null));
 		rsvpRepository.fillFreeSpots(event.getId(),
 				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
 		return toResponses(hostId, List.of(event)).getFirst();
@@ -314,7 +315,7 @@ public class EventService {
 		eventRepository.cancel(eventId, hostId);
 		if (end(event).isAfter(Instant.now()))
 			notificationRepository.insertForActiveRsvps(event.getId(), hostId, Type.EVENT_CANCELLED,
-					new NotificationPayload(event.getTitle(), null, null, null, null));
+					new NotificationPayload(event.getTitle(), null, null, null, null, null, null, null));
 	}
 
 	/**
@@ -466,7 +467,8 @@ public class EventService {
 				event.getTitle(), event.getDescription(), locationHidden ? null : event.getLocationText(),
 				locationHidden, event.getLocationVisibility(), event.getTag(), event.getStartsAt(), event.getEndsAt(),
 				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getConfirmWindowMinutes(),
-				event.getStatus(), isHost, myStatus, isHost ? audiences.getOrDefault(event.getId(), List.of()) : null);
+				event.getStatus(), isHost, myStatus, isHost ? audiences.getOrDefault(event.getId(), List.of()) : null,
+				isHost ? event.getModerationReason() : null);
 	}
 
 	/**

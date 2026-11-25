@@ -17,6 +17,24 @@
     "description" : "Blocked users",
     "name" : "blocks"
   }, {
+    "description" : "The report queue and event moderation (MODERATOR or ADMIN)",
+    "name" : "moderation"
+  }, {
+    "description" : "Role grants and the audit log (ADMIN)",
+    "name" : "admin"
+  }, {
+    "description" : "Named groups of people, private to their owner",
+    "name" : "circles"
+  }, {
+    "description" : "In-app friends and invite links",
+    "name" : "friends"
+  }, {
+    "description" : "Reporting an event or a user to the moderators",
+    "name" : "reports"
+  }, {
+    "description" : "User search, suspensions (MODERATOR or ADMIN) and bans (ADMIN)",
+    "name" : "admin-users"
+  }, {
     "description" : "Meetups, who they're for, and the feed",
     "name" : "events"
   }, {
@@ -34,14 +52,1548 @@
   }, {
     "description" : "The signed-in user's inbox",
     "name" : "notifications"
-  }, {
-    "description" : "Named groups of people, private to their owner",
-    "name" : "circles"
-  }, {
-    "description" : "In-app friends and invite links",
-    "name" : "friends"
   } ],
   "paths" : {
+    "/api/admin/audit" : {
+      "get" : {
+        "description" : "Newest first. Every moderator and admin action, refused sign-in, role change and session purge. Nothing is ever changed or removed.",
+        "operationId" : "getAudit",
+        "parameters" : [ {
+          "description" : "The previous page's nextCursor. Opaque.",
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "pattern" : "^[A-Za-z0-9_-]+$"
+          }
+        }, {
+          "description" : "Rows per page, 1 to 50",
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20,
+            "maximum" : 50,
+            "minimum" : 1
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordAuditPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "A cursor that this endpoint didn't issue, or a limit out of range."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Read the audit log (ADMIN)",
+        "tags" : [ "admin" ]
+      }
+    },
+    "/api/admin/bans" : {
+      "post" : {
+        "description" : "It can never sign in, even after the account is deleted and made again, and it needn't have an account yet. If it has one, the account is kept, its sessions are deleted, its upcoming hosted events are cancelled (with the usual EVENT_CANCELLED) and its active RSVPs end as LEFT, freeing their spots. Banning a banned ID is a 204 that changes nothing. Audit-logged.",
+        "operationId" : "ban",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/BanRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Banned, or already banned."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The account holds ADMIN (errorType TARGET_HAS_ROLE). Remove the role first."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Ban a Discord ID (ADMIN)",
+        "tags" : [ "admin-users" ]
+      }
+    },
+    "/api/admin/bans/{discordId}" : {
+      "delete" : {
+        "description" : "The Discord ID can sign in again. Nothing the ban did is undone. An ID that isn't banned is a 204 that changes nothing. Audit-logged.",
+        "operationId" : "unban",
+        "parameters" : [ {
+          "description" : "The Discord user ID (a snowflake, as a string)",
+          "in" : "path",
+          "name" : "discordId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[0-9]{17,19}$"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Lifted, or wasn't banned."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not found, or not visible to the caller."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Lift a ban (ADMIN)",
+        "tags" : [ "admin-users" ]
+      }
+    },
+    "/api/admin/events/{eventId}/cancel" : {
+      "post" : {
+        "description" : "As if the host cancelled it: everyone with an active RSVP but the host gets the usual EVENT_CANCELLED, with no reason. The host gets EVENT_CANCELLED with the reason. Cancelling a cancelled or ended event is a 204 that changes nothing, as for a host. Audit-logged.",
+        "operationId" : "cancelEvent",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ModerationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Cancelled, or nothing to cancel."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such event."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Cancel an event (MODERATOR or ADMIN)",
+        "tags" : [ "moderation" ]
+      }
+    },
+    "/api/admin/events/{eventId}/hide" : {
+      "post" : {
+        "description" : "Silent for attendees: the event becomes a 404 for everyone but its host and moderators, and its RSVPs are kept. While it's hidden, attendees get no change or reminder notifications and nobody is offered a spot; a cancel still tells them. The host gets EVENT_HIDDEN with the reason and sees the reason as hiddenReason on the event. Hiding a hidden event is a 204 that changes nothing. Audit-logged.",
+        "operationId" : "hideEvent",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ModerationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Hidden, or already hidden."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such event."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Hide an event (MODERATOR or ADMIN)",
+        "tags" : [ "moderation" ]
+      }
+    },
+    "/api/admin/events/{eventId}/unhide" : {
+      "post" : {
+        "description" : "The event is visible again to its audience and clears its reason. Nobody is notified. Unhiding a visible event is a 204 that changes nothing. Audit-logged.",
+        "operationId" : "unhideEvent",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Unhidden, or wasn't hidden."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such event."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Unhide an event (MODERATOR or ADMIN)",
+        "tags" : [ "moderation" ]
+      }
+    },
+    "/api/admin/reports" : {
+      "get" : {
+        "description" : "OPEN reports oldest first, so the queue is worked in order; ACTIONED and DISMISSED ones newest first.",
+        "operationId" : "getReports",
+        "parameters" : [ {
+          "description" : "Which reports to list",
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "OPEN",
+            "enum" : [ "OPEN", "ACTIONED", "DISMISSED" ]
+          }
+        }, {
+          "description" : "The previous page's nextCursor. Opaque.",
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "pattern" : "^[A-Za-z0-9_-]+$"
+          }
+        }, {
+          "description" : "Reports per page, 1 to 50",
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20,
+            "maximum" : 50,
+            "minimum" : 1
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordReportPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "A cursor that this endpoint didn't issue, or a limit out of range."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "List reports (MODERATOR or ADMIN)",
+        "tags" : [ "moderation" ]
+      }
+    },
+    "/api/admin/reports/{reportId}" : {
+      "get" : {
+        "operationId" : "getReport",
+        "parameters" : [ {
+          "description" : "The report's ID",
+          "in" : "path",
+          "name" : "reportId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "minimum" : 1
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordReportResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such report."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Get a report (MODERATOR or ADMIN)",
+        "tags" : [ "moderation" ]
+      }
+    },
+    "/api/admin/reports/{reportId}/resolve" : {
+      "post" : {
+        "description" : "Closes this one report as ACTIONED or DISMISSED, and sends the reporter a REPORT_REVIEWED notification that says nothing about the outcome. Act on the target first (hide or cancel the event, suspend the user, or ask an admin to ban), then resolve. Audit-logged.",
+        "operationId" : "resolveReport",
+        "parameters" : [ {
+          "description" : "The report's ID",
+          "in" : "path",
+          "name" : "reportId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64",
+            "minimum" : 1
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ResolveReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordReportResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such report."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The report is already resolved (errorType REPORT_RESOLVED)."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Resolve a report (MODERATOR or ADMIN)",
+        "tags" : [ "moderation" ]
+      }
+    },
+    "/api/admin/users" : {
+      "get" : {
+        "description" : "Matches an exact user ID or Discord ID, or part of a username or display name, ignoring case. At most 20, by username. Returns only what moderators may see: never servers, friends, circles or RSVPs.",
+        "operationId" : "findUsers",
+        "parameters" : [ {
+          "description" : "A user ID, a Discord ID, or 2 to 100 characters of a name",
+          "in" : "query",
+          "name" : "q",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 2
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordAdminUserListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Find users (MODERATOR or ADMIN)",
+        "tags" : [ "admin-users" ]
+      }
+    },
+    "/api/admin/users/{userId}/roles" : {
+      "delete" : {
+        "description" : "The same as setting an empty set. A user with no role is a 204 that changes nothing.",
+        "operationId" : "removeRoles",
+        "parameters" : [ {
+          "description" : "The user's ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Removed, or had none."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such user."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No user would hold ADMIN any more (errorType LAST_ADMIN)."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Remove all of a user's roles (ADMIN)",
+        "tags" : [ "admin" ]
+      },
+      "get" : {
+        "description" : "The granted roles, whether or not MFA puts them in effect.",
+        "operationId" : "getRoles",
+        "parameters" : [ {
+          "description" : "The user's ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordRolesResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such user."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Get a user's roles (ADMIN)",
+        "tags" : [ "admin" ]
+      },
+      "put" : {
+        "description" : "Replaces the user's granted roles with exactly the set sent. If that changes anything, their sessions are deleted, so the new roles apply when they next sign in. The same set again is a 200 that changes nothing. Audit-logged, as is the session purge.",
+        "operationId" : "setRoles",
+        "parameters" : [ {
+          "description" : "The user's ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RolesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordRolesResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such user."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No user would hold ADMIN any more (errorType LAST_ADMIN)."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Set a user's roles (ADMIN)",
+        "tags" : [ "admin" ]
+      }
+    },
+    "/api/admin/users/{userId}/suspend" : {
+      "post" : {
+        "description" : "Until the given time they can't sign in, and their sessions are deleted at once. Their events and RSVPs are left alone. Suspending again replaces the end time. A moderator can suspend only users with no granted role; an admin can also suspend moderators. Audit-logged, as is the session purge.",
+        "operationId" : "suspendUser",
+        "parameters" : [ {
+          "description" : "The user's ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SuspendRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Suspended."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation, or the end is more than 365 days away."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such user."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The user's granted role protects them (errorType TARGET_HAS_ROLE)."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Suspend a user (MODERATOR or ADMIN)",
+        "tags" : [ "admin-users" ]
+      }
+    },
+    "/api/admin/users/{userId}/unsuspend" : {
+      "post" : {
+        "description" : "They can sign in again. A user who isn't suspended is a 204 that changes nothing. Audit-logged.",
+        "operationId" : "unsuspendUser",
+        "parameters" : [ {
+          "description" : "The user's ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Lifted, or wasn't suspended."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such user."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Lift a suspension (MODERATOR or ADMIN)",
+        "tags" : [ "admin-users" ]
+      }
+    },
     "/api/auth/logout" : {
       "post" : {
         "description" : "Ends this session and clears the XSRF-TOKEN cookie. Answers 204 even when no one is signed in.",
@@ -1253,7 +2805,7 @@
     "/api/events/{eventId}" : {
       "delete" : {
         "description" : "Sets its status to CANCELLED and keeps it; it drops out of everyone's feed. Cancelling a cancelled event is also a 204. 404 unless the user is the host.",
-        "operationId" : "cancelEvent",
+        "operationId" : "cancelEvent_1",
         "parameters" : [ {
           "description" : "The event's public ID",
           "in" : "path",
@@ -3499,10 +5051,179 @@
         "summary" : "Subscribe this browser to push",
         "tags" : [ "push" ]
       }
+    },
+    "/api/reports" : {
+      "post" : {
+        "description" : "Every moderator and admin is notified. The reported user never learns of the report or who made it, and the reporter later gets a REPORT_REVIEWED notification with no details. A block in either direction doesn't stop a report. Reporting the same target again while the caller's report on it is open is a 204 that changes nothing and doesn't count towards the daily limit (D-015).",
+        "operationId" : "report",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Reported, or already reported and still open."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation, or the caller reported themself or an event they host."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "No such user, or no such event that the caller can see or has ever had an RSVP on."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The caller already made 10 reports in the last 24 hours (errorType REPORT_LIMIT), or is rate limited (errorType TOO_MANY_REQUESTS)."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Report an event or a user",
+        "tags" : [ "reports" ]
+      }
     }
   },
   "components" : {
     "schemas" : {
+      "AdminUserBanResponse" : {
+        "type" : "object",
+        "properties" : {
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "reason" : {
+            "type" : "string",
+            "maxLength" : 500
+          }
+        },
+        "required" : [ "createdAt", "reason" ]
+      },
+      "AdminUserListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "description" : "At most 20 matches, by username. Narrow the search to find others.",
+            "items" : {
+              "$ref" : "#/components/schemas/AdminUserResponse"
+            },
+            "maxItems" : 20
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "AdminUserResponse" : {
+        "type" : "object",
+        "properties" : {
+          "ban" : {
+            "type" : "null",
+            "$ref" : "#/components/schemas/AdminUserBanResponse",
+            "description" : "Null when the Discord ID isn't banned."
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "discordId" : {
+            "type" : "string",
+            "description" : "The Discord user ID, as a string. Bans are by this ID.",
+            "example" : "80351110224678912",
+            "pattern" : "^[0-9]{17,19}$"
+          },
+          "globalName" : {
+            "type" : [ "string", "null" ],
+            "example" : "Con Goer"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "lastLoginAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "reportCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Reports naming this user, open or resolved.",
+            "minimum" : 0
+          },
+          "suspendedUntil" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "When the suspension ends. Null when not suspended; a past time means it has ended."
+          },
+          "username" : {
+            "type" : "string",
+            "example" : "con_goer"
+          }
+        },
+        "required" : [ "ban", "createdAt", "discordId", "globalName", "id", "lastLoginAt", "reportCount", "suspendedUntil", "username" ]
+      },
       "AttendeesResponse" : {
         "type" : "object",
         "properties" : {
@@ -3580,6 +5301,120 @@
           }
         },
         "required" : [ "circleId", "guildId", "label", "type", "userId" ]
+      },
+      "AuditDetails" : {
+        "type" : "object",
+        "properties" : {
+          "cause" : {
+            "type" : "string",
+            "description" : "SESSIONS_PURGED (ROLES_CHANGED, USER_SUSPENDED or ACCOUNT_BANNED) and SIGN_IN_REFUSED (USER_SUSPENDED or ACCOUNT_BANNED): the action behind it.",
+            "enum" : [ "ROLES_CHANGED", "SESSIONS_PURGED", "SIGN_IN_REFUSED", "REPORT_RESOLVED", "EVENT_HIDDEN", "EVENT_UNHIDDEN", "EVENT_CANCELLED", "USER_SUSPENDED", "USER_UNSUSPENDED", "ACCOUNT_BANNED", "ACCOUNT_UNBANNED" ]
+          },
+          "note" : {
+            "type" : "string",
+            "description" : "REPORT_RESOLVED only: the moderator's resolution note.",
+            "maxLength" : 1000
+          },
+          "reason" : {
+            "type" : "string",
+            "description" : "EVENT_HIDDEN, EVENT_CANCELLED, USER_SUSPENDED and ACCOUNT_BANNED: the reason given.",
+            "maxLength" : 500
+          },
+          "resolution" : {
+            "type" : "string",
+            "description" : "REPORT_RESOLVED only.",
+            "enum" : [ "ACTIONED", "DISMISSED" ]
+          },
+          "roles" : {
+            "type" : "array",
+            "description" : "ROLES_CHANGED only: the full new set, possibly empty.",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "MODERATOR", "ADMIN" ]
+            }
+          },
+          "sessions" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "SESSIONS_PURGED only: how many sessions were deleted.",
+            "minimum" : 0
+          },
+          "until" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "USER_SUSPENDED only: when the suspension ends."
+          }
+        }
+      },
+      "AuditEntryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "action" : {
+            "type" : "string",
+            "enum" : [ "ROLES_CHANGED", "SESSIONS_PURGED", "SIGN_IN_REFUSED", "REPORT_RESOLVED", "EVENT_HIDDEN", "EVENT_UNHIDDEN", "EVENT_CANCELLED", "USER_SUSPENDED", "USER_UNSUSPENDED", "ACCOUNT_BANNED", "ACCOUNT_UNBANNED" ]
+          },
+          "actorId" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid",
+            "description" : "Who acted. Null for the system: a bootstrap grant or a refused sign-in. Kept after the account is deleted."
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "details" : {
+            "$ref" : "#/components/schemas/AuditDetails"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64",
+            "minimum" : 1
+          },
+          "targetId" : {
+            "type" : "string",
+            "description" : "A user ID or event public ID (UUID), a report ID, or a Discord ID, by targetType.",
+            "maxLength" : 36
+          },
+          "targetType" : {
+            "type" : "string",
+            "enum" : [ "USER", "EVENT", "REPORT", "DISCORD_ACCOUNT" ]
+          }
+        },
+        "required" : [ "action", "actorId", "createdAt", "details", "id", "targetId", "targetType" ]
+      },
+      "AuditPageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AuditEntryResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Pass it as cursor for the next, older page. Null on the last page."
+          }
+        },
+        "required" : [ "items", "nextCursor" ]
+      },
+      "BanRequest" : {
+        "type" : "object",
+        "properties" : {
+          "discordId" : {
+            "type" : "string",
+            "description" : "The Discord user ID, as a string.",
+            "example" : "80351110224678912",
+            "pattern" : "^[0-9]{17,19}$"
+          },
+          "reason" : {
+            "type" : "string",
+            "description" : "Plain text, for the audit log and other admins. The user never sees it.",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "discordId", "reason" ]
       },
       "CircleListResponse" : {
         "type" : "object",
@@ -3770,6 +5605,11 @@
             "type" : [ "string", "null" ],
             "format" : "date-time"
           },
+          "hiddenReason" : {
+            "type" : [ "string", "null" ],
+            "description" : "Set only for the host, while moderators have hidden the event: their reason, as plain text. Nobody else can see a hidden event (D-015). Null otherwise.",
+            "maxLength" : 500
+          },
           "host" : {
             "$ref" : "#/components/schemas/PersonResponse"
           },
@@ -3822,7 +5662,7 @@
             "example" : "Cosplay photo walk"
           }
         },
-        "required" : [ "audience", "capacity", "confirmWindowMinutes", "description", "endsAt", "host", "id", "isHost", "location", "locationHidden", "locationVisibility", "myStatus", "signupOpensAt", "startsAt", "status", "tag", "timeZone", "title" ]
+        "required" : [ "audience", "capacity", "confirmWindowMinutes", "description", "endsAt", "hiddenReason", "host", "id", "isHost", "location", "locationHidden", "locationVisibility", "myStatus", "signupOpensAt", "startsAt", "status", "tag", "timeZone", "title" ]
       },
       "GuildListResponse" : {
         "type" : "object",
@@ -3931,11 +5771,16 @@
           "mfaEnabled" : {
             "type" : "boolean"
           },
+          "mfaRequired" : {
+            "type" : "boolean",
+            "description" : "True when the user holds MODERATOR or ADMIN but it isn't in effect because their Discord account has MFA off. Show the \"turn on Discord 2FA\" note; it takes effect at the next sign-in after they turn it on."
+          },
           "pushEnabled" : {
             "type" : "boolean"
           },
           "roles" : {
             "type" : "array",
+            "description" : "The roles in effect for this session. Always includes USER. MODERATOR and ADMIN apply only while Discord reported MFA on at sign-in (D-015).",
             "items" : {
               "type" : "string",
               "enum" : [ "USER", "MODERATOR", "ADMIN" ]
@@ -3950,7 +5795,20 @@
             "example" : "con_goer"
           }
         },
-        "required" : [ "avatarUrl", "globalName", "id", "mfaEnabled", "pushEnabled", "roles", "timeZone", "username" ]
+        "required" : [ "avatarUrl", "globalName", "id", "mfaEnabled", "mfaRequired", "pushEnabled", "roles", "timeZone", "username" ]
+      },
+      "ModerationRequest" : {
+        "type" : "object",
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "description" : "Plain text. The host reads it in their inbox (and, while the event is hidden, on the event); attendees never do.",
+            "example" : "The location isn't a public space.",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "reason" ]
       },
       "NotificationPageResponse" : {
         "type" : "object",
@@ -3988,7 +5846,7 @@
           },
           "eventTitle" : {
             "type" : "string",
-            "description" : "The event's title when the notification was made. Set for every type but FRIEND_ACCEPTED.",
+            "description" : "The event's title when the notification was made. Set for every type with an eventId.",
             "example" : "Cosplay photo walk"
           },
           "friendId" : {
@@ -4001,10 +5859,26 @@
             "format" : "date-time",
             "description" : "SPOT_OFFERED only: when the offer runs out. Accept before then."
           },
+          "reason" : {
+            "type" : "string",
+            "description" : "EVENT_HIDDEN, and the host's EVENT_CANCELLED when a moderator cancelled: the moderator's reason, as plain text. Shown in the inbox only, never in a push.",
+            "maxLength" : 500
+          },
+          "reportId" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "REPORT_RECEIVED only: the report's ID, for GET /api/admin/reports/{reportId}. Never the reporter or the target.",
+            "minimum" : 1
+          },
           "startsAt" : {
             "type" : "string",
             "format" : "date-time",
             "description" : "EVENT_CHANGED (the start after the change) and EVENT_REMINDER only."
+          },
+          "targetType" : {
+            "type" : "string",
+            "description" : "REPORT_RECEIVED only: whether an event or a user was reported.",
+            "enum" : [ "EVENT", "USER" ]
           }
         }
       },
@@ -4030,7 +5904,7 @@
           "eventId" : {
             "type" : [ "string", "null" ],
             "format" : "uuid",
-            "description" : "The event's public ID. Null for FRIEND_ACCEPTED."
+            "description" : "The event's public ID. Null for FRIEND_ACCEPTED, REPORT_RECEIVED and REPORT_REVIEWED."
           },
           "id" : {
             "type" : "integer",
@@ -4046,7 +5920,7 @@
           },
           "type" : {
             "type" : "string",
-            "enum" : [ "SPOT_OFFERED", "SPOT_CONFIRMED", "EVENT_CHANGED", "EVENT_CANCELLED", "EVENT_REMINDER", "FRIEND_ACCEPTED" ]
+            "enum" : [ "SPOT_OFFERED", "SPOT_CONFIRMED", "EVENT_CHANGED", "EVENT_CANCELLED", "EVENT_REMINDER", "FRIEND_ACCEPTED", "REPORT_RECEIVED", "REPORT_REVIEWED", "EVENT_HIDDEN" ]
           }
         },
         "required" : [ "createdAt", "eventId", "id", "payload", "read", "type" ]
@@ -4137,6 +6011,138 @@
         },
         "required" : [ "endpoint", "keys" ]
       },
+      "ReportPageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReportResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Pass it as cursor for the next page. Null on the last page."
+          }
+        },
+        "required" : [ "items", "nextCursor" ]
+      },
+      "ReportRequest" : {
+        "type" : "object",
+        "properties" : {
+          "note" : {
+            "type" : [ "string", "null" ],
+            "description" : "Optional. What happened, as plain text.",
+            "maxLength" : 1000,
+            "minLength" : 0
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "HARASSMENT", "UNSAFE", "SPAM", "INAPPROPRIATE", "OTHER" ]
+          },
+          "targetId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "The event's public ID, or the user's ID."
+          },
+          "targetType" : {
+            "type" : "string",
+            "enum" : [ "EVENT", "USER" ]
+          }
+        },
+        "required" : [ "reason", "targetId", "targetType" ]
+      },
+      "ReportResponse" : {
+        "type" : "object",
+        "properties" : {
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "handledAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "Null while open."
+          },
+          "handledBy" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid",
+            "description" : "The moderator who resolved it. Null while open, or once their account is gone."
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64",
+            "minimum" : 1
+          },
+          "note" : {
+            "type" : [ "string", "null" ],
+            "description" : "The reporter's note, as plain text.",
+            "maxLength" : 1000
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "HARASSMENT", "UNSAFE", "SPAM", "INAPPROPRIATE", "OTHER" ]
+          },
+          "reporterId" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid",
+            "description" : "The reporter's user ID, for moderators only. Null once their account is gone."
+          },
+          "resolutionNote" : {
+            "type" : [ "string", "null" ],
+            "description" : "The resolving moderator's note, as plain text. Never sent to the reporter.",
+            "maxLength" : 1000
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "OPEN", "ACTIONED", "DISMISSED" ]
+          },
+          "targetId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "The event's public ID (moderators can open it with GET /api/events/{eventId}, hidden or not), or the user's ID."
+          },
+          "targetLabel" : {
+            "type" : [ "string", "null" ],
+            "description" : "The event's title or the user's display name. Null once the event was purged or the account deleted: the report outlives its target.",
+            "example" : "Cosplay photo walk"
+          },
+          "targetType" : {
+            "type" : "string",
+            "enum" : [ "EVENT", "USER" ]
+          }
+        },
+        "required" : [ "createdAt", "handledAt", "handledBy", "id", "note", "reason", "reporterId", "resolutionNote", "status", "targetId", "targetLabel", "targetType" ]
+      },
+      "ResolveReportRequest" : {
+        "type" : "object",
+        "properties" : {
+          "resolution" : {
+            "type" : "string",
+            "enum" : [ "ACTIONED", "DISMISSED" ]
+          },
+          "resolutionNote" : {
+            "type" : [ "string", "null" ],
+            "description" : "Optional. What was done, as plain text, for other moderators. Never sent to the reporter.",
+            "maxLength" : 1000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "resolution" ]
+      },
+      "ResponseRecordAdminUserListResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/AdminUserListResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
       "ResponseRecordAttendeesResponse" : {
         "type" : "object",
         "properties" : {
@@ -4145,7 +6151,20 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordAuditPageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/AuditPageResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4158,7 +6177,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4171,7 +6190,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4184,7 +6203,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4197,7 +6216,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4210,7 +6229,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4223,7 +6242,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4236,7 +6255,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4249,7 +6268,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4262,7 +6281,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4275,7 +6294,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4288,7 +6307,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4301,7 +6320,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4314,7 +6333,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4327,7 +6346,46 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordReportPageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/ReportPageResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordReportResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/ReportResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordRolesResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/RolesResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4340,7 +6398,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -4353,10 +6411,43 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "NOTIFICATION_PAGE", "PUSH_KEY", "REPORT", "REPORT_PAGE", "ADMIN_USER_LIST", "ROLES", "AUDIT_PAGE", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
+      },
+      "RolesRequest" : {
+        "type" : "object",
+        "properties" : {
+          "roles" : {
+            "type" : "array",
+            "description" : "The full set the user should hold. Empty removes every role, like DELETE.",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "MODERATOR", "ADMIN" ]
+            },
+            "uniqueItems" : true
+          }
+        },
+        "required" : [ "roles" ]
+      },
+      "RolesResponse" : {
+        "type" : "object",
+        "properties" : {
+          "mfaEnabled" : {
+            "type" : "boolean",
+            "description" : "Whether Discord reported MFA on at the user's last sign-in. Without it the roles aren't in effect."
+          },
+          "roles" : {
+            "type" : "array",
+            "description" : "Granted roles, MODERATOR before ADMIN. Empty for a plain user.",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "MODERATOR", "ADMIN" ]
+            }
+          }
+        },
+        "required" : [ "mfaEnabled", "roles" ]
       },
       "RsvpResponse" : {
         "type" : "object",
@@ -4424,6 +6515,23 @@
           }
         },
         "required" : [ "capacity", "confirmed", "myPosition", "myStatus", "offerExpiresAt", "spotsLeft", "waitlisted" ]
+      },
+      "SuspendRequest" : {
+        "type" : "object",
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "description" : "Plain text, for the audit log. The user never sees it.",
+            "maxLength" : 500,
+            "minLength" : 0
+          },
+          "until" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "When the suspension ends: in the future, and at most 365 days away."
+          }
+        },
+        "required" : [ "reason", "until" ]
       },
       "UpdateGuildRequest" : {
         "type" : "object",

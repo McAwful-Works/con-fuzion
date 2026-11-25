@@ -445,6 +445,28 @@ class EventControllerIntegrationTest {
 	}
 
 	/**
+	 * Tests that the host sees the moderator's reason while their event is hidden
+	 * (D-015), and that the host's own edit can't write the moderation columns
+	 * back.
+	 */
+	@Test
+	void hostSeesTheHiddenReasonAndCantClearIt() throws Exception {
+		var event = create(host, Map.of());
+		assertThat(read(get(path(event)), host, "$.body.hiddenReason")).isNull();
+
+		jdbcTemplate.update("UPDATE event SET hidden_by_moderation = true, moderation_reason = 'Unsafe location' "
+				+ "WHERE public_id = ?", UUID.fromString(event));
+		assertThat(read(get(path(event)), host, "$.body.hiddenReason")).isEqualTo("Unsafe location");
+
+		assertThat(JsonPath.<String>read(content(edit(path(event), host, Map.of("title", "Renamed")), 200),
+				"$.body.hiddenReason")).isEqualTo("Unsafe location");
+		assertThat(jdbcTemplate.queryForMap(
+				"SELECT title, hidden_by_moderation, moderation_reason FROM event WHERE public_id = ?",
+				UUID.fromString(event))).containsEntry("title", "Renamed").containsEntry("hidden_by_moderation", true)
+				.containsEntry("moderation_reason", "Unsafe location");
+	}
+
+	/**
 	 * Tests that entries already on the event survive an edit without a re-check,
 	 * even once they would no longer be allowed, while a new unusable entry makes
 	 * the whole edit a 404 with nothing saved.
