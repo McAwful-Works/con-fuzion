@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
 import {
+  CONFIRM_WINDOW_MAX,
   EVENT_CAPACITY_MAX,
   EVENT_DESCRIPTION_MAX,
   EVENT_LOCATION_MAX,
@@ -295,6 +296,25 @@ export function EventForm({
               aria-invalid={p.invalid}
               aria-describedby={p.describedBy}
               onChange={(e) => set('signupOpensAt', e.target.value)}
+              className={INPUT}
+            />
+          )}
+        </Field>
+        <Field
+          label="Offer window (minutes)"
+          hint="When a spot frees up, the next person in line gets this long to accept it, from 10 minutes to 24 hours (1440). If the event starts sooner than that, they’re confirmed straight away."
+          error={errors.confirmWindowMinutes}
+        >
+          {(p) => (
+            <input
+              id={p.id}
+              type="text"
+              inputMode="numeric"
+              maxLength={String(CONFIRM_WINDOW_MAX).length}
+              value={values.confirmWindowMinutes}
+              aria-invalid={p.invalid}
+              aria-describedby={p.describedBy}
+              onChange={(e) => set('confirmWindowMinutes', e.target.value)}
               className={INPUT}
             />
           )}

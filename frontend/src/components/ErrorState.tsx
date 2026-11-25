@@ -6,6 +6,9 @@ const CONFLICTS: Record<string, string> = {
   RSVP_REMOVED: 'You can’t rejoin this event.',
   CAPACITY_BELOW_CONFIRMED:
     'That’s fewer spots than the number of people already confirmed. Choose a higher number, or remove people first.',
+  OFFER_EXPIRED:
+    'This offer ran out before it was accepted. You can join again, at the back of the line.',
+  NO_OFFER: 'There’s no offer to accept any more.',
   HOST_CANNOT_LEAVE: 'You’re the host, so you can’t leave. Cancel the event instead.',
 };
 

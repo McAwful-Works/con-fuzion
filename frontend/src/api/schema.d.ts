@@ -213,7 +213,7 @@ export interface paths {
         };
         /**
          * List who is going
-         * @description Only the host and confirmed attendees can call this. Both get the confirmed list; the host also gets the waitlist, in queue order. Nobody else ever sees who is waitlisted.
+         * @description Only the host and confirmed attendees can call this. Both get the confirmed list; the host also gets the waitlist and the people holding an open offer, in queue order. Nobody else ever sees who is waitlisted or offered.
          */
         get: operations["getAttendees"];
         put?: never;
@@ -235,14 +235,34 @@ export interface paths {
         put?: never;
         /**
          * Join an event
-         * @description Takes a free spot (CONFIRMED) or, when the event is full, the back of the waitlist (WAITLISTED, with a position). First come, first served: the claim is one atomic update, so the event is never overbooked. An unlimited event always confirms. Joining again while confirmed or waitlisted returns the current status and changes nothing, so a double tap is safe. Someone who left may join again, at the back of the queue. Checks run in this order: visibility (404), an existing RSVP (200 with its status, so the host always gets CONFIRMED), removal (RSVP_REMOVED), then the sign-up window (SIGNUP_NOT_OPEN, SIGNUP_CLOSED).
+         * @description Takes a free spot (CONFIRMED) or, when the event is full, the back of the waitlist (WAITLISTED, with a position). First come, first served: the claim is one atomic update, so the event is never overbooked. An unlimited event always confirms. Joining again while confirmed, waitlisted or offered returns the current status and changes nothing, so a double tap is safe. Someone who left, declined an offer or let one expire may join again, at the back of the queue (D-014). Checks run in this order: visibility (404), an existing RSVP (200 with its status, so the host always gets CONFIRMED), removal (RSVP_REMOVED), then the sign-up window (SIGNUP_NOT_OPEN, SIGNUP_CLOSED).
          */
         post: operations["join"];
         /**
          * Leave an event
-         * @description Gives up the caller's spot or place in the waitlist. A freed spot goes at once to the next person in the waitlist, who is confirmed (D-013; M4 turns this into an offer). Nobody is promoted once the event has started or is cancelled. Leaving without an RSVP is also a 204.
+         * @description Gives up the caller's spot, place in the waitlist or open offer: while the caller holds an offer, this declines it. A freed spot is offered to the next person in the waitlist for the event's confirmWindowMinutes, or confirms them at once when the event starts sooner than that (D-014). Nobody is offered a spot once the event has started or is cancelled. Leaving without an RSVP is also a 204.
          */
         delete: operations["leave"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events/{eventId}/rsvp/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an offered spot
+         * @description Turns the caller's open offer into a confirmed spot (D-014). It works until offerExpiresAt, even if the expiry job hasn't run yet or the event has since started. Accepting again while confirmed returns CONFIRMED and changes nothing. Checks run in this order: visibility (404), already confirmed (200), an offer past its deadline or expired (OFFER_EXPIRED), then CONFIRMED for an open offer on a published event, and NO_OFFER otherwise.
+         */
+        post: operations["accept"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -260,7 +280,7 @@ export interface paths {
         post?: never;
         /**
          * Remove someone from an event the user hosts
-         * @description Takes away their spot or place in the waitlist, and they can't rejoin. A freed spot goes to the next person in the waitlist, as for leaving. Removing someone who isn't signed up is also a 204, and writes nothing: they can still join. 404 unless the user is the host.
+         * @description Takes away their spot or place in the waitlist, or their open offer, and they can't rejoin. They aren't notified. A freed spot goes to the next person in the waitlist, as for leaving. Removing someone who isn't signed up is also a 204, and writes nothing: they can still join. 404 unless the user is the host.
          */
         delete: operations["removeAttendee"];
         options?: never;
@@ -277,7 +297,7 @@ export interface paths {
         };
         /**
          * Get spot counts
-         * @description A small response for polling: about every 3 seconds in the 2 minutes around signupOpensAt, every 30 seconds otherwise, and not while the page is hidden. Anyone who can see the event can call it. myStatus and myPosition are always the caller's own. Send the last ETag in If-None-Match to get a bodiless 304 while nothing the caller would see has changed. Responses are sent with Cache-Control: private, no-cache.
+         * @description A small response for polling: about every 3 seconds in the 2 minutes around signupOpensAt, every 30 seconds otherwise, and not while the page is hidden. Anyone who can see the event can call it. myStatus, myPosition and offerExpiresAt are always the caller's own. Send the last ETag in If-None-Match to get a bodiless 304 while nothing the caller would see has changed. Responses are sent with Cache-Control: private, no-cache.
          */
         get: operations["getSpots"];
         put?: never;
@@ -453,6 +473,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the signed-in user's notifications
+         * @description Newest first, with the unread count for the whole inbox. Nothing is ever purged in M4, so page with nextCursor. Each type sets only its own payload fields, and no payload holds a location or anyone's name (D-014).
+         */
+        get: operations["getNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark notifications read
+         * @description Marks every one of the caller's notifications with an ID up to and including upTo as read, so send the newest ID the user has seen. Newer ones stay unread. Other users' notifications are never touched, and an ID that isn't the caller's, or is already read, is fine: it's still a 204.
+         */
+        post: operations["markRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/people": {
         parameters: {
             query?: never;
@@ -473,6 +533,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/push/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the Web Push public key
+         * @description The VAPID public key, the same for every user. It isn't a secret, but like every API route it needs a session.
+         */
+        get: operations["getKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/push/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Subscribe this browser to push
+         * @description Send PushSubscription.toJSON(). An endpoint belongs to whoever subscribed with it last, so subscribing again moves it to the caller and replaces its keys; a browser shared between accounts never gets the previous user's pushes. A user has at most 10 subscriptions: an 11th replaces their oldest. This doesn't turn pushEnabled on (PATCH /api/me does).
+         */
+        post: operations["subscribe"];
+        /**
+         * Unsubscribe a browser from push
+         * @description Removes the caller's subscription with this endpoint, for example on sign-out or after PushSubscription.unsubscribe(). Another user's subscription is never touched. An endpoint the caller doesn't have is also a 204.
+         */
+        delete: operations["unsubscribe"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -480,6 +584,8 @@ export interface components {
         AttendeesResponse: {
             /** @description People holding a spot, in the order they joined, so the host comes first. Leaves out anyone who has blocked the caller or whom the caller has blocked. */
             confirmed: components["schemas"]["PersonResponse"][];
+            /** @description Only the host gets this: the people holding an open offer, in queue order (D-014). Their spots count as taken. Null for everyone else. */
+            offered: components["schemas"]["PersonResponse"][] | null;
             /** @description Only the host gets this: the waitlist in queue order, next in line first. Null for everyone else. */
             waitlist: components["schemas"]["PersonResponse"][] | null;
         };
@@ -545,6 +651,11 @@ export interface components {
              * @description The headcount, the host included (the host always holds a spot), so at least 2. Null for unlimited. An update can't make it smaller than the number already confirmed.
              */
             capacity?: number | null;
+            /**
+             * Format: int32
+             * @description How many minutes a freed spot is held for the next person in line to accept (D-014). Missing or null means 30 when creating and keeps the current window when editing. A change applies to later offers, not to open ones.
+             */
+            confirmWindowMinutes?: number | null;
             description?: string | null;
             /**
              * Format: date-time
@@ -580,6 +691,11 @@ export interface components {
              * @description The headcount, the host included. Null for unlimited.
              */
             capacity: number | null;
+            /**
+             * Format: int32
+             * @description How many minutes a freed spot is held for the next person in line to accept (D-014).
+             */
+            confirmWindowMinutes: number;
             description: string | null;
             /** Format: date-time */
             endsAt: string | null;
@@ -596,10 +712,10 @@ export interface components {
             /** @enum {string} */
             locationVisibility: "VIEWERS" | "CONFIRMED";
             /**
-             * @description Where the viewer stands. CONFIRMED for the host. The waitlist position is in GET /api/events/{eventId}/spots.
+             * @description Where the viewer stands. CONFIRMED for the host. The waitlist position and an offer's deadline are in GET /api/events/{eventId}/spots.
              * @enum {string}
              */
-            myStatus: "NONE" | "CONFIRMED" | "WAITLISTED" | "REMOVED";
+            myStatus: "NONE" | "CONFIRMED" | "WAITLISTED" | "OFFERED" | "REMOVED";
             /** Format: date-time */
             signupOpensAt: string | null;
             /** Format: date-time */
@@ -662,6 +778,65 @@ export interface components {
             /** @example con_goer */
             username: string;
         };
+        NotificationPageResponse: {
+            items: components["schemas"]["NotificationResponse"][];
+            /** @description Pass it as cursor for the next, older page. Null on the last page. */
+            nextCursor: string | null;
+            /**
+             * Format: int32
+             * @description Unread notifications in the whole inbox, not just this page. Capped at 100, so show 100 as 99+.
+             */
+            unreadCount: number;
+        };
+        NotificationPayload: {
+            /** @description EVENT_CHANGED only: what changed, at least one. The new location is never included. */
+            changes?: ("START" | "END" | "LOCATION")[];
+            /**
+             * @description The event's title when the notification was made. Set for every type but FRIEND_ACCEPTED.
+             * @example Cosplay photo walk
+             */
+            eventTitle?: string;
+            /**
+             * Format: uuid
+             * @description FRIEND_ACCEPTED only: the new friend's user ID. Never their name: the client may look it up in GET /api/friends.
+             */
+            friendId?: string;
+            /**
+             * Format: date-time
+             * @description SPOT_OFFERED only: when the offer runs out. Accept before then.
+             */
+            offerExpiresAt?: string;
+            /**
+             * Format: date-time
+             * @description EVENT_CHANGED (the start after the change) and EVENT_REMINDER only.
+             */
+            startsAt?: string;
+        };
+        NotificationReadRequest: {
+            /**
+             * Format: int64
+             * @description The newest notification ID the caller has seen. It and every older one of the caller's own are marked read; newer ones stay unread.
+             */
+            upTo: number;
+        };
+        NotificationResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: uuid
+             * @description The event's public ID. Null for FRIEND_ACCEPTED.
+             */
+            eventId: string | null;
+            /**
+             * Format: int64
+             * @description Higher for newer notifications. Send it as upTo to POST /api/notifications/read.
+             */
+            id: number;
+            payload: components["schemas"]["NotificationPayload"];
+            read: boolean;
+            /** @enum {string} */
+            type: "SPOT_OFFERED" | "SPOT_CONFIRMED" | "EVENT_CHANGED" | "EVENT_CANCELLED" | "EVENT_REMINDER" | "FRIEND_ACCEPTED";
+        };
         PersonListResponse: {
             people: components["schemas"]["PersonResponse"][];
         };
@@ -673,89 +848,126 @@ export interface components {
             /** Format: uuid */
             id: string;
         };
+        PushEndpointRequest: {
+            /** @example https://fcm.googleapis.com/fcm/send/abc123 */
+            endpoint: string;
+        };
+        PushKeyResponse: {
+            /** @description The VAPID public key: an uncompressed P-256 point (65 bytes), base64url without padding. Pass it as applicationServerKey to pushManager.subscribe(). */
+            publicKey: string;
+        };
+        PushSubscriptionKeys: {
+            /** @description The authentication secret (16 bytes), base64url. */
+            auth: string;
+            /** @description The browser's P-256 public key (65 bytes), base64url. */
+            p256dh: string;
+        };
+        PushSubscriptionRequest: {
+            /**
+             * @description An https URL on a known push service: FCM (Chrome and most Chromium browsers), Mozilla, Apple or Windows (WNS). Any other host is a 400, so the server never sends requests anywhere else.
+             * @example https://fcm.googleapis.com/fcm/send/abc123
+             */
+            endpoint: string;
+            keys: components["schemas"]["PushSubscriptionKeys"];
+        };
         ResponseRecordAttendeesResponse: {
             body: components["schemas"]["AttendeesResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordCircleListResponse: {
             body: components["schemas"]["CircleListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordCircleResponse: {
             body: components["schemas"]["CircleResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordErrorResponseBodyRecord: {
             body: components["schemas"]["ErrorResponseBodyRecord"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordEventPageResponse: {
             body: components["schemas"]["EventPageResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordEventResponse: {
             body: components["schemas"]["EventResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordGuildListResponse: {
             body: components["schemas"]["GuildListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordGuildResponse: {
             body: components["schemas"]["GuildResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordInvitePreviewResponse: {
             body: components["schemas"]["InvitePreviewResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordInviteResponse: {
             body: components["schemas"]["InviteResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordMeResponse: {
             body: components["schemas"]["MeResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+        };
+        ResponseRecordNotificationPageResponse: {
+            body: components["schemas"]["NotificationPageResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordPersonListResponse: {
             body: components["schemas"]["PersonListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordPersonResponse: {
             body: components["schemas"]["PersonResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+        };
+        ResponseRecordPushKeyResponse: {
+            body: components["schemas"]["PushKeyResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordRsvpResponse: {
             body: components["schemas"]["RsvpResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         ResponseRecordSpotsResponse: {
             body: components["schemas"]["SpotsResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
         };
         RsvpResponse: {
             /**
+             * Format: date-time
+             * @description When the caller's offer runs out. Null unless OFFERED.
+             */
+            offerExpiresAt: string | null;
+            /**
              * Format: int32
-             * @description 1-based place in the waitlist: 1 + the number of people waitlisted ahead of the caller. Null when CONFIRMED.
+             * @description 1-based place in the waitlist: 1 + the number of people waitlisted ahead of the caller. Null unless WAITLISTED.
              */
             position: number | null;
             /** @enum {string} */
-            status: "CONFIRMED" | "WAITLISTED";
+            status: "CONFIRMED" | "WAITLISTED" | "OFFERED";
         };
         SpotsResponse: {
             /**
@@ -765,7 +977,7 @@ export interface components {
             capacity: number | null;
             /**
              * Format: int32
-             * @description People holding a spot, the host included.
+             * @description People holding a spot, the host included. A spot held by an open offer counts (D-014).
              */
             confirmed: number;
             /**
@@ -774,7 +986,12 @@ export interface components {
              */
             myPosition: number | null;
             /** @enum {string} */
-            myStatus: "NONE" | "CONFIRMED" | "WAITLISTED" | "REMOVED";
+            myStatus: "NONE" | "CONFIRMED" | "WAITLISTED" | "OFFERED" | "REMOVED";
+            /**
+             * Format: date-time
+             * @description When the caller's own offer runs out. Null unless myStatus is OFFERED.
+             */
+            offerExpiresAt: string | null;
             /**
              * Format: int32
              * @description capacity - confirmed. Null for unlimited. Nobody is promoted once the event has started, so this can be above 0 while people are waitlisted; sign-up is closed by then.
@@ -794,6 +1011,7 @@ export interface components {
             guilds: components["schemas"]["GuildUpdate"][];
         };
         UpdateMeRequest: {
+            /** @description Whether new notifications are also pushed to the user's subscribed browsers (D-014). Off, they still reach the inbox, and subscriptions are kept. Subscribing a browser doesn't turn this on: the client sends both. */
             pushEnabled?: boolean | null;
             /**
              * @description IANA time zone ID
@@ -2401,6 +2619,101 @@ export interface operations {
             };
         };
     };
+    accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK: status is CONFIRMED. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordRsvpResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The event doesn't exist, or the caller can't see it (D-012). The host, and anyone confirmed or waitlisted, can still see it once it's cancelled. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description errorType OFFER_EXPIRED: the caller's offer ran out; they may join again, at the back of the queue. NO_OFFER: the caller holds no open offer: none was made, they declined it, or the event was cancelled. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
     removeAttendee: {
         parameters: {
             query?: never;
@@ -3320,6 +3633,152 @@ export interface operations {
             };
         };
     };
+    getNotifications: {
+        parameters: {
+            query?: {
+                /** @description The previous page's nextCursor. Opaque. */
+                cursor?: string;
+                /** @description Notifications per page, 1 to 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordNotificationPageResponse"];
+                };
+            };
+            /** @description A cursor that this endpoint didn't issue, or a limit out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    markRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Marked, or nothing to mark. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
     searchPeople: {
         parameters: {
             query: {
@@ -3352,6 +3811,223 @@ export interface operations {
             };
             /** @description Not signed in. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordPushKeyResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Push isn't set up on this server (no VAPID keys), so the client hides the push setting. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The endpoint isn't an https URL on a known push service, or a key isn't the right length of base64url. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushEndpointRequest"];
+            };
+        };
+        responses: {
+            /** @description Removed, or wasn't subscribed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

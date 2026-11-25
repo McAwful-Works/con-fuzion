@@ -20,6 +20,10 @@ export const EVENT_TAG_MAX = 30;
 /** D-013: the capacity is the whole headcount and the host holds a spot, so at least 2. */
 export const EVENT_CAPACITY_MIN = 2;
 export const EVENT_CAPACITY_MAX = 10000;
+/** D-014: how long a freed spot is held for the next person in line, in minutes (10 minutes to 24 hours). */
+export const CONFIRM_WINDOW_MIN = 10;
+export const CONFIRM_WINDOW_MAX = 1440;
+export const CONFIRM_WINDOW_DEFAULT = 30;
 export const AUDIENCE_MAX = 50;
 export const FEED_PAGE_SIZE = 20;
 
