@@ -116,7 +116,8 @@ public class BlockService {
 		socialRepository.deleteFromEachOthersEvents(me, userId);
 		for (var event : events) {
 			var attendee = event.hostId().equals(me) ? userId : me;
-			if (rsvpRepository.end(event.id(), attendee, "LEFT").filter(MyStatus.CONFIRMED::equals).isPresent())
+			if (rsvpRepository.end(event.id(), attendee, "LEFT")
+					.filter(held -> held == MyStatus.CONFIRMED || held == MyStatus.OFFERED).isPresent())
 				rsvpRepository.freeSpot(event.id());
 		}
 	}

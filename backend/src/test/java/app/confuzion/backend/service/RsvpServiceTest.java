@@ -115,7 +115,7 @@ class RsvpServiceTest {
 		var userId = UUID.randomUUID();
 		when(eventRepository.findVisible(event.getPublicId(), userId)).thenReturn(Optional.of(event));
 		when(rsvpRepository.findMine(7L, userId)).thenReturn(Optional.empty())
-				.thenReturn(Optional.of(new Mine(MyStatus.WAITLISTED, 3))).thenReturn(Optional.empty());
+				.thenReturn(Optional.of(new Mine(MyStatus.WAITLISTED, 3, null))).thenReturn(Optional.empty());
 		when(bucket.tryConsume(1)).thenReturn(false);
 		var service = new RsvpService(eventRepository, rsvpRepository, mock(TransactionTemplate.class), proxyManager,
 				1);
@@ -137,7 +137,7 @@ class RsvpServiceTest {
 		var other = UUID.randomUUID();
 		for (var user : List.of(confirmed, other))
 			when(eventRepository.findVisible(event.getPublicId(), user)).thenReturn(Optional.of(event));
-		when(rsvpRepository.findMine(7L, confirmed)).thenReturn(Optional.of(new Mine(MyStatus.CONFIRMED, null)));
+		when(rsvpRepository.findMine(7L, confirmed)).thenReturn(Optional.of(new Mine(MyStatus.CONFIRMED, null, null)));
 		when(rsvpRepository.findMine(7L, other)).thenReturn(Optional.empty());
 		when(rsvpRepository.findCounts(7L)).thenReturn(new Counts(null, 12, 0));
 		var service = new RsvpService(eventRepository, rsvpRepository, mock(TransactionTemplate.class), proxyManager,

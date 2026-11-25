@@ -39,6 +39,19 @@ async function crowd(join, count) {
   return { con, host, guests };
 }
 
+/**
+ * A freed spot is offered to the next person in line (D-014). The UI to accept comes in #68, so this checks that
+ * `player` is offered the spot (`/spots`) and accepts it through the API.
+ */
+async function acceptOffer(player, eventId) {
+  const spots = await player.page.request.get(`/api/events/${eventId}/spots`);
+  expect(spots.status()).toBe(200);
+  expect((await spots.json()).body.myStatus).toBe('OFFERED');
+  const accepted = await apiWrite(player, 'POST', `/events/${eventId}/rsvp/accept`);
+  expect(accepted.status()).toBe(200);
+  expect((await accepted.json()).body.status).toBe('CONFIRMED');
+}
+
 /** A full event: capacity 3 (the host and two guests), then two more guests on the waitlist, in that order. */
 async function fullEvent(join, extra = {}) {
   const { con, host, guests } = await crowd(join, 4);
@@ -103,7 +116,7 @@ test.describe('joining and the waitlist', () => {
     });
   });
 
-  test('26. a confirmed guest leaves: the first person in line is confirmed and the others move up', async ({
+  test('26. a confirmed guest leaves: the first person in line gets the spot and the others move up', async ({
     join,
   }) => {
     const { host, a, b, c, d, id } = await fullEvent(join);
@@ -111,7 +124,8 @@ test.describe('joining and the waitlist', () => {
     await openEvent(a, id);
     await leaveEvent(a);
 
-    // c was first in line and now has the spot; d moves up to first.
+    // c was first in line, is offered the spot and takes it; d moves up to first.
+    await acceptOffer(c, id);
     await expectStatus(c, id, 'Joined');
     await expectStatus(d, id, 'Waitlisted #1');
     await expectSpots(d, id, '3 going, 1 on the waitlist');
@@ -145,6 +159,9 @@ test.describe('joining and the waitlist', () => {
     await expect(host.page.getByRole('button', { name: `Remove ${host.name}` })).toHaveCount(0);
     await removeAttendee(host, a);
 
+    // c was first in line, is offered the spot and takes it.
+    await acceptOffer(c, id);
+    await openEvent(host, id);
     await expect(goingHeading(host, 3)).toBeVisible();
     await expect(waitlistHeading(host, 1)).toBeVisible();
     await expectAttendees(host, {
@@ -185,11 +202,13 @@ test.describe('capacity edits', () => {
     await expect(goingHeading(host, 3)).toBeVisible();
     await expect(waitlistHeading(host, 2)).toBeVisible();
 
-    // Raising it by one promotes the first in line, and the next moves up.
+    // Raising it by one offers the new spot to the first in line, who takes it, and the next moves up.
     await host.page.goto(`/events/${id}/edit`);
     await host.page.getByLabel('Capacity').fill('4');
     await host.page.getByRole('button', { name: 'Save changes' }).click();
     await expect(host.page).toHaveURL(new RegExp(`/events/${id}$`));
+    await acceptOffer(c, id);
+    await openEvent(host, id);
     await expect(goingHeading(host, 4)).toBeVisible();
     await expect(waitlistHeading(host, 1)).toBeVisible();
     await expectStatus(c, id, 'Joined');

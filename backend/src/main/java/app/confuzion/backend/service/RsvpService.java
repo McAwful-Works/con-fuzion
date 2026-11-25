@@ -169,7 +169,13 @@ public class RsvpService {
 			var locked = rsvpRepository.lock(event.getId());
 			if (!Status.PUBLISHED.name().equals(locked.status()))
 				throw new NoSuchElementException();
-			rsvpRepository.insert(event.getId(), locked.hostId(), userId, locked.hasFreeSpot());
+			// Nothing written can also mean the caller's offer ran out and the expiry job
+			// hasn't ended it yet: end it, freeing the spot, then join at the back of the
+			// queue (D-014 rule 15).
+			if (rsvpRepository.insert(event.getId(), locked.hostId(), userId, locked.hasFreeSpot()).isEmpty()
+					&& rsvpRepository.expireDue(event.getId(), userId) > 0)
+				rsvpRepository.insert(event.getId(), locked.hostId(), userId,
+						rsvpRepository.lock(event.getId()).hasFreeSpot());
 		});
 		// The new RSVP, or the one a double tap's twin made. None means a block came
 		// between the caller and the host, and nothing was written.
@@ -180,7 +186,38 @@ public class RsvpService {
 	}
 
 	/**
-	 * Leaves an event. A freed spot goes to the next person in line.
+	 * Accepts the spot the caller was offered (D-014 rule 4), under the event row
+	 * lock so it can't race the expiry job. The checks run in order: visibility,
+	 * already confirmed, an offer that ran out, then an open offer on a published
+	 * event. Accepting sends no notification.
+	 *
+	 * @param userId  the signed-in user's ID
+	 * @param eventId the event's public ID
+	 * @return {@code CONFIRMED}
+	 * @throws NoSuchElementException when the caller can't see the event
+	 * @throws ConflictException      when the offer ran out, or the caller holds no
+	 *                                open offer on a published event
+	 */
+	@Transactional
+	public RsvpResponse accept(UUID userId, UUID eventId) {
+		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
+		var locked = rsvpRepository.lock(event.getId());
+		var confirmed = new RsvpResponse(RsvpResponse.Status.CONFIRMED, null, null);
+		if (Status.PUBLISHED.name().equals(locked.status()) && rsvpRepository.acceptOffer(event.getId(), userId))
+			return confirmed;
+		// Read after the attempt: an offer that missed its deadline between two
+		// statements reads as expired, never as no offer at all.
+		var latest = rsvpRepository.findLatestStatus(event.getId(), userId).orElse("");
+		if (latest.equals(MyStatus.CONFIRMED.name()))
+			return confirmed;
+		if (latest.equals("EXPIRED"))
+			throw new ConflictException(Conflict.OFFER_EXPIRED);
+		throw new ConflictException(Conflict.NO_OFFER);
+	}
+
+	/**
+	 * Leaves an event, or declines an offer. A freed spot goes to the next person
+	 * in line.
 	 *
 	 * @param userId  the signed-in user's ID
 	 * @param eventId the event's public ID
@@ -254,12 +291,13 @@ public class RsvpService {
 		var mine = rsvpRepository.findMine(event.getId(), userId);
 		return new SpotsResponse(shared.capacity(), shared.confirmed(), shared.waitlisted(),
 				shared.capacity() == null ? null : Math.max(shared.capacity() - shared.confirmed(), 0),
-				mine.map(Mine::status).orElse(MyStatus.NONE), mine.map(Mine::position).orElse(null), null);
+				mine.map(Mine::status).orElse(MyStatus.NONE), mine.map(Mine::position).orElse(null),
+				mine.map(Mine::offerExpiresAt).orElse(null));
 	}
 
 	/**
-	 * Ends an active RSVP under the event row lock, freeing the spot when it was
-	 * confirmed. The caller must be in a transaction.
+	 * Ends an active RSVP under the event row lock, freeing the spot when it held
+	 * one, confirmed or offered. The caller must be in a transaction.
 	 *
 	 * @param eventId the event's internal ID
 	 * @param userId  the user whose RSVP ends
@@ -267,7 +305,8 @@ public class RsvpService {
 	 */
 	private void end(long eventId, UUID userId, String status) {
 		rsvpRepository.lock(eventId);
-		if (rsvpRepository.end(eventId, userId, status).filter(MyStatus.CONFIRMED::equals).isPresent())
+		if (rsvpRepository.end(eventId, userId, status)
+				.filter(held -> held == MyStatus.CONFIRMED || held == MyStatus.OFFERED).isPresent())
 			rsvpRepository.freeSpot(eventId);
 	}
 
@@ -287,10 +326,11 @@ public class RsvpService {
 	/**
 	 * Maps an active RSVP to a join's response.
 	 *
-	 * @param mine the caller's {@link Mine}, confirmed or waitlisted
+	 * @param mine the caller's {@link Mine}, confirmed, waitlisted or offered
 	 * @return the {@link RsvpResponse}
 	 */
 	private static RsvpResponse toRsvp(Mine mine) {
-		return new RsvpResponse(RsvpResponse.Status.valueOf(mine.status().name()), mine.position(), null);
+		return new RsvpResponse(RsvpResponse.Status.valueOf(mine.status().name()), mine.position(),
+				mine.offerExpiresAt());
 	}
 }

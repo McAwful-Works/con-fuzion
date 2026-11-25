@@ -37,7 +37,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.AttendeesResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
@@ -166,7 +165,7 @@ public class RsvpController {
 			+ "declined it, or the event was cancelled.")
 	public ResponseRecord<RsvpResponse> accept(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(rsvpService.accept(HttpUtil.userId(authentication), eventId));
 	}
 
 	/**
