@@ -26,7 +26,13 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | | Backend: atomic claim, waitlist, auto-promotion, block cutoff, capacity edits, My schedule, `/spots`, join limit (split in three) | done | #54 → #59, #60, #61 |
 | | Frontend: join/leave, waitlist, live spots, host attendee list, My schedule | done | #55 → #58 |
 | | End-to-end tests for M3 flows (capacity-guard break check) | done | #56 → #62 |
-| **M4** Notifications | offers with a deadline + expiry (replacing M3's auto-confirm), inbox, Web Push sender, reminders, PWA install flow | todo | — |
+| **M4** Notifications | API contract: offers, the inbox, push subscriptions (D-014) | done | #64 → #71 |
+| | Backend offers: a deadline, accept and decline, the expiry job, capacity raises send offers | done | #65 → #76 |
+| | Backend inbox: event-change and cancel triggers, friend-accepted, 1-hour reminders, block cleanup | done | #66 → #75 |
+| | Backend Web Push: VAPID keys and subscriptions, then the sender (split in two) | done | #67 → #79, #80 |
+| | Frontend: offers with a countdown and the offer window, then the inbox and unread badge (split in two) | done | #68 → #73, #74 |
+| | Frontend: push opt-in and service worker push handler, then the install hint (split in two) | done | #69 → #77, #78 |
+| | End-to-end tests for M4 flows (expiry-job break check) | done | #70 → #81 |
 | **M5** Safety & admin | reports, admin area, roles + MFA gate, suspend/ban, audit log, maintenance mode | todo | — |
 | **M6** AWS deploy | Terraform (VPC, Aurora Serverless v2, ElastiCache Serverless, ECS, ALB, CloudFront+WAF), CD, staging/prod, client IP behind CloudFront | todo | — |
-| **M7** Polish + launch gates | accessibility, account deletion, donation links, artist assets, legal pages, load test, security pass | todo | — |
+| **M7** Polish + launch gates | accessibility, account deletion, donation links, artist assets (including the 192px and 512px manifest icons, without which browsers never offer #78's Install button), legal pages, load test, security pass, a manual push check on staging (a real iPhone from the Home Screen, plus Chrome and Firefox, with the production VAPID keys) | todo | — |
