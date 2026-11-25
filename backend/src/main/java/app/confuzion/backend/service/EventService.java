@@ -229,7 +229,8 @@ public class EventService {
 	@Transactional(readOnly = true)
 	public EventResponse getEvent(UUID viewer, UUID eventId, boolean moderator) {
 		var event = eventRepository.findVisible(eventId, viewer, moderator).orElseThrow();
-		return toResponses(viewer, List.of(event), moderator && eventRepository.isModerated(event.getId())).getFirst();
+		return toResponses(viewer, List.of(event), moderator && eventRepository.isModerated(event.getId(), viewer))
+				.getFirst();
 	}
 
 	/**
@@ -376,7 +377,10 @@ public class EventService {
 
 	/**
 	 * Makes a hidden event visible to its audience again and clears its reason.
-	 * Nobody is notified. Audit-logged. Unhiding a visible event changes nothing.
+	 * Nobody is told of the unhide. Spots freed while it was hidden then go to the
+	 * waitlist in queue order, as after an edit, so a new join can't take them
+	 * first (D-013); those people get the usual offer. Audit-logged. Unhiding a
+	 * visible event changes nothing.
 	 *
 	 * @param moderatorId the signed-in moderator's ID
 	 * @param eventId     the event's public ID
@@ -388,6 +392,8 @@ public class EventService {
 		if (event.getModerationReason() == null)
 			return;
 		eventRepository.setHidden(event.getId(), null);
+		rsvpRepository.fillFreeSpots(event.getId(),
+				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
 		auditLogRepository.insert(moderatorId, Action.EVENT_UNHIDDEN, TargetType.EVENT, eventId.toString(), null);
 	}
 

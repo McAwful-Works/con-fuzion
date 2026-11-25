@@ -74,14 +74,17 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 			""";
 
 	/**
-	 * Whether event {@code e} is under moderation: hidden, or the target of a
-	 * report in any status. Only such an event is open to a moderator who couldn't
-	 * otherwise see it (D-015 rule 8), so a moderator can't walk event IDs to find
-	 * where people will be.
+	 * Whether event {@code e} is under moderation for the viewer {@code :viewer}:
+	 * hidden, or the target of a report in any status by someone else. Only such an
+	 * event is open to a moderator who couldn't otherwise see it (D-015 rule 8), so
+	 * a moderator can't walk event IDs to find where people will be, and can't get
+	 * past a host's block or a CONFIRMED-only location by reporting the event
+	 * themself.
 	 */
 	String MODERATED = """
 			(e.hidden_by_moderation OR EXISTS (SELECT 1 FROM report rp
-				WHERE rp.target_type = 'EVENT' AND rp.target_id = e.public_id))
+				WHERE rp.target_type = 'EVENT' AND rp.target_id = e.public_id
+					AND rp.reporter_id IS DISTINCT FROM :viewer))
 			""";
 
 	/**
@@ -132,13 +135,14 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	Optional<Event> findReportable(@Param("publicId") UUID publicId, @Param("viewer") UUID viewer);
 
 	/**
-	 * Returns whether an event is {@link #MODERATED}.
+	 * Returns whether an event is {@link #MODERATED} for a viewer.
 	 *
-	 * @param id the event's internal ID
-	 * @return {@code true} when it is hidden or has been reported
+	 * @param id     the event's internal ID
+	 * @param viewer the viewer's user ID
+	 * @return {@code true} when it is hidden or someone else has reported it
 	 */
 	@Query(value = "SELECT " + MODERATED + " FROM event e WHERE e.id = :id", nativeQuery = true)
-	boolean isModerated(@Param("id") long id);
+	boolean isModerated(@Param("id") long id, @Param("viewer") UUID viewer);
 
 	/**
 	 * Returns any event, locked until the transaction ends, for a moderator's hide,

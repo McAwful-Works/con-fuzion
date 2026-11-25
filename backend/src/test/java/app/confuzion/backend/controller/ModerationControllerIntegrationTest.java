@@ -201,8 +201,9 @@ class ModerationControllerIntegrationTest {
 
 	/**
 	 * Tests that a moderator sees an event they couldn't otherwise see, with its
-	 * location, while it is the target of a report in any status, and that a plain
-	 * user still can't (D-015 rule 8).
+	 * location, while someone else has reported it, in any status, and that a plain
+	 * user still can't (D-015 rule 8). A moderator's own report opens nothing, so
+	 * it can't get them past the host's block.
 	 */
 	@Test
 	void moderatorSeesAReportedEvent() throws Exception {
@@ -222,12 +223,28 @@ class ModerationControllerIntegrationTest {
 		assertThat(JsonPath.<String>read(asModerator, "$.body.myStatus")).isEqualTo("NONE");
 		assertThat(status(get(path).with(as(moderator)))).isEqualTo(404);
 		assertThat(status(get(path).with(login(fixtures.user("Stranger"))))).isEqualTo(404);
+
+		var blocking = fixtures.rsvpEvent(host, null, "now() + interval '1 day'", "NULL");
+		var blocked = fixtures.user("Blocked moderator");
+		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status) VALUES (?, ?, 'REMOVED')", blocking.id(),
+				blocked);
+		fixtures.block(host, blocked);
+		assertThat(status(post("/api/reports").with(as(blocked, "ROLE_MODERATOR")).with(csrf())
+				.contentType(MediaType.APPLICATION_JSON).content("{\"targetType\":\"EVENT\",\"targetId\":\""
+						+ blocking.publicId() + "\",\"reason\":\"OTHER\"}")))
+				.isEqualTo(204);
+		assertThat(status(get("/api/events/" + blocking.publicId()).with(as(blocked, "ROLE_MODERATOR"))))
+				.isEqualTo(404);
+		assertThat(status(get("/api/events/" + blocking.publicId()).with(as(moderator, "ROLE_MODERATOR"))))
+				.as("another moderator").isEqualTo(200);
 	}
 
 	/**
 	 * Tests that a hidden event holds back what attendees would hear (D-015 rule
 	 * 10): an edit sends no {@code EVENT_CHANGED}, it gets no reminders, and a
-	 * freed spot just frees up instead of going to the waitlist.
+	 * freed spot just frees up instead of going to the waitlist. Unhiding hands the
+	 * free spots to the waitlist in order, so no one stays waitlisted while a spot
+	 * is free (D-013).
 	 */
 	@Test
 	void hiddenEventHoldsBackChangesRemindersAndOffers() throws Exception {
@@ -258,6 +275,11 @@ class ModerationControllerIntegrationTest {
 		assertThat(fixtures.rsvpStatus(event.id(), waitlisted)).isEqualTo("WAITLISTED");
 		assertThat(notifications(waitlisted)).isEmpty();
 		assertThat(notifications(attendee)).isEmpty();
+
+		assertThat(status(unhide(event).with(as(fixtures.user("Moderator"), "ROLE_MODERATOR")))).isEqualTo(204);
+		assertThat(fixtures.rsvpStatus(event.id(), waitlisted)).isEqualTo("OFFERED");
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(2);
+		assertThat(notifications(waitlisted)).singleElement().asString().startsWith("SPOT_OFFERED " + event.id());
 	}
 
 	/**

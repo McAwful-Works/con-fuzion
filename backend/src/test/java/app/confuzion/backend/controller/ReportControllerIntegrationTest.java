@@ -131,6 +131,34 @@ class ReportControllerIntegrationTest {
 	}
 
 	/**
+	 * Tests that a moderator who hosts a reported event gets no
+	 * {@code REPORT_RECEIVED} and can't find, open or resolve the report, while
+	 * other moderators can.
+	 */
+	@Test
+	void reportOnAnEventNeverReachesItsHost() throws Exception {
+		var host = role("Hosting moderator", "MODERATOR", true);
+		var moderator = role("Moderator", "MODERATOR", true);
+		var reporter = fixtures.user("Reporter");
+		var event = fixtures.event(host);
+		fixtures.audience(event.id(), "USER", null, null, reporter);
+
+		assertThat(status(report(reporter, "EVENT", event.publicId(), "UNSAFE", null))).isEqualTo(204);
+
+		var reportId = jdbcTemplate.queryForObject("SELECT id FROM report WHERE reporter_id = ? AND target_id = ?",
+				Long.class, reporter, event.publicId());
+		assertThat(notifications(host)).isEmpty();
+		assertThat(notifications(moderator))
+				.containsExactly("REPORT_RECEIVED - {\"reportId\": " + reportId + ", \"targetType\": \"EVENT\"}");
+		var asHost = as(host, "ROLE_MODERATOR");
+		assertThat(pageIds(asHost, "OPEN")).doesNotContain(reportId);
+		assertThat(status(get("/api/admin/reports/" + reportId).with(asHost))).isEqualTo(404);
+		assertThat(status(resolve(reportId, "DISMISSED").with(asHost))).isEqualTo(404);
+		var seen = content(get("/api/admin/reports/" + reportId).with(as(moderator, "ROLE_MODERATOR")), 200);
+		assertThat(JsonPath.<String>read(seen, "$.body.targetLabel")).isEqualTo("Seeded");
+	}
+
+	/**
 	 * Tests which targets can be reported (D-015 rule 6): another user, even across
 	 * a block, and an event the reporter can see or once had an RSVP on, even after
 	 * a hide. Reporting yourself or your own event is a 400; a missing user, a
