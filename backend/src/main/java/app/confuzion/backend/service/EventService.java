@@ -29,11 +29,13 @@ import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -60,11 +62,15 @@ import app.confuzion.backend.model.record.EventResponse.AudienceType;
 import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.EventResponse.Status;
 import app.confuzion.backend.model.record.MyStatus;
+import app.confuzion.backend.model.record.NotificationPayload;
+import app.confuzion.backend.model.record.NotificationPayload.Change;
+import app.confuzion.backend.model.record.NotificationResponse.Type;
 import app.confuzion.backend.model.record.PersonResponse;
 import app.confuzion.backend.repository.AppUserRepository;
 import app.confuzion.backend.repository.EventAudienceRepository;
 import app.confuzion.backend.repository.EventAudienceRepository.LabelledEntry;
 import app.confuzion.backend.repository.EventRepository;
+import app.confuzion.backend.repository.NotificationRepository;
 import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.SocialRepository;
 import app.confuzion.backend.repository.UserGuildRepository;
@@ -136,24 +142,32 @@ public class EventService {
 	private final RsvpRepository rsvpRepository;
 
 	/**
+	 * The {@link NotificationRepository}.
+	 */
+	private final NotificationRepository notificationRepository;
+
+	/**
 	 * Creates the service.
 	 *
-	 * @param eventRepository     the {@link EventRepository}
-	 * @param audienceRepository  the {@link EventAudienceRepository}
-	 * @param appUserRepository   the {@link AppUserRepository}
-	 * @param userGuildRepository the {@link UserGuildRepository}
-	 * @param socialRepository    the {@link SocialRepository}
-	 * @param rsvpRepository      the {@link RsvpRepository}
+	 * @param eventRepository        the {@link EventRepository}
+	 * @param audienceRepository     the {@link EventAudienceRepository}
+	 * @param appUserRepository      the {@link AppUserRepository}
+	 * @param userGuildRepository    the {@link UserGuildRepository}
+	 * @param socialRepository       the {@link SocialRepository}
+	 * @param rsvpRepository         the {@link RsvpRepository}
+	 * @param notificationRepository the {@link NotificationRepository}
 	 */
 	public EventService(EventRepository eventRepository, EventAudienceRepository audienceRepository,
 			AppUserRepository appUserRepository, UserGuildRepository userGuildRepository,
-			SocialRepository socialRepository, RsvpRepository rsvpRepository) {
+			SocialRepository socialRepository, RsvpRepository rsvpRepository,
+			NotificationRepository notificationRepository) {
 		this.eventRepository = eventRepository;
 		this.audienceRepository = audienceRepository;
 		this.appUserRepository = appUserRepository;
 		this.userGuildRepository = userGuildRepository;
 		this.socialRepository = socialRepository;
 		this.rsvpRepository = rsvpRepository;
+		this.notificationRepository = notificationRepository;
 	}
 
 	/**
@@ -236,8 +250,11 @@ public class EventService {
 	 * Replaces every editable field of an event the caller hosts, its audience
 	 * included. Entries already on the event are kept without a re-check; only new
 	 * ones must be usable. The event row stays locked until the transaction ends,
-	 * so the capacity check can't race a join (D-013). Once saved, waitlisted
-	 * people fill any free spots in queue order, if the event hasn't started.
+	 * so the capacity check can't race a join (D-013). If the start, end or
+	 * location changed, everyone with an active RSVP but the host gets one
+	 * {@code EVENT_CHANGED} notification, in the same transaction (D-014). Once
+	 * saved, waitlisted people fill any free spots in queue order, if the event
+	 * hasn't started.
 	 *
 	 * @param hostId  the signed-in user's ID
 	 * @param eventId the event's public ID
@@ -269,15 +286,21 @@ public class EventService {
 		audienceRepository.deleteAll(current.stream().filter(entry -> !refs.contains(entry.ref())).toList());
 		audienceRepository.saveAll(refs.stream().filter(ref -> !currentRefs.contains(ref))
 				.map(ref -> new EventAudience(event.getId(), ref)).toList());
+		var changes = changes(event, request);
 		apply(event, request);
 		eventRepository.flush();
+		if (!changes.isEmpty())
+			notificationRepository.insertForActiveRsvps(event.getId(), hostId, Type.EVENT_CHANGED,
+					new NotificationPayload(event.getTitle(), null, event.getStartsAt(), changes, null));
 		rsvpRepository.fillFreeSpots(event.getId(),
 				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
 		return toResponses(hostId, List.of(event)).getFirst();
 	}
 
 	/**
-	 * Cancels an event the caller hosts. Cancelling it again is a no-op.
+	 * Cancels an event the caller hosts, and tells everyone with an active RSVP but
+	 * the host, in the same transaction (D-014). Cancelling it again is a no-op
+	 * that notifies nobody.
 	 *
 	 * @param hostId  the signed-in user's ID
 	 * @param eventId the event's public ID
@@ -285,8 +308,32 @@ public class EventService {
 	 */
 	@Transactional
 	public void cancelEvent(UUID hostId, UUID eventId) {
-		if (eventRepository.cancel(eventId, hostId) == 0)
-			throw new NoSuchElementException();
+		var event = eventRepository.findByPublicIdAndHostId(eventId, hostId).orElseThrow();
+		if (event.getStatus() == Status.CANCELLED)
+			return;
+		eventRepository.cancel(eventId, hostId);
+		notificationRepository.insertForActiveRsvps(event.getId(), hostId, Type.EVENT_CANCELLED,
+				new NotificationPayload(event.getTitle(), null, null, null, null));
+	}
+
+	/**
+	 * Returns what an edit changes that guests care about: the start, the end or
+	 * the location. Nothing else notifies anyone. Times are compared at the
+	 * database's precision.
+	 *
+	 * @param event   the event as stored
+	 * @param request the edit
+	 * @return the changes, in the order start, end, location; empty when none
+	 */
+	private static List<Change> changes(Event event, EventRequest request) {
+		var changes = new ArrayList<Change>(3);
+		if (!event.getStartsAt().equals(micros(request.startsAt())))
+			changes.add(Change.START);
+		if (!Objects.equals(event.getEndsAt(), micros(request.endsAt())))
+			changes.add(Change.END);
+		if (!Objects.equals(event.getLocationText(), request.location()))
+			changes.add(Change.LOCATION);
+		return changes;
 	}
 
 	/**
