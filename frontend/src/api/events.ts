@@ -45,12 +45,16 @@ export function useEventFeed(scope: EventScope) {
   });
 }
 
-export function useEvent(eventId: string) {
-  return useQuery({
+export function eventQuery(eventId: string) {
+  return {
     queryKey: [...events, 'one', eventId],
     queryFn: async () =>
       (await api<Schemas['ResponseRecordEventResponse']>(fillPath(EVENT, { eventId }))).body,
-  });
+  };
+}
+
+export function useEvent(eventId: string) {
+  return useQuery(eventQuery(eventId));
 }
 
 export function useCreateEvent() {

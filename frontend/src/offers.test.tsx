@@ -63,6 +63,8 @@ function signedIn(extra: (call: RecordedCall) => Response | undefined) {
     const custom = extra(call);
     if (custom) return custom;
     if (call.path === '/api/me') return envelope('ME', me);
+    if (call.path.startsWith('/api/notifications'))
+      return envelope('NOTIFICATION_PAGE', { items: [], nextCursor: null, unreadCount: 0 });
     return undefined;
   });
 }
