@@ -193,7 +193,7 @@ class NotificationControllerIntegrationTest {
 	@Test
 	void testEditNotifiesActiveRsvpsButNotTheHost() throws Exception {
 		var host = fixtures.user("Host");
-		var event = fixtures.rsvpEvent(host, null, "now() + interval '1 day'", "NULL");
+		var event = fixtures.rsvpEvent(host, 4, "now() + interval '1 day'", "NULL");
 		var confirmed = fixtures.user("Confirmed");
 		var waitlisted = fixtures.user("Waitlisted");
 		var offered = fixtures.user("Offered");
@@ -206,11 +206,15 @@ class NotificationControllerIntegrationTest {
 		rsvp(event, lapsed, "OFFERED", "now() - interval '1 minute'");
 		rsvp(event, left, "LEFT", null);
 		rsvp(event, removed, "REMOVED", null);
+		// Full: the host, the confirmed guest and both offers hold the 4 spots, so the
+		// edit moves nobody up (on an unlimited event it would confirm everyone, D-014
+		// rule 17).
+		jdbcTemplate.update("UPDATE event SET confirmed_count = 4 WHERE id = ?", event.id());
 		pushOn(confirmed, true);
 		pushOn(waitlisted, false);
 		var newStart = Instant.now().plus(2, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
 
-		assertThat(status(edit(host, event, "Seeded", "Secret Room 9", newStart, null))).isEqualTo(200);
+		assertThat(status(edit(host, event, "Seeded", "Secret Room 9", newStart, 4))).isEqualTo(200);
 
 		for (var user : List.of(confirmed, waitlisted, offered)) {
 			var rows = rows(user);

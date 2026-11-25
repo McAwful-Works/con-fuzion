@@ -124,9 +124,9 @@ class SecurityConfigIntegrationTest {
 					"/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/rsvps/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null,
 					404),
 			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/spots", null, 404),
-			// Offers and push (D-014): 501 stubs until #65 and #67. The inbox is live
-			// (#66).
-			new Endpoint("POST", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/rsvp/accept", null, 501),
+			// Push (D-014): 501 stubs until #67. Accepting an offer (#65) and the inbox
+			// (#66) are live.
+			new Endpoint("POST", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/rsvp/accept", null, 404),
 			new Endpoint("GET", "/api/notifications", null, 200),
 			new Endpoint("POST", "/api/notifications/read", "{\"upTo\":1}", 204),
 			new Endpoint("GET", "/api/push/key", null, 501),
