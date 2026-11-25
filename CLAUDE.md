@@ -66,7 +66,7 @@ docs/       plan, roadmap, decisions, security, runbooks, research
 ## Conventions
 - **Commits and PR titles** follow Conventional Commits: `type(scope): summary`.
   - Types: `feat fix refactor test docs chore ci build perf`.
-  - Scopes (optional): `auth events rsvp social notify admin web infra deps deps-dev docs ci`.
+  - Scopes (optional): `auth events rsvp social notify admin web infra deps deps-dev docs ci e2e`.
   - PRs are squash-merged, so the PR title becomes the commit.
 - **Branches**: trunk-based. Short-lived `feat/<scope>-<slug>`, `fix/…`, `chore/…`, `docs/…`, `research/…` off `main`.
   Releases are `v*` tags that only the owner creates. See [docs/releasing.md](docs/releasing.md). Claude never tags,
