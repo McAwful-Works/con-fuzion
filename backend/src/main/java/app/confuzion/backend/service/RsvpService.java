@@ -202,14 +202,16 @@ public class RsvpService {
 	public RsvpResponse accept(UUID userId, UUID eventId) {
 		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
 		var locked = rsvpRepository.lock(event.getId());
-		var latest = rsvpRepository.findLatestStatus(event.getId(), userId).orElse("");
 		var confirmed = new RsvpResponse(RsvpResponse.Status.CONFIRMED, null, null);
+		if (Status.PUBLISHED.name().equals(locked.status()) && rsvpRepository.acceptOffer(event.getId(), userId))
+			return confirmed;
+		// Read after the attempt: an offer that missed its deadline between two
+		// statements reads as expired, never as no offer at all.
+		var latest = rsvpRepository.findLatestStatus(event.getId(), userId).orElse("");
 		if (latest.equals(MyStatus.CONFIRMED.name()))
 			return confirmed;
 		if (latest.equals("EXPIRED"))
 			throw new ConflictException(Conflict.OFFER_EXPIRED);
-		if (Status.PUBLISHED.name().equals(locked.status()) && rsvpRepository.acceptOffer(event.getId(), userId))
-			return confirmed;
 		throw new ConflictException(Conflict.NO_OFFER);
 	}
 

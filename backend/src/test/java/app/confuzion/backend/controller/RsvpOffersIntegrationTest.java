@@ -389,6 +389,42 @@ class RsvpOffersIntegrationTest {
 	}
 
 	/**
+	 * Tests the edges of D-014 rules 2 and 4 around the start: a capacity raise
+	 * within the window confirms the next person at once; an offer made before the
+	 * start can still be accepted after it, inside its deadline; and an offer that
+	 * runs out after the start frees its spot without offering it again.
+	 */
+	@Test
+	void testAroundTheStart() throws Exception {
+		var event = fixtures.rsvpEvent(host, 2, "now() + interval '1 day'", "NULL");
+		var accepter = guest(event);
+		var lapser = guest(event);
+		var raised = guest(event);
+		var waiting = guest(event);
+		join(guest(event), event, "CONFIRMED");
+		for (var guest : List.of(accepter, lapser, raised, waiting))
+			join(guest, event, "WAITLISTED");
+		assertThat(status(edit(event, 4))).isEqualTo(200);
+		assertThat(fixtures.rsvpStatus(event.id(), accepter)).isEqualTo("OFFERED");
+		assertThat(fixtures.rsvpStatus(event.id(), lapser)).isEqualTo("OFFERED");
+
+		jdbcTemplate.update("UPDATE event SET starts_at = now() + interval '20 minutes' WHERE id = ?", event.id());
+		assertThat(status(edit(event, 5))).isEqualTo(200);
+		assertThat(fixtures.rsvpStatus(event.id(), raised)).isEqualTo("CONFIRMED");
+		assertThat(notifications(raised)).containsExactly("SPOT_CONFIRMED");
+
+		jdbcTemplate.update("UPDATE event SET starts_at = now() - interval '1 minute' WHERE id = ?", event.id());
+		assertThat(JsonPath.<String>read(
+				content(post(path(event) + "/rsvp/accept").with(login(accepter)).with(csrf()), 200), "$.body.status"))
+				.isEqualTo("CONFIRMED");
+		pastDeadline(event, lapser);
+		offerExpiryJob.run();
+		assertThat(fixtures.rsvpStatus(event.id(), lapser)).isEqualTo("EXPIRED");
+		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("WAITLISTED");
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(4);
+	}
+
+	/**
 	 * Tests that a block between the host and an offered person ends the offer as
 	 * {@code LEFT} and offers the spot to the next person (D-014 rule 5).
 	 */

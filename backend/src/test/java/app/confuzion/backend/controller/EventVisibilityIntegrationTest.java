@@ -297,6 +297,9 @@ class EventVisibilityIntegrationTest {
 		jdbcTemplate.update(
 				"INSERT INTO rsvp (event_id, user_id, status, offer_expires_at) VALUES (?, ?, ?, " + deadline + ")",
 				event.id(), viewer, status.replace("_LATE", ""));
+		if (status.startsWith("OFFERED"))
+			// An offer holds a spot, so the expiry job can free it.
+			jdbcTemplate.update("UPDATE event SET confirmed_count = confirmed_count + 1 WHERE id = ?", event.id());
 		if (cancelled)
 			fixtures.cancel(event.id());
 		switch (change) {

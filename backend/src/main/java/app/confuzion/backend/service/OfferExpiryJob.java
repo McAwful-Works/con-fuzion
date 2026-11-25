@@ -18,6 +18,8 @@
  */
 package app.confuzion.backend.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,19 +29,24 @@ import app.confuzion.backend.repository.RsvpRepository;
 /**
  * Ends offers that ran out (D-014): each becomes {@code EXPIRED}, and its spot
  * is offered to the next person in line, or confirms them near the start. Every
- * task runs it; {@link RsvpRepository#lockDueEvents} skips the events another
- * task or a request holds, so they share the work without waiting on each
- * other. Reads already treat an offer past its deadline as expired (rule 15),
- * so the interval only decides how soon the next person hears.
+ * task runs it; {@link RsvpRepository#tryLock} skips the events another task or
+ * a request holds, so they share the work without waiting on each other. Reads
+ * already treat an offer past its deadline as expired (rule 15), so the
+ * interval only decides how soon the next person hears.
  *
  * @author mcawful
  */
 @Component
 public class OfferExpiryJob {
 	/**
-	 * The most events one transaction handles.
+	 * The logger.
 	 */
-	static final int BATCH = 100;
+	private static final Logger LOGGER = LoggerFactory.getLogger(OfferExpiryJob.class);
+
+	/**
+	 * The most events one run handles; the next run picks up the rest.
+	 */
+	static final int BATCH = 1_000;
 
 	/**
 	 * The {@link RsvpRepository}.
@@ -47,7 +54,7 @@ public class OfferExpiryJob {
 	private final RsvpRepository rsvpRepository;
 
 	/**
-	 * Runs each batch in its own transaction, which holds the batch's event locks.
+	 * Runs each event in its own transaction, which holds that event's lock.
 	 */
 	private final TransactionTemplate transactionTemplate;
 
@@ -63,28 +70,23 @@ public class OfferExpiryJob {
 	}
 
 	/**
-	 * Ends every offer past its deadline, a batch of events at a time, until a
-	 * batch comes back short. The interval defaults to 30 seconds, and tests may
-	 * lower it with {@code con-fuzion.offers.expiry-interval}.
+	 * Ends the offers past their deadline on a batch of events, one event per
+	 * transaction, so a failure on one event never holds up the others. Each
+	 * deadline is checked again under the event's lock. The interval defaults to 30
+	 * seconds; {@code con-fuzion.offers.expiry-interval} changes it, and the tests
+	 * raise it so only their own calls run the job.
 	 */
 	@Scheduled(fixedDelayString = "${con-fuzion.offers.expiry-interval:PT30S}", initialDelayString = "${con-fuzion.offers.expiry-interval:PT30S}")
 	public void run() {
-		while (expireBatch() == BATCH) {
-			// A full batch: there may be more.
+		for (var eventId : rsvpRepository.findDueEvents(BATCH)) {
+			try {
+				transactionTemplate.executeWithoutResult(tx -> {
+					if (rsvpRepository.tryLock(eventId))
+						rsvpRepository.expireDue(eventId, null);
+				});
+			} catch (RuntimeException e) {
+				LOGGER.warn("Expiring offers on event {} failed", eventId, e);
+			}
 		}
-	}
-
-	/**
-	 * Locks a batch of events with offers past their deadline and ends those
-	 * offers, re-checking each deadline under the lock.
-	 *
-	 * @return how many events the batch locked
-	 */
-	int expireBatch() {
-		return transactionTemplate.execute(tx -> {
-			var events = rsvpRepository.lockDueEvents(BATCH);
-			events.forEach(eventId -> rsvpRepository.expireDue(eventId, null));
-			return events.size();
-		});
 	}
 }

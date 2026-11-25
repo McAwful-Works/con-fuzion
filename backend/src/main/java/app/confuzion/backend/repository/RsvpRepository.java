@@ -300,21 +300,31 @@ public class RsvpRepository {
 	}
 
 	/**
-	 * Locks up to {@code limit} events that have an offer past its deadline, in ID
-	 * order, skipping any that another transaction holds, for the expiry job.
-	 * {@code SKIP LOCKED} lets every task share the work, and the event row lock
-	 * comes first, as for every write that changes who holds a spot (D-013).
+	 * Returns up to {@code limit} events that have an offer past its deadline, for
+	 * the expiry job, without locking them.
 	 *
-	 * @param limit the most events to lock
-	 * @return the events' internal IDs
+	 * @param limit the most events to return
+	 * @return the events' internal IDs, in ID order
 	 */
-	public List<Long> lockDueEvents(int limit) {
-		return jdbc.sql("""
-				SELECT e.id FROM event e
-				WHERE e.id IN (SELECT r.event_id FROM rsvp r
-					WHERE r.status = 'OFFERED' AND r.offer_expires_at <= statement_timestamp())
-				ORDER BY e.id LIMIT :limit FOR NO KEY UPDATE SKIP LOCKED""").param("limit", limit).query(Long.class)
-				.list();
+	public List<Long> findDueEvents(int limit) {
+		return jdbc
+				.sql("""
+						SELECT DISTINCT event_id FROM rsvp WHERE status = 'OFFERED' AND offer_expires_at <= statement_timestamp()
+						ORDER BY event_id LIMIT :limit""")
+				.param("limit", limit).query(Long.class).list();
+	}
+
+	/**
+	 * Locks an event row as {@link #lock} does, unless another transaction holds
+	 * it: {@code SKIP LOCKED} lets every task run the expiry job without waiting on
+	 * a request or on each other.
+	 *
+	 * @param eventId the event's internal ID
+	 * @return whether this transaction now holds the lock
+	 */
+	public boolean tryLock(long eventId) {
+		return jdbc.sql("SELECT id FROM event WHERE id = :eventId FOR NO KEY UPDATE SKIP LOCKED")
+				.param("eventId", eventId).query(Long.class).optional().isPresent();
 	}
 
 	/**

@@ -116,24 +116,24 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 			WHERE e.id IN (
 					SELECT a.event_id FROM event_audience a WHERE a.user_id = :viewer
 					UNION ALL
-					SELECT r.event_id FROM rsvp r WHERE r.user_id = :viewer AND\s""" + RsvpRepository.ACTIVE + """
-
-				UNION ALL
-				SELECT a.event_id FROM circle_member cm JOIN event_audience a ON a.circle_id = cm.circle_id
-					WHERE cm.user_id = :viewer
-				UNION ALL
-				SELECT a.event_id FROM user_guild g JOIN event_audience a ON a.guild_id = g.guild_id
-					WHERE g.user_id = :viewer AND g.discoverable
-				UNION ALL
-				SELECT h.id FROM event h WHERE h.host_id = :viewer AND h.starts_at > now() - interval '7 days'
-				UNION ALL
-				SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_b
-					WHERE f.user_a = :viewer AND h.starts_at > now() - interval '7 days'
-				UNION ALL
-				SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_a
-					WHERE f.user_b = :viewer AND h.starts_at > now() - interval '7 days')
-			AND e.status = 'PUBLISHED'
-			AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + """
+					SELECT r.event_id FROM rsvp r WHERE r.user_id = :viewer
+						AND r.status IN ('CONFIRMED', 'WAITLISTED', 'OFFERED')
+					UNION ALL
+					SELECT a.event_id FROM circle_member cm JOIN event_audience a ON a.circle_id = cm.circle_id
+						WHERE cm.user_id = :viewer
+					UNION ALL
+					SELECT a.event_id FROM user_guild g JOIN event_audience a ON a.guild_id = g.guild_id
+						WHERE g.user_id = :viewer AND g.discoverable
+					UNION ALL
+					SELECT h.id FROM event h WHERE h.host_id = :viewer AND h.starts_at > now() - interval '7 days'
+					UNION ALL
+					SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_b
+						WHERE f.user_a = :viewer AND h.starts_at > now() - interval '7 days'
+					UNION ALL
+					SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_a
+						WHERE f.user_b = :viewer AND h.starts_at > now() - interval '7 days')
+				AND e.status = 'PUBLISHED'
+				AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + """
 			ORDER BY e.starts_at, e.public_id
 			LIMIT :limit
 			""", nativeQuery = true)
