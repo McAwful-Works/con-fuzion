@@ -90,6 +90,18 @@ public class ConflictException extends RuntimeException {
 		 * The host leaving their own event, or removing themself from it. The host
 		 * always holds a spot; they cancel the event instead.
 		 */
-		HOST_CANNOT_LEAVE
+		HOST_CANNOT_LEAVE,
+
+		/**
+		 * An accept after the caller's offer ran out (D-014). They may join again, at
+		 * the back of the queue.
+		 */
+		OFFER_EXPIRED,
+
+		/**
+		 * An accept without an open offer: none was made, the caller declined it, or
+		 * the event was cancelled (D-014).
+		 */
+		NO_OFFER
 	}
 }

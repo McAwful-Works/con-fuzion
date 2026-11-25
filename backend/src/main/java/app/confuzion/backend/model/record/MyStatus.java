@@ -41,6 +41,12 @@ public enum MyStatus {
 	WAITLISTED,
 
 	/**
+	 * A freed spot is held for them until {@code offerExpiresAt} (D-014). They
+	 * accept it or decline it by leaving.
+	 */
+	OFFERED,
+
+	/**
 	 * The host removed them. They can't rejoin.
 	 */
 	REMOVED

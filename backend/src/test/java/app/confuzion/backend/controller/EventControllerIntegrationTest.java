@@ -34,6 +34,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -368,7 +369,7 @@ class EventControllerIntegrationTest {
 		for (var i = 0; i < CAP - 2; i++)
 			fixtures.event(host);
 		var request = new EventRequest("Race", null, "Hall B", null, Instant.now().plus(1, ChronoUnit.DAYS), null,
-				"UTC", null, null, LocationVisibility.VIEWERS,
+				"UTC", null, null, null, LocationVisibility.VIEWERS,
 				List.of(new EventRequest.AudienceEntry(AudienceType.FRIENDS, null, null, null)));
 		var tasks = new ArrayList<Callable<Boolean>>();
 		for (var i = 0; i < 6; i++)
@@ -410,6 +411,37 @@ class EventControllerIntegrationTest {
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT count(*) FROM event_audience a JOIN event e ON e.id = a.event_id WHERE e.public_id = ?",
 				Integer.class, UUID.fromString(event))).isEqualTo(2);
+	}
+
+	/**
+	 * Tests the offer window (D-014): 30 minutes when a create leaves it out, kept
+	 * when an edit leaves it out (so a client that doesn't send it can't reset it),
+	 * changed when an edit sends it, and 10 to 1,440 minutes.
+	 */
+	@Test
+	void confirmWindowDefaultsAndSurvivesEditsThatLeaveItOut() throws Exception {
+		var event = create(host, Map.of());
+		assertThat(read(get(path(event)), host, "$.body.confirmWindowMinutes")).isEqualTo(30);
+
+		assertThat(JsonPath.<Integer>read(content(edit(path(event), host, Map.of("confirmWindowMinutes", 45)), 200),
+				"$.body.confirmWindowMinutes")).isEqualTo(45);
+		assertThat(JsonPath.<Integer>read(content(edit(path(event), host, Map.of("title", "Renamed")), 200),
+				"$.body.confirmWindowMinutes")).isEqualTo(45);
+		var cleared = new HashMap<String, Object>();
+		cleared.put("confirmWindowMinutes", null);
+		assertThat(
+				JsonPath.<Integer>read(content(edit(path(event), host, cleared), 200), "$.body.confirmWindowMinutes"))
+				.isEqualTo(45);
+		assertThat(read(get(path(event)), friend, "$.body.confirmWindowMinutes")).isEqualTo(45);
+
+		var custom = create(host, Map.of("confirmWindowMinutes", 1440));
+		assertThat(read(get(path(custom)), host, "$.body.confirmWindowMinutes")).isEqualTo(1440);
+		for (var minutes : List.of(9, 1441)) {
+			assertThat(status(json(post("/api/events"), body(Map.of("confirmWindowMinutes", minutes))).with(login(host))
+					.with(csrf()))).isEqualTo(400);
+			assertThat(status(edit(path(event), host, Map.of("confirmWindowMinutes", minutes)))).isEqualTo(400);
+		}
+		assertThat(read(get(path(event)), host, "$.body.confirmWindowMinutes")).isEqualTo(45);
 	}
 
 	/**

@@ -18,23 +18,30 @@
  */
 package app.confuzion.backend.model.record;
 
+import java.time.Instant;
+
 import app.confuzion.backend.model.ResponseBodyObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 
 /**
- * The caller's RSVP after {@code POST /api/events/{eventId}/rsvp}.
+ * The caller's RSVP after {@code POST /api/events/{eventId}/rsvp} or
+ * {@code POST /api/events/{eventId}/rsvp/accept}.
  *
- * @param status   whether the caller got a spot or a place in the waitlist
- * @param position the caller's place in the waitlist, 1 for next in line, or
- *                 {@code null} when confirmed
+ * @param status         whether the caller got a spot, a place in the waitlist,
+ *                       or holds an offer
+ * @param position       the caller's place in the waitlist, 1 for next in line,
+ *                       or {@code null} unless waitlisted
+ * @param offerExpiresAt when the caller's offer runs out, or {@code null}
+ *                       unless offered
  * @author mcawful
  */
 public record RsvpResponse(@Schema(requiredMode = RequiredMode.REQUIRED) Status status,
-		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "1", description = "1-based place in the waitlist: 1 + the number of people waitlisted ahead of the caller. Null when CONFIRMED.") Integer position)
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "1", description = "1-based place in the waitlist: 1 + the number of people waitlisted ahead of the caller. Null unless WAITLISTED.") Integer position,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "When the caller's offer runs out. Null unless OFFERED.") Instant offerExpiresAt)
 		implements ResponseBodyObject {
 	/**
-	 * The outcome of a join.
+	 * Where the caller stands after a join or an accept.
 	 *
 	 * @author mcawful
 	 */
@@ -47,6 +54,11 @@ public record RsvpResponse(@Schema(requiredMode = RequiredMode.REQUIRED) Status 
 		/**
 		 * The event is full, so the caller is in the waitlist.
 		 */
-		WAITLISTED
+		WAITLISTED,
+
+		/**
+		 * A join while the caller holds an offer returns it unchanged (D-014).
+		 */
+		OFFERED
 	}
 }

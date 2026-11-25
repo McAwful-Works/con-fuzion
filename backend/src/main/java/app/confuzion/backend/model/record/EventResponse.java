@@ -33,28 +33,29 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * from everyone but the host and confirmed attendees when it is
  * {@link LocationVisibility#CONFIRMED}, and only the host gets the audience.
  *
- * @param id                 the event's public ID, used in URLs
- * @param host               the host's public profile
- * @param title              the title
- * @param description        the description as plain text, or {@code null}
- * @param location           where the event is, or {@code null} when
- *                           {@code locationHidden}
- * @param locationHidden     whether the location is withheld from this viewer
- * @param locationVisibility who may see the location
- * @param tag                a short label such as {@code Panel}, or
- *                           {@code null}
- * @param startsAt           when the event starts
- * @param endsAt             when it ends, or {@code null} when open-ended
- * @param timeZone           the IANA time zone the host shows times in
- * @param signupOpensAt      when sign-up opens, or {@code null} when it opens
- *                           as soon as the event is published
- * @param capacity           the headcount, the host included, or {@code null}
- *                           for unlimited
- * @param status             whether the event is on or cancelled
- * @param isHost             whether the viewer is the host
- * @param myStatus           where the viewer stands on the event
- * @param audience           who the event is for: the host's entries, or
- *                           {@code null} for every other viewer
+ * @param id                   the event's public ID, used in URLs
+ * @param host                 the host's public profile
+ * @param title                the title
+ * @param description          the description as plain text, or {@code null}
+ * @param location             where the event is, or {@code null} when
+ *                             {@code locationHidden}
+ * @param locationHidden       whether the location is withheld from this viewer
+ * @param locationVisibility   who may see the location
+ * @param tag                  a short label such as {@code Panel}, or
+ *                             {@code null}
+ * @param startsAt             when the event starts
+ * @param endsAt               when it ends, or {@code null} when open-ended
+ * @param timeZone             the IANA time zone the host shows times in
+ * @param signupOpensAt        when sign-up opens, or {@code null} when it opens
+ *                             as soon as the event is published
+ * @param capacity             the headcount, the host included, or {@code null}
+ *                             for unlimited
+ * @param confirmWindowMinutes how long an offered spot is held, in minutes
+ * @param status               whether the event is on or cancelled
+ * @param isHost               whether the viewer is the host
+ * @param myStatus             where the viewer stands on the event
+ * @param audience             who the event is for: the host's entries, or
+ *                             {@code null} for every other viewer
  * @author mcawful
  */
 public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID id,
@@ -70,9 +71,10 @@ public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID i
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "America/Chicago") String timeZone,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true) Instant signupOpensAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "2", maximum = "10000", description = "The headcount, the host included. Null for unlimited.") Integer capacity,
+		@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "10", maximum = "1440", description = "How many minutes a freed spot is held for the next person in line to accept (D-014).") int confirmWindowMinutes,
 		@Schema(requiredMode = RequiredMode.REQUIRED) Status status,
 		@JsonProperty("isHost") @Schema(name = "isHost", requiredMode = RequiredMode.REQUIRED) boolean isHost,
-		@Schema(requiredMode = RequiredMode.REQUIRED, description = "Where the viewer stands. CONFIRMED for the host. The waitlist position is in GET /api/events/{eventId}/spots.") MyStatus myStatus,
+		@Schema(requiredMode = RequiredMode.REQUIRED, description = "Where the viewer stands. CONFIRMED for the host. The waitlist position and an offer's deadline are in GET /api/events/{eventId}/spots.") MyStatus myStatus,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Only the host gets this; it is null for everyone else.") List<AudienceEntry> audience)
 		implements ResponseBodyObject {
 	/**

@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -82,7 +83,7 @@ class RsvpControllerTest {
 	/**
 	 * A waitlisted caller's spot counts.
 	 */
-	private static final SpotsResponse SPOTS = new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 2);
+	private static final SpotsResponse SPOTS = new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 2, null);
 
 	/**
 	 * The mocked {@link RsvpService}.
@@ -101,8 +102,8 @@ class RsvpControllerTest {
 	@Test
 	void testOperationsMapToTheService() throws Exception {
 		var other = UUID.randomUUID();
-		when(rsvpService.join(USER_ID, EVENT_ID)).thenReturn(new RsvpResponse(RsvpResponse.Status.WAITLISTED, 4));
-		when(rsvpService.getAttendees(USER_ID, EVENT_ID)).thenReturn(new AttendeesResponse(List.of(), null));
+		when(rsvpService.join(USER_ID, EVENT_ID)).thenReturn(new RsvpResponse(RsvpResponse.Status.WAITLISTED, 4, null));
+		when(rsvpService.getAttendees(USER_ID, EVENT_ID)).thenReturn(new AttendeesResponse(List.of(), null, null));
 		when(rsvpService.getSpots(USER_ID, EVENT_ID)).thenReturn(SPOTS);
 
 		mockMvc.perform(post(EVENT + "/rsvp").principal(AUTHENTICATION)).andExpect(status().isOk())
@@ -128,11 +129,27 @@ class RsvpControllerTest {
 	void testEtagFollowsTheBody() {
 		var tag = RsvpController.etag(SPOTS);
 		assertThat(tag).matches("[A-Za-z0-9_-]{22}")
-				.isEqualTo(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 2)));
-		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 1))).isNotEqualTo(tag);
-		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 4, 0, MyStatus.WAITLISTED, 2))).isNotEqualTo(tag);
-		assertThat(RsvpController.etag(new SpotsResponse(null, 11, 0, null, MyStatus.CONFIRMED, null)))
-				.isNotEqualTo(RsvpController.etag(new SpotsResponse(null, 11, 0, null, MyStatus.NONE, null)));
+				.isEqualTo(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 2, null)));
+		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 1, null)))
+				.isNotEqualTo(tag);
+		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 4, 0, MyStatus.WAITLISTED, 2, null)))
+				.isNotEqualTo(tag);
+		assertThat(RsvpController.etag(new SpotsResponse(null, 11, 0, null, MyStatus.CONFIRMED, null, null)))
+				.isNotEqualTo(RsvpController.etag(new SpotsResponse(null, 11, 0, null, MyStatus.NONE, null, null)));
+		var expiresAt = Instant.parse("2026-12-01T18:00:00Z");
+		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.OFFERED, null, expiresAt)))
+				.isNotEqualTo(RsvpController
+						.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.OFFERED, null, expiresAt.plusSeconds(60))));
+	}
+
+	/**
+	 * Tests that accepting an offer is a 501 stub until #65, and never reaches the
+	 * service.
+	 */
+	@Test
+	void testAcceptIsNotImplementedYet() throws Exception {
+		assertError(mockMvc, post(EVENT + "/rsvp/accept").principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
+		verifyNoInteractions(rsvpService);
 	}
 
 	/**
@@ -141,9 +158,9 @@ class RsvpControllerTest {
 	 * @return the requests
 	 */
 	static Stream<RequestBuilder> badIds() {
-		return Stream.of(post("/api/events/1/rsvp"), delete("/api/events/1/rsvp"), get("/api/events/1/attendees"),
-				get("/api/events/1/spots"), delete("/api/events/1/rsvps/" + UUID.randomUUID()),
-				delete(EVENT + "/rsvps/81384788765712384"));
+		return Stream.of(post("/api/events/1/rsvp"), post("/api/events/1/rsvp/accept"), delete("/api/events/1/rsvp"),
+				get("/api/events/1/attendees"), get("/api/events/1/spots"),
+				delete("/api/events/1/rsvps/" + UUID.randomUUID()), delete(EVENT + "/rsvps/81384788765712384"));
 	}
 
 	/**

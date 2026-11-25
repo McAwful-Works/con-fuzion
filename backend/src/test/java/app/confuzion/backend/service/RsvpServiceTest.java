@@ -121,7 +121,7 @@ class RsvpServiceTest {
 				1);
 
 		assertThat(service.join(userId, event.getPublicId()))
-				.isEqualTo(new RsvpResponse(RsvpResponse.Status.WAITLISTED, 3));
+				.isEqualTo(new RsvpResponse(RsvpResponse.Status.WAITLISTED, 3, null));
 		assertThatThrownBy(() -> service.join(userId, event.getPublicId())).isInstanceOf(RateLimitException.class);
 		verify(rsvpRepository, never()).lock(anyLong());
 	}

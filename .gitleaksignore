@@ -1,0 +1,2 @@
+# A test fixture flagged before it was replaced with an obviously fake value (PR #71). Not a secret.
+734df6e4ce40d8ab811ace901bc6219f0c97a246:backend/src/test/java/app/confuzion/backend/controller/PushControllerTest.java:generic-api-key:64

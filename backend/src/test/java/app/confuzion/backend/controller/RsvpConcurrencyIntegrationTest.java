@@ -376,7 +376,7 @@ class RsvpConcurrencyIntegrationTest {
 	private EventRequest request(int capacity) {
 		return new EventRequest("Seeded", null, "Hall A", null,
 				Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS), null, "UTC", capacity, null,
-				LocationVisibility.CONFIRMED,
+				null, LocationVisibility.CONFIRMED,
 				List.of(new EventRequest.AudienceEntry(AudienceType.GUILD, Long.toString(guildId), null, null)));
 	}
 

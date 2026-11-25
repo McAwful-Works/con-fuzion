@@ -320,3 +320,135 @@ Context · Decision · Consequences · Trigger to revisit
   apart, and only the caller ever sees their own waitlist position.
 - **Revisit:** in M4, when offers replace auto-confirming. If the M7 load test misses its target, add the Valkey
   `DECR` gate from plan B2 in front of the claim.
+
+## D-014 Offers with a deadline, the inbox and Web Push (2026-11-25) — Accepted
+- **Context:** M4 (#64) replaces M3's auto-confirm (D-013) with offers that have a deadline, and adds an in-app inbox,
+  notification triggers, reminders and Web Push. This pins the API rules so #65 (offers), #66 (inbox and triggers),
+  #67 (push), #68 and #69 (frontend) and #70 (e2e) can build in parallel.
+- **Decision (owner):**
+  - **Offers replace auto-confirm.** A freed spot is offered to the next person in line for the host's window
+    (`event.confirm_window_minutes`, 10 minutes to 24 hours, default 30). The spot is held: it counts in
+    `confirmed_count`.
+  - **Near the start, confirm at once.** If the event starts within the window, the next person is confirmed
+    straight away instead of being offered the spot.
+  - **Declining is leaving** (`LEFT`). **An expired offer ends as `EXPIRED`,** and that person may join again at the
+    back of the queue. Either way the next person is offered the spot.
+  - **Capacity raises send offers,** and several offers can be open at once.
+  - **Notification triggers:** offered a spot; confirmed; an event's start, end or location changed; an event was
+    cancelled; a reminder 1 hour before, to the host and confirmed attendees; a friend invite was accepted. Nothing
+    is sent when the host removes someone.
+  - **The lock-screen text** shows the event title and what happened, never the location or anyone's name.
+  - **A block deletes the notifications** between the two people. **One push on/off setting** per user (the existing
+    `pushEnabled`). **No inbox purge** in M4.
+  - **The Web Push library** is `com.zerodeplibs:zerodep-web-push-java` (#67 confirms its release history before
+    adding it).
+  - **VAPID keys:** the owner generates the production key pair and stores it. Claude never handles the private key.
+    Tests generate throwaway keys.
+- **Rules this contract adds (confirmed by the owner, 2026-11-25):**
+  1. **`confirmWindowMinutes` is optional on `EventRequest`.** Missing or null means 30 on a create, and keeps the
+     current window on an edit. This is the one exception to D-012's full-replace `PATCH`: it lets the merged
+     frontend, which doesn't send the field until #68, keep working without resetting a host's window. A change
+     applies to later offers; open offers keep their deadline. `EventResponse.confirmWindowMinutes` is always set, for
+     everyone who can see the event.
+  2. **An offer's deadline** is `now + confirmWindowMinutes` when it's made. "The event starts within the window" means
+     `starts_at <= now + window`; then the person is confirmed at once and gets `SPOT_CONFIRMED`. As in D-013 rule 2,
+     nobody is offered or confirmed once the event has started or is cancelled: the freed spot just frees up.
+  3. **An open offer is an active RSVP,** like confirmed and waitlisted: it's the one active RSVP per person per event
+     (`rsvp_active_key`), it's on My schedule, and it grants visibility (D-013 rule 10). Joining while offered returns
+     `OFFERED` and its `offerExpiresAt` with a 200 and changes nothing. `myStatus` is `OFFERED`. An offered person
+     doesn't see a `CONFIRMED`-only location or the attendee list until they accept.
+  4. **Accepting** (`POST /api/events/{eventId}/rsvp/accept`) checks, in order: the event is visible (otherwise 404);
+     already `CONFIRMED` returns 200 `CONFIRMED` and changes nothing; an offer past its deadline is a 409
+     `OFFER_EXPIRED`; then an open offer on a published event becomes `CONFIRMED` (200), and anything else is a 409
+     `NO_OFFER` (none was made, they declined, or the event was cancelled). The deadline is compared with the
+     statement's time, so an offer the expiry job hasn't reached yet can't be accepted late, and one inside its
+     deadline can be accepted even if the event has started since. Accepting sends no notification.
+  5. **Declining is `DELETE /api/events/{eventId}/rsvp`** while offered: the RSVP ends as `LEFT`, and the spot goes to
+     the next person (rule 2). Host removal of an offered person ends it as `REMOVED`, with no notification. A block
+     between the host and an offered person ends it as `LEFT` (D-013 rule 11).
+  6. **Offers count as taken spots** everywhere a count is used: `/spots` `confirmed` and `spotsLeft`, and the
+     `CAPACITY_BELOW_CONFIRMED` check on a capacity cut. Waitlist positions count only `WAITLISTED` people, so being
+     offered a spot takes the person out of the queue.
+  7. **The host's attendee list** gains `offered`, in queue order. Confirmed attendees get `offered: null`. As with
+     `waitlist`, the list leaves out anyone in a block with the caller.
+  8. **Who gets each notification, and its payload.** The payload is the only content a notification has, so it's
+     safe for a lock screen: it never holds a location or a name. Each type sets only its own fields.
+
+     | Type | Sent to | Payload |
+     |---|---|---|
+     | `SPOT_OFFERED` | the person offered a spot | `eventTitle`, `offerExpiresAt` |
+     | `SPOT_CONFIRMED` | a person confirmed without accepting an offer (a spot freed, or a capacity raise, within the window before the start) | `eventTitle` |
+     | `EVENT_CHANGED` | every active RSVP but the host's, when a `PATCH` changes the start, end or location (one notification listing every change) | `eventTitle`, `startsAt` (after the change), `changes` (`START`, `END`, `LOCATION`) |
+     | `EVENT_CANCELLED` | every active RSVP but the host's | `eventTitle` |
+     | `EVENT_REMINDER` | the host and every confirmed attendee, about an hour before the start, at most once each | `eventTitle`, `startsAt` |
+     | `FRIEND_ACCEPTED` | the inviter | `friendId` (the new friend's user ID; the inbox may look the name up in `/api/friends`, a push never shows it) |
+
+     `eventTitle` is the title when the notification was made. Every type but `FRIEND_ACCEPTED` has an `eventId`.
+     Joining, leaving, accepting and host removal send nothing.
+  9. **A block deletes**, in the block's transaction, the notifications each of the two got about the other's events
+     (through `event.host_id`), and each one's `FRIEND_ACCEPTED` whose `friendId` is the other.
+  10. **The inbox** (`GET /api/notifications`) is the caller's own notifications, newest first (highest `id`), with an
+      opaque `cursor` and `limit` 1 to 50 (default 20), like the feed. `unreadCount` counts the whole inbox, capped at
+      100 so the count stays cheap; the client shows 100 as "99+". Nothing is purged in M4, but the 90-day purge of
+      ended events (docs/security.md) cascades to their notifications.
+  11. **`POST /api/notifications/read {upTo}`** marks every one of the caller's notifications with `id <= upTo` read,
+      and is a 204 whatever matched. The client sends the newest ID it has shown, so anything newer stays unread.
+      Notification IDs are bigints that only their owner sees; every query filters by the caller, so another user's ID
+      does nothing.
+  12. **`pushEnabled` decides `push_status` when a notification is written:** `PENDING` when push is on and the user
+      has at least one subscription, `NONE` (inbox only) otherwise. Turning push off keeps the subscriptions, and
+      subscribing doesn't turn it on: the client sends both calls.
+  13. **Push subscriptions:**
+      - The endpoint must be `https` on a known push service host: `fcm.googleapis.com`,
+        `updates.push.services.mozilla.com`, `web.push.apple.com` or `*.notify.windows.com`, then a path. Anything else
+        is a 400, because the sender POSTs to this URL and an open list would be SSRF. A new browser's host is added
+        in a contract PR. Endpoints are at most 2,048 characters, `p256dh` is 65 bytes and `auth` 16 bytes, base64url.
+      - An endpoint belongs to whoever subscribed with it last: subscribing again moves it to the caller and replaces
+        its keys, so a browser shared between accounts never gets the previous user's pushes.
+      - A user has at most 10 subscriptions. An 11th replaces their oldest (lowest `id`), so a user who lost old
+        browsers never gets stuck.
+      - `DELETE /api/push/subscriptions {endpoint}` removes only the caller's own, and is a 204 either way. The client
+        sends it on sign-out and when turning push off.
+      - Endpoints work like bearer tokens: never log them.
+  14. **`GET /api/push/key`** needs a session, like every API route (docs/security.md allows only health and
+      `/api/meta/support` without one). It's a 404 when the server has no VAPID keys, and the client then hides the
+      push setting.
+  15. **An offer past its deadline is expired at once, whether or not the expiry job has run.** Reads treat
+      `offer_expires_at <= statement_timestamp()` as no RSVP: `myStatus` is `NONE`, with no `offerExpiresAt`. A join
+      first ends that offer as `EXPIRED` and frees the spot (rule 2), under the event row lock, then joins at the back
+      of the queue. An accept is a 409 `OFFER_EXPIRED` while the caller's latest RSVP on the event is a past-deadline
+      offer or `EXPIRED`, and `NO_OFFER` otherwise.
+  16. **Cancelling leaves open offers alone.** They stay `OFFERED` until their deadline, so the person keeps seeing the
+      cancelled event and gets `EVENT_CANCELLED` like every other active RSVP. Accepting is a 409 `NO_OFFER`, and the
+      client shows no Accept button on a cancelled event (`EventResponse.status`). At the deadline the expiry job ends
+      them as `EXPIRED` without offering the spot again (rule 2).
+  17. **Making a capacity unlimited** before the start confirms every waitlisted person and every open offer at once,
+      each with `SPOT_CONFIRMED`, because an unlimited event never has a waitlist (D-013 rule 3). Any other raise
+      offers each new spot to the next person in line (or confirms them, within the window before the start).
+  18. **Signed-out devices stop getting pushes.** On sign-out the client calls `PushSubscription.unsubscribe()` as well
+      as `DELETE /api/push/subscriptions`, so the endpoint dies even if the server call fails (for example on an
+      expired session); the sender then deletes it on the push service's 404 or 410. "Log out everywhere" also deletes
+      all of the user's `push_subscription` rows.
+- **For the implementation:**
+  - **#65 makes `OFFERED` count** in the M3 code that names the active statuses: `RsvpRepository.ACTIVE`, `findMine`
+    and `findStatuses` (which also return `offerExpiresAt`), `lockForBlock`, `EventRepository.VISIBLE`'s active-RSVP
+    arm, the feed union and `scope=attending`. #64 widens the indexes only. `RsvpRepository.insert`'s
+    `ON CONFLICT (event_id, user_id) WHERE status IN ('CONFIRMED', 'WAITLISTED')` still infers the widened
+    `rsvp_active_key` (Postgres proves the narrower predicate implies the index's), and a join conflicts with an open
+    offer through it, so it needs no change.
+  - **D-013's lock order is unchanged:** every write that changes who holds a spot, the expiry job included, takes the
+    event row lock first. The expiry job finds due offers through `rsvp_offer_expiry_idx`, locks each event with
+    `SKIP LOCKED` so several tasks share the work, and re-checks the offer under the lock.
+  - **Every trigger writes through `NotificationRepository.insert`,** in the same transaction as the change it reports
+    (plan B8). It sets `push_status` (rule 12).
+  - **#67's sender** re-checks the endpoint's host with `java.net.URI.getHost()` against rule 13's list before each
+    send and doesn't follow redirects, so the allowlist holds even if the request pattern is loosened later. A
+    `PENDING` row whose user has turned push off, or has no subscription left, by send time ends as `FAILED`. #67
+    also makes "log out everywhere" delete the user's subscriptions (rule 18).
+  - **#68** runs `npm run gen:api` and sends `confirmWindowMinutes` from the event form. After #68 the field could
+    become required; that's a later contract change, not part of M4.
+- **Consequences:** a freed spot waits for someone who wants it instead of going to someone who may not have noticed,
+  at the cost of up to the window's delay. Every notification is safe to push as it is. The sender can reach only the
+  four push services.
+- **Revisit:** if the inbox gets slow without a purge (a measured p95), add a retention limit. If a supported browser
+  uses a push host outside the list, add it in a contract PR.

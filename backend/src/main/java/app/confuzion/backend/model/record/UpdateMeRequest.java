@@ -30,5 +30,5 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 public record UpdateMeRequest(
 		@IanaTimeZone @Schema(description = "IANA time zone ID", nullable = true, example = "America/Chicago", maxLength = IanaTimeZone.MAX_LENGTH) String timeZone,
-		@Schema(nullable = true) Boolean pushEnabled) {
+		@Schema(nullable = true, description = "Whether new notifications are also pushed to the user's subscribed browsers (D-014). Off, they still reach the inbox, and subscriptions are kept. Subscribing a browser doesn't turn this on: the client sends both.") Boolean pushEnabled) {
 }

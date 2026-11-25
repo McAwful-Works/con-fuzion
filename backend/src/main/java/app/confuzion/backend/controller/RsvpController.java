@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.AttendeesResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
@@ -107,8 +108,9 @@ public class RsvpController {
 	@Operation(summary = "Join an event", description = "Takes a free spot (CONFIRMED) or, when the event is full, the "
 			+ "back of the waitlist (WAITLISTED, with a position). First come, first served: the claim is one atomic "
 			+ "update, so the event is never overbooked. An unlimited event always confirms. Joining again while "
-			+ "confirmed or waitlisted returns the current status and changes nothing, so a double tap is safe. "
-			+ "Someone who left may join again, at the back of the queue. Checks run in this order: visibility (404), "
+			+ "confirmed, waitlisted or offered returns the current status and changes nothing, so a double tap is "
+			+ "safe. Someone who left, declined an offer or let one expire may join again, at the back of the queue "
+			+ "(D-014). Checks run in this order: visibility (404), "
 			+ "an existing RSVP (200 with its status, so the host always gets CONFIRMED), removal (RSVP_REMOVED), "
 			+ "then the sign-up window (SIGNUP_NOT_OPEN, SIGNUP_CLOSED).")
 	// Declaring the 409 drops springdoc's inferred 200, so the 200 is declared too.
@@ -131,10 +133,11 @@ public class RsvpController {
 	 */
 	@DeleteMapping("/rsvp")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@Operation(summary = "Leave an event", description = "Gives up the caller's spot or place in the waitlist. A freed "
-			+ "spot goes at once to the next person in the waitlist, who is confirmed (D-013; M4 turns this into an "
-			+ "offer). Nobody is promoted once the event has started or is cancelled. Leaving without an RSVP is "
-			+ "also a 204.")
+	@Operation(summary = "Leave an event", description = "Gives up the caller's spot, place in the waitlist or open "
+			+ "offer: while the caller holds an offer, this declines it. A freed spot is offered to the next person "
+			+ "in the waitlist for the event's confirmWindowMinutes, or confirms them at once when the event starts "
+			+ "sooner than that (D-014). Nobody is offered a spot once the event has started or is cancelled. "
+			+ "Leaving without an RSVP is also a 204.")
 	@ApiResponse(responseCode = "204", description = "Left, or wasn't signed up.")
 	@ApiResponse(responseCode = "404", description = NOT_VISIBLE)
 	@ApiResponse(responseCode = "409", description = HOST_CANNOT_LEAVE)
@@ -144,7 +147,31 @@ public class RsvpController {
 	}
 
 	/**
-	 * Returns who is going: the confirmed list, and for the host also the waitlist.
+	 * Accepts the spot the caller has been offered.
+	 *
+	 * @param authentication the session's {@link Authentication}
+	 * @param eventId        the event's public ID
+	 * @return the {@link RsvpResponse} envelope
+	 */
+	@PostMapping("/rsvp/accept")
+	@Operation(summary = "Accept an offered spot", description = "Turns the caller's open offer into a confirmed spot "
+			+ "(D-014). It works until offerExpiresAt, even if the expiry job hasn't run yet or the event has since "
+			+ "started. Accepting again while confirmed returns CONFIRMED and changes nothing. Checks run in this "
+			+ "order: visibility (404), already confirmed (200), an offer past its deadline or expired (OFFER_EXPIRED), "
+			+ "then CONFIRMED for an open offer on a published event, and NO_OFFER otherwise.")
+	@ApiResponse(responseCode = "200", description = "OK: status is CONFIRMED.")
+	@ApiResponse(responseCode = "404", description = NOT_VISIBLE)
+	@ApiResponse(responseCode = "409", description = "errorType OFFER_EXPIRED: the caller's offer ran out; they may "
+			+ "join again, at the back of the queue. NO_OFFER: the caller holds no open offer: none was made, they "
+			+ "declined it, or the event was cancelled.")
+	public ResponseRecord<RsvpResponse> accept(@Parameter(hidden = true) Authentication authentication,
+			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
+		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+	}
+
+	/**
+	 * Returns who is going: the confirmed list, and for the host also the waitlist
+	 * and open offers.
 	 *
 	 * @param authentication the session's {@link Authentication}
 	 * @param eventId        the event's public ID
@@ -152,8 +179,8 @@ public class RsvpController {
 	 */
 	@GetMapping("/attendees")
 	@Operation(summary = "List who is going", description = "Only the host and confirmed attendees can call this. "
-			+ "Both get the confirmed list; the host also gets the waitlist, in queue order. Nobody else ever sees "
-			+ "who is waitlisted.")
+			+ "Both get the confirmed list; the host also gets the waitlist and the people holding an open offer, in "
+			+ "queue order. Nobody else ever sees who is waitlisted or offered.")
 	@ApiResponse(responseCode = "200", description = "OK")
 	@ApiResponse(responseCode = "404", description = "The caller is neither the host nor confirmed, or can't see the "
 			+ "event.")
@@ -172,8 +199,8 @@ public class RsvpController {
 	@DeleteMapping("/rsvps/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Remove someone from an event the user hosts", description = "Takes away their spot or place "
-			+ "in the waitlist, and they can't rejoin. A freed spot goes to the next person in the waitlist, as for "
-			+ "leaving. Removing someone who isn't signed up is also a 204, and writes nothing: they can still join. "
+			+ "in the waitlist, or their open offer, and they can't rejoin. They aren't notified. A freed spot goes "
+			+ "to the next person in the waitlist, as for leaving. Removing someone who isn't signed up is also a 204, and writes nothing: they can still join. "
 			+ "404 unless the user is the host.")
 	@ApiResponse(responseCode = "204", description = "Removed, or wasn't signed up.")
 	@ApiResponse(responseCode = "404", description = "The user isn't the event's host.")
@@ -196,7 +223,8 @@ public class RsvpController {
 	@GetMapping("/spots")
 	@Operation(summary = "Get spot counts", description = "A small response for polling: about every 3 seconds in "
 			+ "the 2 minutes around signupOpensAt, every 30 seconds otherwise, and not while the page is hidden. "
-			+ "Anyone who can see the event can call it. myStatus and myPosition are always the caller's own. Send "
+			+ "Anyone who can see the event can call it. myStatus, myPosition and offerExpiresAt are always the "
+			+ "caller's own. Send "
 			+ "the last ETag in If-None-Match to get a bodiless 304 while nothing the caller would see has changed. "
 			+ "Responses are sent with Cache-Control: private, no-cache.")
 	@Parameter(in = ParameterIn.HEADER, name = HttpHeaders.IF_NONE_MATCH, description = "The ETag of the caller's "
@@ -223,7 +251,7 @@ public class RsvpController {
 	static String etag(SpotsResponse spots) {
 		var fields = String.join(",", Objects.toString(spots.capacity()), Integer.toString(spots.confirmed()),
 				Integer.toString(spots.waitlisted()), Objects.toString(spots.spotsLeft()), spots.myStatus().name(),
-				Objects.toString(spots.myPosition()));
+				Objects.toString(spots.myPosition()), Objects.toString(spots.offerExpiresAt()));
 		try {
 			var digest = MessageDigest.getInstance("SHA-256").digest(fields.getBytes(StandardCharsets.US_ASCII));
 			return Base64.getUrlEncoder().withoutPadding().encodeToString(digest).substring(0, 22);
