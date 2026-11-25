@@ -41,7 +41,7 @@ public record SpotsResponse(
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "2", maximum = "10000", description = "The headcount, the host included. Null for unlimited.") Integer capacity,
 		@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "1", description = "People holding a spot, the host included.") int confirmed,
 		@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "0", description = "Always 0 for an unlimited event.") int waitlisted,
-		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "0", description = "capacity - confirmed. Null for unlimited.") Integer spotsLeft,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "0", description = "capacity - confirmed. Null for unlimited. Nobody is promoted once the event has started, so this can be above 0 while people are waitlisted; sign-up is closed by then.") Integer spotsLeft,
 		@Schema(requiredMode = RequiredMode.REQUIRED) MyStatus myStatus,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "1", description = "The caller's own 1-based place in the waitlist: 1 + the number of people waitlisted ahead of them. Null unless myStatus is WAITLISTED.") Integer myPosition)
 		implements ResponseBodyObject {

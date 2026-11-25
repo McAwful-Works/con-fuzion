@@ -81,7 +81,9 @@ public class RsvpController {
 			+ "back of the waitlist (WAITLISTED, with a position). First come, first served: the claim is one atomic "
 			+ "update, so the event is never overbooked. An unlimited event always confirms. Joining again while "
 			+ "confirmed or waitlisted returns the current status and changes nothing, so a double tap is safe. "
-			+ "Someone who left may join again, at the back of the queue.")
+			+ "Someone who left may join again, at the back of the queue. Checks run in this order: visibility (404), "
+			+ "an existing RSVP (200 with its status, so the host always gets CONFIRMED), removal (RSVP_REMOVED), "
+			+ "then the sign-up window (SIGNUP_NOT_OPEN, SIGNUP_CLOSED).")
 	// Declaring the 409 drops springdoc's inferred 200, so the 200 is declared too.
 	@ApiResponse(responseCode = "200", description = "OK")
 	@ApiResponse(responseCode = "404", description = NOT_VISIBLE)
@@ -144,7 +146,8 @@ public class RsvpController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Remove someone from an event the user hosts", description = "Takes away their spot or place "
 			+ "in the waitlist, and they can't rejoin. A freed spot goes to the next person in the waitlist, as for "
-			+ "leaving. Removing someone who isn't signed up is also a 204. 404 unless the user is the host.")
+			+ "leaving. Removing someone who isn't signed up is also a 204, and writes nothing: they can still join. "
+			+ "404 unless the user is the host.")
 	@ApiResponse(responseCode = "204", description = "Removed, or wasn't signed up.")
 	@ApiResponse(responseCode = "404", description = "The user isn't the event's host.")
 	@ApiResponse(responseCode = "409", description = HOST_CANNOT_LEAVE)
@@ -165,7 +168,8 @@ public class RsvpController {
 	@Operation(summary = "Get spot counts", description = "A small response for polling: about every 3 seconds in "
 			+ "the 2 minutes around signupOpensAt, every 30 seconds otherwise, and not while the page is hidden. "
 			+ "Anyone who can see the event can call it. myStatus and myPosition are always the caller's own. Send "
-			+ "the last ETag in If-None-Match to get a bodiless 304 while nothing the caller would see has changed.")
+			+ "the last ETag in If-None-Match to get a bodiless 304 while nothing the caller would see has changed. "
+			+ "Responses are sent with Cache-Control: private, no-cache.")
 	@Parameter(in = ParameterIn.HEADER, name = HttpHeaders.IF_NONE_MATCH, description = "The ETag of the caller's "
 			+ "last 200 from this endpoint.", schema = @Schema(type = "string"))
 	@ApiResponse(responseCode = "200", description = "OK", headers = @Header(name = HttpHeaders.ETAG, description = "A "

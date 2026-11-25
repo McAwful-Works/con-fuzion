@@ -204,7 +204,9 @@ Context · Decision · Consequences · Trigger to revisit
 - **Revisit:** if the visibility query misses its latency target in the M7 load test, or if hosts ask for audiences
   that don't need the host to be discoverable.
 
-## D-013 RSVP: first come, first served, the waitlist and who sees it (2026-11-24) — Accepted
+## D-013 RSVP: first come, first served, the waitlist and who sees it (2026-11-24) — Proposed
+- **Status:** the owner decisions below are the owner's. The numbered rules this contract adds wait for the owner's
+  confirmation; this entry becomes Accepted once they're confirmed.
 - **Context:** M3 adds RSVP (#53): limited spots claimed first come, first served (D-002, plan B4), a waitlist in
   queue order, live spot counts and My schedule. This pins the API rules so #54 (backend), #55 (frontend) and #56
   (e2e) can build in parallel. The target is 5,000 joins in 10 seconds on one event with no overbooking (M7 load test).
@@ -226,9 +228,8 @@ Context · Decision · Consequences · Trigger to revisit
   `SIGNUP_NOT_OPEN`, `SIGNUP_CLOSED`, `RSVP_REMOVED` and `HOST_CANNOT_LEAVE`. New ones add a value, never a free
   string. `EventNotEditableException` stays a plain 409.
 - **D-012 revisited for M3:**
-  - **An active RSVP is a visibility grant.** Anyone `CONFIRMED` or `WAITLISTED` on an event can see it, cancelled or
-    not, unless a block stands between them and the host. So confirmed attendees can still open a cancelled event (and
-    M4's "event cancelled" notification can link to it).
+  - **Confirmed attendees can open a cancelled event** (so M4's "event cancelled" notification can link to it). Rule 10
+    extends this to waitlisted people.
   - **Confirmed attendees see a `CONFIRMED` location.** Waitlisted people don't.
   - **Only the host and confirmed attendees get the attendee list.** Anyone else gets a 404.
   - **A waitlist position is shown only to its owner** (`position` from a join, `myPosition` from `/spots`). The host
@@ -239,23 +240,29 @@ Context · Decision · Consequences · Trigger to revisit
      back of the queue.
   2. **Joining is open from `signupOpensAt` (or from publication) until the start.** Before that it's a 409
      `SIGNUP_NOT_OPEN`, and from the start a 409 `SIGNUP_CLOSED`. Leaving and host removal work at any time, but nobody
-     is promoted once the event has started or is cancelled.
+     is promoted once the event has started or is cancelled. So after the start, `/spots` can show spots left and a
+     waitlist at once, and the client shows sign-up as closed.
   3. **An unlimited event never has a waitlist.** Every join confirms, `waitlisted` is 0 and `spotsLeft` is null.
-  4. **Raising the capacity, or making it unlimited, promotes waitlisted people** in queue order to fill the new
-     spots, at once. No other edit (times, sign-up opening) removes anyone.
+  4. **Raising the capacity, or making it unlimited, before the start promotes waitlisted people** in queue order to
+     fill the new spots, at once (rule 2: never after the start). No other edit (times, sign-up opening) removes
+     anyone.
   5. **Repeats are harmless.** Joining while confirmed or waitlisted returns the current status with a 200 and changes
-     nothing. Leaving, or removing someone, who isn't signed up is a 204.
+     nothing, whatever the time. Leaving, or removing someone, who isn't signed up is a 204 that writes nothing: the
+     person can still join. A host who wants someone kept out blocks them or drops them from the audience.
   6. **The host can't leave or remove themself** (409 `HOST_CANNOT_LEAVE`); they cancel the event instead. The host
      joining gets `CONFIRMED`.
   7. **Only the host can remove people.** `DELETE /rsvps/{userId}` by anyone else is a 404, even for a confirmed
      attendee who can see the event.
   8. **`/attendees`:** the host and confirmed attendees get `confirmed`, in join order (the host first), as public
      profiles. The host also gets `waitlist` in queue order, and confirmed attendees get `waitlist: null`. The list
-     leaves out anyone in a block with the caller, either way. The counts in `/spots` include everyone.
+     leaves out anyone in a block with the caller, either way. The counts in `/spots` include everyone, so a confirmed
+     attendee who compares the two can tell that someone in a block with them is going, though not who. Hiding them
+     from the counts would make the counts wrong for everyone, so this contract accepts that.
   9. **`myPosition` and `position` are 1-based:** 1 plus the number of people waitlisted on that event with a lower
      `rsvp.id`. They're null unless the caller is waitlisted.
-  10. **An RSVP outlives the audience.** Someone who joined keeps their spot, and the event, even if its audience
-      stops reaching them (removed from a circle, discoverability turned off). The host can remove them.
+  10. **An active RSVP is a visibility grant, waitlisted included.** Anyone confirmed or waitlisted keeps seeing the
+      event, cancelled or not, and even if its audience stops reaching them (removed from a circle, discoverability
+      turned off), unless a block stands between them and the host. The host can remove them.
   11. **A block between the host and an attendee ends the attendee's RSVP** as `LEFT`, in the block's transaction,
       freeing the spot and promoting as for leaving. After an unblock they may join again if the audience reaches them.
   12. **My schedule** (`GET /api/events?scope=attending`) lists the upcoming events where the caller is confirmed or
@@ -268,18 +275,31 @@ Context · Decision · Consequences · Trigger to revisit
   15. **Existing capacities are kept and now count the host.** Only a capacity of 1 changes, to 2. Nothing is live
       yet, so no real event loses a guest spot.
   16. **`/spots`** sends an `ETag` that is specific to the caller (it covers `myStatus` and `myPosition`), and
-      `If-None-Match` gets a bodiless 304. Joins are rate limited to about one attempt per second per user (plan B2).
+      `If-None-Match` gets a bodiless 304. It's sent with `Cache-Control: private, no-cache`, so no shared cache keeps
+      it. Joins are rate limited to about one attempt per second per user (plan B2).
+  17. **A join's checks run in this order:** the event must be visible (otherwise 404); an active RSVP returns its
+      status (200, so the host always gets `CONFIRMED`); a `REMOVED` row is a 409 `RSVP_REMOVED`; then the sign-up
+      window (`SIGNUP_NOT_OPEN`, `SIGNUP_CLOSED`); then the claim.
 - **For the implementation (#54):**
-  - **The claim** follows plan B4. The visibility, window and removal checks run first, read-only. Then one short
-    transaction holds only `UPDATE event SET confirmed_count = confirmed_count + 1 WHERE id = ? AND status =
-    'PUBLISHED' AND (capacity IS NULL OR confirmed_count < capacity) RETURNING …` and the `INSERT` (`CONFIRMED` if a row
-    came back, `WAITLISTED` otherwise). A unique violation on `rsvp_active_key` is a double tap: return the existing
-    RSVP.
-  - **Leaving and removal** set `LEFT` or `REMOVED` in one transaction. Freeing a confirmed spot on a published event
-    before its start promotes the next person (`… WHERE status = 'WAITLISTED' ORDER BY id LIMIT 1 FOR UPDATE SKIP
-    LOCKED`) and keeps the count. Otherwise it decrements `confirmed_count`.
+  - **Lock order: the event row first, always.** Every write that changes who holds a spot (join, leave, removal, a
+    block, a capacity edit) locks the `event` row before it touches any `rsvp` row, and holds it until it commits.
+    That serialises them per event, so a waitlisted insert can't slip past a concurrent leave's promotion, and two
+    writers can't deadlock.
+  - **The claim** follows plan B4. The visibility, window and removal checks (rule 17) run first, read-only. Then one
+    short transaction holds only an update that always matches, and so always takes the lock:
+    `UPDATE event SET confirmed_count = confirmed_count + CASE WHEN capacity IS NULL OR confirmed_count < capacity THEN
+    1 ELSE 0 END WHERE id = ? RETURNING status, confirmed_count, …` (or `SELECT … FOR NO KEY UPDATE`, then branch). If
+    the returned status isn't `PUBLISHED` (cancelled in between), roll back and answer 404. Otherwise `INSERT` the RSVP,
+    `CONFIRMED` if the count went up and `WAITLISTED` if not. A unique violation on `rsvp_active_key` is a double tap:
+    return the existing RSVP.
+  - **Leaving and removal** lock the event row, then set `LEFT` or `REMOVED`. Freeing a confirmed spot on a published
+    event before its start promotes the next person (`… WHERE status = 'WAITLISTED' ORDER BY id LIMIT 1`) and keeps
+    the count. Otherwise it decrements `confirmed_count`.
   - **The capacity check** runs under the event row lock that `PATCH` already takes. The `event_not_overbooked` CHECK
     is a backstop, not the mechanism.
+  - **The concurrency suite** interleaves joins with leaves and capacity raises, and checks that no one is left
+    waitlisted while a spot is free before the start.
+  - **`/spots` caching:** plan B2's per-task cache may hold only the shared counts, never a caller's body or ETag.
   - **`EventRepository.VISIBLE`** gains the active-RSVP arm, and stays the one predicate.
   - **Account deletion** (M7) must leave every active RSVP first, because the `rsvp.user_id` cascade doesn't touch
     `confirmed_count`.
