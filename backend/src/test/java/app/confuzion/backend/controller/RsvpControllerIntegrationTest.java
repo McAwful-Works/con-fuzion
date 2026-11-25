@@ -266,7 +266,7 @@ class RsvpControllerIntegrationTest {
 	}
 
 	/**
-	 * Tests removal: the host's removal frees the spot for the next person in line,
+	 * Tests removal: the host's removal offers the spot to the next person in line,
 	 * the removed person can't rejoin and reads {@code REMOVED} while the audience
 	 * still reaches them, removing someone not signed up writes nothing, and the
 	 * host can neither leave nor remove themself.
@@ -284,7 +284,7 @@ class RsvpControllerIntegrationTest {
 		assertThat(fixtures.rsvpStatus(event.id(), removed)).isEqualTo("REMOVED");
 		assertThat(JsonPath.<Map<String, Object>>read(content(get(path(event) + "/spots").with(login(removed)), 200),
 				"$.body")).containsEntry("myStatus", "REMOVED").containsEntry("myPosition", null);
-		assertThat(fixtures.rsvpStatus(event.id(), next)).isEqualTo("CONFIRMED");
+		assertThat(fixtures.rsvpStatus(event.id(), next)).isEqualTo("OFFERED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(2);
 
 		assertConflict(post(path(event) + "/rsvp").with(login(removed)).with(csrf()), "RSVP_REMOVED");
@@ -310,7 +310,8 @@ class RsvpControllerIntegrationTest {
 
 	/**
 	 * Tests that a block between the host and an attendee ends the attendee's RSVP
-	 * as {@code LEFT} and promotes the next person, whichever of them blocks, and
+	 * as {@code LEFT} and offers the spot to the next person, whichever of them
+	 * blocks, and
 	 * that after an unblock they may join again.
 	 */
 	@Test
@@ -325,7 +326,7 @@ class RsvpControllerIntegrationTest {
 
 		assertThat(status(put("/api/blocks/" + blocked).with(login(host)).with(csrf()))).isEqualTo(204);
 		assertThat(fixtures.rsvpStatus(event.id(), blocked)).isEqualTo("LEFT");
-		assertThat(fixtures.rsvpStatus(event.id(), promoted)).isEqualTo("CONFIRMED");
+		assertThat(fixtures.rsvpStatus(event.id(), promoted)).isEqualTo("OFFERED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(2);
 		assertThat(status(get(path(event)).with(login(blocked)))).isEqualTo(404);
 
@@ -486,7 +487,7 @@ class RsvpControllerIntegrationTest {
 
 	/**
 	 * Tests that moving a started event's start back into the future reopens it:
-	 * the people left waiting after the start fill the free spots at once.
+	 * the people left waiting after the start are offered the free spots at once.
 	 */
 	@Test
 	void testMovingTheStartForwardFillsFreeSpots() throws Exception {
@@ -500,7 +501,7 @@ class RsvpControllerIntegrationTest {
 		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("WAITLISTED");
 
 		assertThat(status(edit(event, 2, Instant.now().plus(1, ChronoUnit.DAYS)))).isEqualTo(200);
-		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("CONFIRMED");
+		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("OFFERED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(2);
 	}
 

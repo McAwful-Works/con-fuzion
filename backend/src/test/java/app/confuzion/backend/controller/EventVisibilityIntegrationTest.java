@@ -252,7 +252,9 @@ class EventVisibilityIntegrationTest {
 	}
 
 	/**
-	 * Returns the RSVP rows of the truth table (D-013 rule 10): each RSVP status,
+	 * Returns the RSVP rows of the truth table (D-013 rule 10, D-014 rules 3 and
+	 * 15): each RSVP status, an open offer and one past its deadline
+	 * ({@code OFFERED_LATE}),
 	 * on a published and a cancelled event, with no block and with a block each
 	 * way. The event has no audience entries, so only the RSVP can make it visible.
 	 *
@@ -261,18 +263,19 @@ class EventVisibilityIntegrationTest {
 	 */
 	static Stream<Arguments> rsvpTruthTable() {
 		var rows = new ArrayList<Arguments>();
-		for (var status : List.of("CONFIRMED", "WAITLISTED", "LEFT", "REMOVED"))
+		for (var status : List.of("CONFIRMED", "WAITLISTED", "OFFERED", "OFFERED_LATE", "EXPIRED", "LEFT", "REMOVED"))
 			for (var cancelled : List.of(false, true))
 				for (var change : List.of(Change.NONE, Change.HOST_BLOCKS, Change.VIEWER_BLOCKS))
 					rows.add(Arguments.of(status, cancelled, change,
-							(status.equals("CONFIRMED") || status.equals("WAITLISTED")) && change == Change.NONE));
+							List.of("CONFIRMED", "WAITLISTED", "OFFERED").contains(status) && change == Change.NONE));
 		return rows.stream();
 	}
 
 	/**
 	 * Tests one RSVP row: an active RSVP keeps the event visible, cancelled or not
 	 * and whatever the audience, unless a block stands between the viewer and the
-	 * host. A left or removed RSVP grants nothing. The detail view and the feed
+	 * host. A left, removed or expired RSVP grants nothing, nor does an offer past
+	 * its deadline. The detail view and the feed
 	 * (which lists only published events) agree.
 	 *
 	 * @param status    the viewer's RSVP status
@@ -286,8 +289,13 @@ class EventVisibilityIntegrationTest {
 		var host = fixtures.user("Host");
 		var viewer = fixtures.user("Viewer");
 		var event = fixtures.event(host);
-		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status) VALUES (?, ?, ?)", event.id(), viewer,
-				status);
+		var deadline = switch (status) {
+		case "OFFERED" -> "now() + interval '30 minutes'";
+		case "OFFERED_LATE" -> "now() - interval '1 second'";
+		default -> "NULL";
+		};
+		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status, offer_expires_at) VALUES (?, ?, ?, "
+				+ deadline + ")", event.id(), viewer, status.replace("_LATE", ""));
 		if (cancelled)
 			fixtures.cancel(event.id());
 		switch (change) {

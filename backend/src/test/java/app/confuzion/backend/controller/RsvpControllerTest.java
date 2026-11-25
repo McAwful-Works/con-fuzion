@@ -45,6 +45,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 
+import app.confuzion.backend.exception.ConflictException;
+import app.confuzion.backend.exception.ConflictException.Conflict;
 import app.confuzion.backend.model.record.AttendeesResponse;
 import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.RsvpResponse;
@@ -143,13 +145,20 @@ class RsvpControllerTest {
 	}
 
 	/**
-	 * Tests that accepting an offer is a 501 stub until #65, and never reaches the
-	 * service.
+	 * Tests that accepting an offer maps to the service with the session's user,
+	 * and that its domain 409 carries the conflict as the errorType.
 	 */
 	@Test
-	void testAcceptIsNotImplementedYet() throws Exception {
-		assertError(mockMvc, post(EVENT + "/rsvp/accept").principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
-		verifyNoInteractions(rsvpService);
+	void testAcceptMapsToTheService() throws Exception {
+		when(rsvpService.accept(USER_ID, EVENT_ID)).thenReturn(new RsvpResponse(RsvpResponse.Status.CONFIRMED, null, null))
+				.thenThrow(new ConflictException(Conflict.OFFER_EXPIRED));
+
+		mockMvc.perform(post(EVENT + "/rsvp/accept").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("RSVP"))
+				.andExpect(jsonPath("$.body.status").value("CONFIRMED"));
+		mockMvc.perform(post(EVENT + "/rsvp/accept").principal(AUTHENTICATION)).andExpect(status().isConflict())
+				.andExpect(jsonPath("$.responseType").value("ERROR"))
+				.andExpect(jsonPath("$.body.errorType").value("OFFER_EXPIRED"));
 	}
 
 	/**

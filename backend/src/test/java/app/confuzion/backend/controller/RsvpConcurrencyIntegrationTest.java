@@ -32,6 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,7 @@ import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.RsvpResponse;
 import app.confuzion.backend.service.BlockService;
 import app.confuzion.backend.service.EventService;
+import app.confuzion.backend.service.OfferExpiryJob;
 import app.confuzion.backend.service.RsvpService;
 
 /**
@@ -91,6 +93,12 @@ class RsvpConcurrencyIntegrationTest {
 	private EventService eventService;
 
 	/**
+	 * The {@link OfferExpiryJob}, run by hand rather than waiting for its schedule.
+	 */
+	@Autowired
+	private OfferExpiryJob offerExpiryJob;
+
+	/**
 	 * The {@link BlockService}, for blocks racing joins.
 	 */
 	@Autowired
@@ -125,9 +133,10 @@ class RsvpConcurrencyIntegrationTest {
 	/**
 	 * Tests the headline case. Capacity 11 with the host holding one spot: 200
 	 * parallel joins confirm exactly 10 guests and waitlist 190 in insert order.
-	 * Three confirmed guests leave and the first three waitlisted are confirmed in
-	 * order, raising the capacity by 2 confirms the next two, and cutting it below
-	 * the confirmed count is a 409 that saves nothing.
+	 * Three confirmed guests leave and the first three waitlisted are offered the
+	 * spots in order (D-014). One offer expires and the next in line is offered
+	 * its spot. Raising the capacity by 2 offers the next two, and cutting it below
+	 * the held spots is a 409 that saves nothing.
 	 */
 	@Test
 	void testFirstComeFirstServed() throws Exception {
@@ -154,14 +163,21 @@ class RsvpConcurrencyIntegrationTest {
 		for (var i = 0; i < 3; i++) {
 			rsvpService.leave(queue.get(i).userId(), event.publicId());
 			assertThat(statuses(event, queue.subList(10, 14)))
-					.containsExactlyElementsOf(nCopiesThen(i + 1, "CONFIRMED", 3 - i, "WAITLISTED"));
+					.containsExactlyElementsOf(nCopiesThen(i + 1, "OFFERED", 3 - i, "WAITLISTED"));
 			assertThat(fixtures.confirmedCount(event.id())).isEqualTo(11);
 		}
 
+		jdbcTemplate.update("UPDATE rsvp SET offer_expires_at = now() - interval '1 second' WHERE event_id = ? "
+				+ "AND user_id = ?", event.id(), queue.get(10).userId());
+		offerExpiryJob.run();
+		assertThat(statuses(event, queue.subList(10, 15))).containsExactly("EXPIRED", "OFFERED", "OFFERED", "OFFERED",
+				"WAITLISTED");
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(11);
+
 		eventService.updateEvent(host, event.publicId(), request(13));
-		assertThat(statuses(event, queue.subList(13, 16))).containsExactly("CONFIRMED", "CONFIRMED", "WAITLISTED");
+		assertThat(statuses(event, queue.subList(14, 17))).containsExactly("OFFERED", "OFFERED", "WAITLISTED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(13);
-		assertThat(rsvpService.getSpots(queue.get(15).userId(), event.publicId()).myPosition()).isEqualTo(1);
+		assertThat(rsvpService.getSpots(queue.get(16).userId(), event.publicId()).myPosition()).isEqualTo(1);
 
 		assertThatThrownBy(() -> eventService.updateEvent(host, event.publicId(), request(12))).isInstanceOfSatisfying(
 				ConflictException.class, e -> assertThat(e.getConflict()).isEqualTo(Conflict.CAPACITY_BELOW_CONFIRMED));
@@ -206,12 +222,69 @@ class RsvpConcurrencyIntegrationTest {
 
 		parallel(tasks);
 
-		var confirmed = count(event, "CONFIRMED");
+		var held = count(event, "CONFIRMED") + count(event, "OFFERED");
 		var waitlisted = count(event, "WAITLISTED");
-		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(confirmed);
-		assertThat(confirmed).isEqualTo(14);
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(held);
+		assertThat(held).isEqualTo(14);
 		assertThat(waitlisted).isEqualTo(120 - 30 + 1 - 14);
 		assertThat(count(event, "LEFT")).isEqualTo(30);
+	}
+
+	/**
+	 * Tests accepts racing the expiry job across their deadline: 30 offers that
+	 * run out in half a second, each accepted at a random moment in the second
+	 * around it while two tasks run the job. Nothing deadlocks, each accept is
+	 * {@code CONFIRMED} or {@code OFFER_EXPIRED} and its row agrees, the count
+	 * matches the held spots and never exceeds the capacity, and every expired
+	 * offer's spot went to the next person in line.
+	 */
+	@Test
+	void testAcceptsRaceTheExpiryJob() throws Exception {
+		var event = event(41);
+		var guests = guests(100);
+		for (var guest : guests)
+			rsvpService.join(guest, event.publicId());
+		var queue = queue(event);
+		for (var row : queue.subList(0, 30))
+			rsvpService.leave(row.userId(), event.publicId());
+		var offered = queue.subList(40, 70).stream().map(Row::userId).toList();
+		assertThat(statuses(event, queue.subList(40, 71))).containsExactlyElementsOf(nCopiesThen(30, "OFFERED", 1,
+				"WAITLISTED"));
+		jdbcTemplate.update("UPDATE rsvp SET offer_expires_at = now() + interval '500 milliseconds' "
+				+ "WHERE event_id = ? AND status = 'OFFERED'", event.id());
+
+		var deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(1_500);
+		var tasks = new ArrayList<Callable<String>>();
+		for (var userId : offered)
+			tasks.add(() -> {
+				Thread.sleep(ThreadLocalRandom.current().nextLong(1_000));
+				try {
+					return rsvpService.accept(userId, event.publicId()).status().name();
+				} catch (ConflictException e) {
+					return e.getConflict().name();
+				}
+			});
+		for (var i = 0; i < 2; i++)
+			tasks.add(() -> {
+				while (System.nanoTime() < deadline)
+					offerExpiryJob.run();
+				return "JOB";
+			});
+
+		var results = parallel(tasks);
+		offerExpiryJob.run();
+
+		for (var i = 0; i < offered.size(); i++) {
+			var status = fixtures.rsvpStatus(event.id(), offered.get(i));
+			assertThat(results.get(i)).isIn("CONFIRMED", "OFFER_EXPIRED");
+			assertThat(status).isEqualTo(results.get(i).equals("CONFIRMED") ? "CONFIRMED" : "EXPIRED");
+		}
+		var held = count(event, "CONFIRMED") + count(event, "OFFERED");
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(held).isEqualTo(41);
+		// Each expired offer's spot was offered to the next person in line, in order.
+		var expired = (int) results.stream().filter("OFFER_EXPIRED"::equals).count();
+		assertThat(statuses(event, queue.subList(70, 100))).containsExactlyElementsOf(
+				nCopiesThen(expired, "OFFERED", 30 - expired, "WAITLISTED"));
 	}
 
 	/**
@@ -257,12 +330,12 @@ class RsvpConcurrencyIntegrationTest {
 		parallel(tasks);
 
 		var active = jdbcTemplate.queryForList(
-				"SELECT user_id FROM rsvp WHERE event_id = ? AND status IN ('CONFIRMED', 'WAITLISTED')", UUID.class,
+				"SELECT user_id FROM rsvp WHERE event_id = ? AND status IN ('CONFIRMED', 'WAITLISTED', 'OFFERED')", UUID.class,
 				event.id());
 		assertThat(active).doesNotContainAnyElementsOf(blocked).hasSize(80 - 20 - blocked.size() + 1);
-		var confirmed = count(event, "CONFIRMED");
-		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(confirmed);
-		assertThat(confirmed).isEqualTo(5);
+		var held = count(event, "CONFIRMED") + count(event, "OFFERED");
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(held);
+		assertThat(held).isEqualTo(5);
 	}
 
 	/**
@@ -312,7 +385,8 @@ class RsvpConcurrencyIntegrationTest {
 
 	/**
 	 * Runs tasks at once on 32 threads and returns their results in task order. Any
-	 * task's exception fails the test.
+	 * task's exception fails the test, and interrupts the tasks still running so a
+	 * failure can't hang the suite.
 	 *
 	 * @param <T>   the result type
 	 * @param tasks the tasks
@@ -321,15 +395,19 @@ class RsvpConcurrencyIntegrationTest {
 	private static <T> List<T> parallel(List<? extends Callable<T>> tasks) throws Exception {
 		var start = new CountDownLatch(1);
 		try (var executor = Executors.newFixedThreadPool(32)) {
-			var futures = tasks.stream().map(task -> executor.submit(() -> {
-				start.await();
-				return task.call();
-			})).toList();
-			start.countDown();
-			var results = new ArrayList<T>();
-			for (var future : futures)
-				results.add(future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
-			return results;
+			try {
+				var futures = tasks.stream().map(task -> executor.submit(() -> {
+					start.await();
+					return task.call();
+				})).toList();
+				start.countDown();
+				var results = new ArrayList<T>();
+				for (var future : futures)
+					results.add(future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+				return results;
+			} finally {
+				executor.shutdownNow();
+			}
 		}
 	}
 
