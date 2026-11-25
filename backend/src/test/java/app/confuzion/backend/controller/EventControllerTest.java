@@ -20,10 +20,19 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -41,16 +50,27 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import app.confuzion.backend.model.record.EventPageResponse;
 import app.confuzion.backend.model.record.EventRequest;
+import app.confuzion.backend.model.record.EventResponse;
+import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
+import app.confuzion.backend.model.record.EventResponse.Status;
+import app.confuzion.backend.model.record.PersonResponse;
+import app.confuzion.backend.service.EventService;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Unit tests for the {@link EventController} contract stubs: every operation
- * answers 501 in the error envelope, and every validation rule on create,
- * update and the list query turns a bad request into a 400.
+ * Unit tests for {@link EventController}: valid requests reach the
+ * {@link EventService} with the session's user ID, and every validation rule on
+ * create, update and the list query turns a bad request into a 400 before the
+ * service is called.
  *
  * @author mcawful
  */
@@ -59,6 +79,17 @@ class EventControllerTest {
 	 * An event's path.
 	 */
 	private static final String EVENT = "/api/events/" + UUID.randomUUID();
+
+	/**
+	 * The signed-in user's ID.
+	 */
+	private static final UUID USER_ID = UUID.randomUUID();
+
+	/**
+	 * The signed-in user's {@link Authentication}.
+	 */
+	private static final Authentication AUTHENTICATION = UsernamePasswordAuthenticationToken
+			.authenticated(USER_ID.toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
 
 	/**
 	 * A start time a week from now.
@@ -71,9 +102,22 @@ class EventControllerTest {
 	private static final JsonMapper JSON = JsonMapper.builder().build();
 
 	/**
+	 * An event the mocked service returns.
+	 */
+	private static final EventResponse RESPONSE = new EventResponse(UUID.randomUUID(),
+			new PersonResponse(USER_ID, "Host", "https://cdn.discordapp.com/embed/avatars/0.png"), "Walk", null,
+			"Hall B", false, LocationVisibility.VIEWERS, null, STARTS_AT, null, "UTC", null, null, Status.PUBLISHED,
+			true, List.of());
+
+	/**
+	 * The mocked {@link EventService}.
+	 */
+	private final EventService eventService = mock(EventService.class);
+
+	/**
 	 * The {@link MockMvc}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new EventController());
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new EventController(eventService));
 
 	/**
 	 * Returns one valid request per operation, plus edge cases that must pass
@@ -85,25 +129,49 @@ class EventControllerTest {
 		var everyField = Map.<String, Object>of("description", "Bring a camera.\nMeet by the fountain.", "tag",
 				"Photoshoot", "endsAt", STARTS_AT.plus(EventRequest.MAX_LENGTH).toString(), "capacity", 10000,
 				"signupOpensAt", STARTS_AT.minus(EventRequest.MAX_HORIZON).toString(), "audience", allAudienceTypes());
-		return Stream.of(json(post("/api/events"), body(Map.of())), json(post("/api/events"), body(everyField)),
+		return Stream.<MockHttpServletRequestBuilder>of(json(post("/api/events"), body(Map.of())),
+				json(post("/api/events"), body(everyField)),
 				json(post("/api/events"), body(Map.of("audience", audience(EventRequest.MAX_AUDIENCE)))),
 				get("/api/events"), get("/api/events").param("scope", "hosting").param("limit", "50"),
 				get("/api/events").param("scope", "feed").param("cursor", "eyJzIjoiMjAyNiJ9_-").param("limit", "1"),
 				get(EVENT), json(patch(EVENT), body(everyField)),
 				// An update may keep a start that has already passed.
 				json(patch(EVENT), body(Map.of("startsAt", Instant.now().minus(1, ChronoUnit.HOURS).toString()))),
-				delete(EVENT));
+				delete(EVENT)).map(request -> request.principal(AUTHENTICATION));
 	}
 
 	/**
-	 * Tests that each stub answers 501 in the error envelope.
+	 * Tests that each valid request reaches the service and succeeds.
 	 *
 	 * @param request the request
 	 */
 	@ParameterizedTest
 	@MethodSource("operations")
-	void testStubsAreNotImplemented(RequestBuilder request) throws Exception {
-		assertError(mockMvc, request, HttpStatus.NOT_IMPLEMENTED);
+	void testValidRequestsReachService(RequestBuilder request) throws Exception {
+		when(eventService.createEvent(eq(USER_ID), any())).thenReturn(RESPONSE);
+		when(eventService.getEvent(eq(USER_ID), any())).thenReturn(RESPONSE);
+		when(eventService.updateEvent(eq(USER_ID), any(), any())).thenReturn(RESPONSE);
+		when(eventService.getEvents(eq(USER_ID), any(), any(), anyInt()))
+				.thenReturn(new EventPageResponse(List.of(RESPONSE), null));
+
+		mockMvc.perform(request).andExpect(status().is2xxSuccessful());
+	}
+
+	/**
+	 * Tests that create answers 201 with the event, and the list passes its
+	 * defaults on.
+	 */
+	@Test
+	void testCreateAndListDefaults() throws Exception {
+		when(eventService.createEvent(eq(USER_ID), any())).thenReturn(RESPONSE);
+		when(eventService.getEvents(USER_ID, "feed", null, 20)).thenReturn(new EventPageResponse(List.of(), null));
+
+		mockMvc.perform(json(post("/api/events"), body(Map.of())).principal(AUTHENTICATION))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.responseType").value("EVENT"))
+				.andExpect(jsonPath("$.body.isHost").value(true));
+		mockMvc.perform(get("/api/events").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("EVENT_PAGE"));
+		verify(eventService).getEvents(USER_ID, "feed", null, 20);
 	}
 
 	/**
@@ -156,6 +224,7 @@ class EventControllerTest {
 		change.put(field, value);
 		assertError(mockMvc, json(post("/api/events"), body(change)), HttpStatus.BAD_REQUEST);
 		assertError(mockMvc, json(patch(EVENT), body(change)), HttpStatus.BAD_REQUEST);
+		verifyNoInteractions(eventService);
 	}
 
 	/**

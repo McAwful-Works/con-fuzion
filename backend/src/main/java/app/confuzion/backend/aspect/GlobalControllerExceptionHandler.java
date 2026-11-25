@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import app.confuzion.backend.exception.EventNotEditableException;
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.LimitExceededException;
 import app.confuzion.backend.exception.RateLimitException;
@@ -109,7 +110,7 @@ public class GlobalControllerExceptionHandler {
 	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
 	 *         {@code CONFLICT}
 	 */
-	@ExceptionHandler(DataIntegrityViolationException.class)
+	@ExceptionHandler({ DataIntegrityViolationException.class, EventNotEditableException.class })
 	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleConflict(Exception e,
 			HttpServletResponse response) {
 		return respond(HttpStatus.CONFLICT, e, response);

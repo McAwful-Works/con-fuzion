@@ -88,7 +88,7 @@ class SecurityConfigIntegrationTest {
 	 * One valid request per social-graph (D-011) and event operation, with the
 	 * status a signed-in user with no friends, circles, blocks or events gets, so
 	 * the security chain is checked for every one of them. The circle, user, event
-	 * and token are unknown. Event endpoints are still contract stubs (501).
+	 * and token are unknown.
 	 */
 	private static final List<Endpoint> ENDPOINTS = List.of(new Endpoint("POST", "/api/friends/invites", null, 201),
 			new Endpoint("GET", "/api/friends/invites/q3Jx0nV9cY2bT8pL1mR4wA", null, 404),
@@ -109,11 +109,11 @@ class SecurityConfigIntegrationTest {
 			new Endpoint("GET", "/api/blocks", null, 200),
 			new Endpoint("PUT", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null, 204),
 			new Endpoint("DELETE", "/api/blocks/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null, 204),
-			new Endpoint("POST", "/api/events", EVENT_BODY, 501),
-			new Endpoint("GET", "/api/events?scope=hosting", null, 501),
-			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 501),
-			new Endpoint("PATCH", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", EVENT_BODY, 501),
-			new Endpoint("DELETE", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 501));
+			new Endpoint("POST", "/api/events", EVENT_BODY, 201),
+			new Endpoint("GET", "/api/events?scope=hosting", null, 200),
+			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 404),
+			new Endpoint("PATCH", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", EVENT_BODY, 404),
+			new Endpoint("DELETE", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 404));
 
 	/**
 	 * The stub Discord.

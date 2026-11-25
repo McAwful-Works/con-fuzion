@@ -234,7 +234,7 @@ public class UserService {
 	 * @return the ID as a {@code long}
 	 * @throws InvalidInputException when it is above {@link Long#MAX_VALUE}
 	 */
-	private static long parseSnowflake(String snowflake) {
+	static long parseSnowflake(String snowflake) {
 		try {
 			return Long.parseLong(snowflake);
 		} catch (NumberFormatException e) {
