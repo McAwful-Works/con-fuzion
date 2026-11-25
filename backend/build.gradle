@@ -47,8 +47,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-session-data-redis'
     // Distributed rate-limit buckets in Valkey; brings bucket4j_jdk17-core.
     implementation 'com.bucket4j:bucket4j_jdk17-lettuce:8.23.0'
-    // The per-task 1-second cache of /spots counts (plan B2, D-013). Version from the Boot BOM.
-    implementation 'com.github.ben-manes.caffeine:caffeine'
     annotationProcessor 'org.projectlombok:lombok'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'

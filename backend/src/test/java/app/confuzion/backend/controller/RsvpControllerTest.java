@@ -19,7 +19,6 @@
 package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -45,15 +44,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 
 import app.confuzion.backend.model.record.AttendeesResponse;
-import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.RsvpResponse;
-import app.confuzion.backend.model.record.SpotsResponse;
 import app.confuzion.backend.service.RsvpService;
 
 /**
  * Unit tests for the {@link RsvpController}: each operation maps to the service
- * with the session's user ID, an ID that isn't a UUID is a 400 that never
- * reaches the service, and the {@code /spots} tag follows its body.
+ * with the session's user ID, spot counts are still a 501 contract stub, and an
+ * ID that isn't a UUID is a 400 that never reaches the service.
  *
  * @author mcawful
  */
@@ -80,11 +77,6 @@ class RsvpControllerTest {
 			.authenticated(USER_ID.toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
 
 	/**
-	 * A waitlisted caller's spot counts.
-	 */
-	private static final SpotsResponse SPOTS = new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 2);
-
-	/**
 	 * The mocked {@link RsvpService}.
 	 */
 	private final RsvpService rsvpService = mock(RsvpService.class);
@@ -103,7 +95,6 @@ class RsvpControllerTest {
 		var other = UUID.randomUUID();
 		when(rsvpService.join(USER_ID, EVENT_ID)).thenReturn(new RsvpResponse(RsvpResponse.Status.WAITLISTED, 4));
 		when(rsvpService.getAttendees(USER_ID, EVENT_ID)).thenReturn(new AttendeesResponse(List.of(), null));
-		when(rsvpService.getSpots(USER_ID, EVENT_ID)).thenReturn(SPOTS);
 
 		mockMvc.perform(post(EVENT + "/rsvp").principal(AUTHENTICATION)).andExpect(status().isOk())
 				.andExpect(jsonPath("$.responseType").value("RSVP"))
@@ -113,26 +104,18 @@ class RsvpControllerTest {
 		mockMvc.perform(get(EVENT + "/attendees").principal(AUTHENTICATION)).andExpect(status().isOk())
 				.andExpect(jsonPath("$.responseType").value("ATTENDEES"));
 		mockMvc.perform(delete(EVENT + "/rsvps/" + other).principal(AUTHENTICATION)).andExpect(status().isNoContent());
-		mockMvc.perform(get(EVENT + "/spots").principal(AUTHENTICATION)).andExpect(status().isOk())
-				.andExpect(jsonPath("$.responseType").value("SPOTS")).andExpect(jsonPath("$.body.myPosition").value(2));
 
 		verify(rsvpService).leave(USER_ID, EVENT_ID);
 		verify(rsvpService).remove(USER_ID, EVENT_ID, other);
 	}
 
 	/**
-	 * Tests that the {@code /spots} tag is stable for the same body and changes
-	 * with anything in it, the caller's own position included.
+	 * Tests that spot counts are a 501 contract stub until a later part of #54.
 	 */
 	@Test
-	void testEtagFollowsTheBody() {
-		var tag = RsvpController.etag(SPOTS);
-		assertThat(tag).matches("[A-Za-z0-9_-]{22}")
-				.isEqualTo(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 2)));
-		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 1))).isNotEqualTo(tag);
-		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 4, 0, MyStatus.WAITLISTED, 2))).isNotEqualTo(tag);
-		assertThat(RsvpController.etag(new SpotsResponse(null, 11, 0, null, MyStatus.CONFIRMED, null)))
-				.isNotEqualTo(RsvpController.etag(new SpotsResponse(null, 11, 0, null, MyStatus.NONE, null)));
+	void testSpotsIsNotImplemented() throws Exception {
+		assertError(mockMvc, get(EVENT + "/spots").principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
+		verifyNoInteractions(rsvpService);
 	}
 
 	/**

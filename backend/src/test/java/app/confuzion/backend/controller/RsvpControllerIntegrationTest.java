@@ -20,19 +20,14 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.EventFixtures.login;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.sql.Timestamp;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -41,8 +36,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
@@ -55,31 +48,19 @@ import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.controller.EventFixtures.SeededEvent;
-import app.confuzion.backend.exception.RateLimitException;
-import app.confuzion.backend.repository.EventRepository;
 import app.confuzion.backend.repository.RsvpRepository;
-import app.confuzion.backend.service.RsvpService;
-import io.github.bucket4j.distributed.proxy.ProxyManager;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The RSVP endpoints end to end, through the security filter chain: the
  * authorization matrix, the sign-up window, the after-start rules, removal,
- * blocks, the visibility an active RSVP grants, My schedule and {@code /spots}
- * caching (D-013).
+ * blocks and the visibility an active RSVP grants (D-013).
  *
  * @author mcawful
  */
 @Tag("integration")
-@SpringBootTest(properties = { "con-fuzion.rate-limiter.token.capacity=10000",
-		"con-fuzion.rate-limiter.join.capacity=10000" })
+@SpringBootTest(properties = "con-fuzion.rate-limiter.token.capacity=10000")
 @Import(TestcontainersConfiguration.class)
 class RsvpControllerIntegrationTest {
-	/**
-	 * Writes edit bodies.
-	 */
-	private static final JsonMapper JSON = JsonMapper.builder().build();
-
 	/**
 	 * The {@link WebApplicationContext}.
 	 */
@@ -118,11 +99,11 @@ class RsvpControllerIntegrationTest {
 	}
 
 	/**
-	 * Tests the authorization matrix: who gets what from every RSVP endpoint and
-	 * from My schedule. Signed out is a 401 and a write without CSRF a 403. Someone
-	 * who can't see the event gets the same 404 everywhere. Only the host and
-	 * confirmed attendees get the attendee list, only the host gets the waitlist,
-	 * and only the host can remove people.
+	 * Tests the authorization matrix: who gets what from every RSVP endpoint.
+	 * Signed out is a 401 and a write without CSRF a 403. Someone who can't see the
+	 * event gets the same 404 everywhere. Only the host and confirmed attendees get
+	 * the attendee list, only the host gets the waitlist, and only the host can
+	 * remove people.
 	 */
 	@Test
 	void testAuthorizationMatrix() throws Exception {
@@ -139,14 +120,14 @@ class RsvpControllerIntegrationTest {
 		// Signed out (with a CSRF token, which is checked first), and writes without
 		// one.
 		for (var request : List.of(post(base + "/rsvp"), delete(base + "/rsvp"), get(base + "/attendees"),
-				delete(base + target), get(base + "/spots"), get("/api/events?scope=attending")))
+				delete(base + target)))
 			assertThat(status(request.with(csrf()))).isEqualTo(401);
 		for (var request : List.of(post(base + "/rsvp"), delete(base + "/rsvp"), delete(base + target)))
 			assertThat(status(request.with(login(confirmed)))).isEqualTo(403);
 
 		// Someone who can't see the event: 404 everywhere, nothing written.
 		for (var request : List.of(post(base + "/rsvp"), delete(base + "/rsvp"), get(base + "/attendees"),
-				delete(base + target), get(base + "/spots")))
+				delete(base + target)))
 			assertThat(status(request.with(login(stranger)).with(csrf()))).isEqualTo(404);
 		assertThat(fixtures.rsvpStatus(event.id(), stranger)).isNull();
 		assertThat(fixtures.rsvpStatus(event.id(), confirmed)).isEqualTo("CONFIRMED");
@@ -165,18 +146,6 @@ class RsvpControllerIntegrationTest {
 		// 404.
 		assertThat(status(delete(base + "/rsvps/" + waitlisted).with(login(confirmed)).with(csrf()))).isEqualTo(404);
 		assertThat(fixtures.rsvpStatus(event.id(), waitlisted)).isEqualTo("WAITLISTED");
-
-		// /spots: anyone who can see the event, with their own status and position.
-		var spots = content(get(base + "/spots").with(login(waitlisted)), 200);
-		assertThat(JsonPath.<Map<String, Object>>read(spots, "$.body")).containsEntry("capacity", 2)
-				.containsEntry("confirmed", 2).containsEntry("waitlisted", 1).containsEntry("spotsLeft", 0)
-				.containsEntry("myStatus", "WAITLISTED").containsEntry("myPosition", 1);
-		assertThat(JsonPath.<String>read(content(get(base + "/spots").with(login(viewer)), 200), "$.body.myStatus"))
-				.isEqualTo("NONE");
-
-		// My schedule is the caller's own.
-		assertThat(attending(stranger)).isEmpty();
-		assertThat(attending(waitlisted)).containsExactly(event.publicId().toString());
 	}
 
 	/**
@@ -226,8 +195,8 @@ class RsvpControllerIntegrationTest {
 
 	/**
 	 * Tests the after-start rules: leaving and removal still work, but nobody is
-	 * promoted, so spots can be left while people wait. A capacity raise promotes
-	 * nobody either. The same holds for a cancelled event.
+	 * promoted, so spots can be left while people wait. The same holds for a
+	 * cancelled event.
 	 */
 	@Test
 	void testNobodyIsPromotedAfterTheStart() throws Exception {
@@ -242,12 +211,6 @@ class RsvpControllerIntegrationTest {
 
 		assertThat(status(delete(path(event) + "/rsvp").with(login(first)).with(csrf()))).isEqualTo(204);
 		assertThat(status(delete(path(event) + "/rsvps/" + second).with(login(host)).with(csrf()))).isEqualTo(204);
-		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("WAITLISTED");
-		var spots = content(get(path(event) + "/spots").with(login(waiting)), 200);
-		assertThat(JsonPath.<Integer>read(spots, "$.body.spotsLeft")).isEqualTo(2);
-		assertThat(JsonPath.<Integer>read(spots, "$.body.waitlisted")).isEqualTo(1);
-		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(1);
-		assertThat(status(edit(event, 5))).isEqualTo(200);
 		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("WAITLISTED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(1);
 
@@ -336,9 +299,8 @@ class RsvpControllerIntegrationTest {
 	/**
 	 * Tests the visibility an active RSVP grants (D-013 rule 10): confirmed and
 	 * waitlisted people keep seeing the event after the audience stops reaching
-	 * them and after it's cancelled, and it stays in their schedule. Someone who
-	 * left is an ordinary viewer again. Only the host and confirmed people get a
-	 * {@code CONFIRMED} location.
+	 * them and after it's cancelled. Someone who left is an ordinary viewer again.
+	 * Only the host and confirmed people get a {@code CONFIRMED} location.
 	 */
 	@Test
 	void testActiveRsvpGrantsVisibility() throws Exception {
@@ -364,12 +326,9 @@ class RsvpControllerIntegrationTest {
 					.isEqualTo("CANCELLED");
 		for (var user : List.of(leaver, viewer))
 			assertThat(status(get(path(event)).with(login(user)))).isEqualTo(404);
-		assertThat(attending(confirmed)).containsExactly(event.publicId().toString());
-		assertThat(attending(host)).containsExactly(event.publicId().toString());
 
-		// Leaving a cancelled event takes it off the schedule, and out of sight.
+		// Leaving a cancelled event takes it out of sight.
 		assertThat(status(delete(path(event) + "/rsvp").with(login(waitlisted)).with(csrf()))).isEqualTo(204);
-		assertThat(attending(waitlisted)).isEmpty();
 		assertThat(status(get(path(event)).with(login(waitlisted)))).isEqualTo(404);
 	}
 
@@ -386,87 +345,6 @@ class RsvpControllerIntegrationTest {
 		var feed = content(get("/api/events").param("limit", "50").with(login(guest)), 200);
 		assertThat(JsonPath.<List<String>>read(feed, "$.body.events[?(@.id == '" + event.publicId() + "')].myStatus"))
 				.containsExactly("CONFIRMED");
-	}
-
-	/**
-	 * Tests {@code /spots} caching: a caller-specific {@code ETag} with
-	 * {@code Cache-Control: private, no-cache}, a bodiless 304 for a matching
-	 * {@code If-None-Match}, and a new tag once the caller's own status changes.
-	 */
-	@Test
-	void testSpotsEtag() throws Exception {
-		var event = event(2);
-		var guest = guest(event);
-		var first = response(get(path(event) + "/spots").with(login(guest)));
-		var etag = first.getHeader(HttpHeaders.ETAG);
-		assertThat(first.getStatus()).isEqualTo(200);
-		assertThat(etag).matches("\"[A-Za-z0-9_-]{22}\"");
-		assertThat(first.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-cache, private");
-
-		var notModified = response(
-				get(path(event) + "/spots").header(HttpHeaders.IF_NONE_MATCH, etag).with(login(guest)));
-		assertThat(notModified.getStatus()).isEqualTo(304);
-		assertThat(notModified.getContentAsByteArray()).isEmpty();
-		assertThat(notModified.getHeader(HttpHeaders.ETAG)).isEqualTo(etag);
-		assertThat(notModified.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-cache, private");
-
-		join(guest, event, "CONFIRMED");
-		var changed = response(get(path(event) + "/spots").header(HttpHeaders.IF_NONE_MATCH, etag).with(login(guest)));
-		assertThat(changed.getStatus()).isEqualTo(200);
-		assertThat(changed.getHeader(HttpHeaders.ETAG)).isNotEqualTo(etag);
-		assertThat(JsonPath.<String>read(changed.getContentAsString(), "$.body.myStatus")).isEqualTo("CONFIRMED");
-	}
-
-	/**
-	 * Tests the join limit: about one attempt per second per user, whatever the
-	 * outcome of the first. Uses a service with the production limit, sharing this
-	 * context's Valkey.
-	 */
-	@Test
-	void testJoinIsRateLimited() {
-		var limited = new RsvpService(webApplicationContext.getBean(EventRepository.class),
-				webApplicationContext.getBean(RsvpRepository.class),
-				webApplicationContext.getBean(TransactionTemplate.class), proxyManager(), 1);
-		var event = event(5);
-		var guest = guest(event);
-		limited.join(guest, event.publicId());
-		// A repeat is answered from the checks, so it's never limited (rule 5).
-		limited.join(guest, event.publicId());
-		var second = event(5);
-		fixtures.audience(second.id(), "USER", null, null, guest);
-		assertThatThrownBy(() -> limited.join(guest, second.publicId())).isInstanceOf(RateLimitException.class);
-		assertThat(fixtures.rsvpStatus(second.id(), guest)).isNull();
-		var other = guest(event);
-		limited.join(other, event.publicId());
-	}
-
-	/**
-	 * Tests capacity edits over HTTP: a cut below the confirmed count is a 409
-	 * {@code CAPACITY_BELOW_CONFIRMED} that saves nothing, and making the event
-	 * unlimited confirms everyone waiting, in queue order, at once.
-	 */
-	@Test
-	void testCapacityEdits() throws Exception {
-		var event = event(3);
-		var first = guest(event);
-		var second = guest(event);
-		var third = guest(event);
-		var fourth = guest(event);
-		join(first, event, "CONFIRMED");
-		join(second, event, "CONFIRMED");
-		join(third, event, "WAITLISTED");
-		join(fourth, event, "WAITLISTED");
-
-		assertConflict(edit(event, 2), "CAPACITY_BELOW_CONFIRMED");
-		assertThat(jdbcTemplate.queryForObject("SELECT capacity FROM event WHERE id = ?", Integer.class, event.id()))
-				.isEqualTo(3);
-
-		assertThat(status(edit(event, null))).isEqualTo(200);
-		assertThat(fixtures.rsvpStatus(event.id(), third)).isEqualTo("CONFIRMED");
-		assertThat(fixtures.rsvpStatus(event.id(), fourth)).isEqualTo("CONFIRMED");
-		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(5);
-		assertThat(JsonPath.<Map<String, Object>>read(content(get(path(event) + "/spots").with(login(first)), 200),
-				"$.body")).containsEntry("waitlisted", 0).containsEntry("spotsLeft", null);
 	}
 
 	/**
@@ -503,29 +381,6 @@ class RsvpControllerIntegrationTest {
 	}
 
 	/**
-	 * Builds the host's edit of a seeded event with a new capacity, keeping its
-	 * start.
-	 *
-	 * @param event    the event
-	 * @param capacity the new capacity, or {@code null} for unlimited
-	 * @return the request
-	 */
-	private MockHttpServletRequestBuilder edit(SeededEvent event, Integer capacity) {
-		var startsAt = jdbcTemplate.queryForObject("SELECT starts_at FROM event WHERE id = ?", Timestamp.class,
-				event.id());
-		var body = new HashMap<String, Object>();
-		body.put("title", "Seeded");
-		body.put("location", "Hall A");
-		body.put("startsAt", startsAt.toInstant().toString());
-		body.put("timeZone", "UTC");
-		body.put("capacity", capacity);
-		body.put("locationVisibility", "CONFIRMED");
-		body.put("audience", List.of(Map.of("type", "FRIENDS")));
-		return patch(path(event)).contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(body))
-				.with(login(host)).with(csrf());
-	}
-
-	/**
 	 * Tests the claim's own guards, for what can change between a join's checks and
 	 * its claim: a block, or the host removing a double tap's twin. Either way
 	 * nothing is written and no spot is taken.
@@ -547,16 +402,6 @@ class RsvpControllerIntegrationTest {
 		assertThat(fixtures.rsvpStatus(event.id(), removed)).isEqualTo("REMOVED");
 		assertThat(fixtures.rsvpStatus(event.id(), blocked)).isNull();
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(1);
-	}
-
-	/**
-	 * Returns the context's rate-limit {@link ProxyManager}.
-	 *
-	 * @return the {@link ProxyManager}
-	 */
-	@SuppressWarnings("unchecked")
-	private ProxyManager<String> proxyManager() {
-		return webApplicationContext.getBean(ProxyManager.class);
 	}
 
 	/**
@@ -602,18 +447,6 @@ class RsvpControllerIntegrationTest {
 	 */
 	private String location(UUID userId, SeededEvent event) throws Exception {
 		return JsonPath.read(content(get(path(event)).with(login(userId)), 200), "$.body.location");
-	}
-
-	/**
-	 * Returns the public IDs in a user's schedule.
-	 *
-	 * @param userId the user
-	 * @return the event IDs
-	 */
-	private List<String> attending(UUID userId) throws Exception {
-		return JsonPath.read(
-				content(get("/api/events").param("scope", "attending").param("limit", "50").with(login(userId)), 200),
-				"$.body.events[*].id");
 	}
 
 	/**

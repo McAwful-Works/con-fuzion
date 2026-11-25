@@ -18,40 +18,29 @@
  */
 package app.confuzion.backend.service;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-
 import app.confuzion.backend.exception.ConflictException;
 import app.confuzion.backend.exception.ConflictException.Conflict;
-import app.confuzion.backend.exception.RateLimitException;
 import app.confuzion.backend.model.entity.Event;
 import app.confuzion.backend.model.record.AttendeesResponse;
 import app.confuzion.backend.model.record.EventResponse.Status;
 import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.RsvpResponse;
-import app.confuzion.backend.model.record.SpotsResponse;
 import app.confuzion.backend.repository.EventRepository;
 import app.confuzion.backend.repository.RsvpRepository;
-import app.confuzion.backend.repository.RsvpRepository.Counts;
 import app.confuzion.backend.repository.RsvpRepository.Mine;
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.BucketConfiguration;
-import io.github.bucket4j.distributed.proxy.ProxyManager;
 
 /**
- * Joining, leaving, removal, attendee lists and spot counts (plan B4, D-013).
- * Every operation first needs the event to be visible to the caller
+ * Joining, leaving, removal and attendee lists (plan B4, D-013). Every
+ * operation first needs the event to be visible to the caller
  * ({@link EventRepository#VISIBLE}); otherwise it is a 404
  * ({@link NoSuchElementException}). Every write that changes who holds a spot
  * locks the event row before it touches an RSVP (D-013).
@@ -64,21 +53,6 @@ import io.github.bucket4j.distributed.proxy.ProxyManager;
  */
 @Service
 public class RsvpService {
-	/**
-	 * The Valkey key prefix for the per-user join buckets.
-	 */
-	private static final String JOIN_KEY_PREFIX = "con-fuzion:rate-limit:join:user:";
-
-	/**
-	 * How long a task may reuse an event's shared spot counts (plan B2).
-	 */
-	private static final Duration COUNTS_TTL = Duration.ofSeconds(1);
-
-	/**
-	 * The most events whose counts a task keeps at once.
-	 */
-	private static final int COUNTS_MAX_EVENTS = 10_000;
-
 	/**
 	 * The {@link EventRepository}, for the visibility check.
 	 */
@@ -95,52 +69,27 @@ public class RsvpService {
 	private final TransactionTemplate transactionTemplate;
 
 	/**
-	 * Stores the join buckets in Valkey, shared by every task.
-	 */
-	private final ProxyManager<String> proxyManager;
-
-	/**
-	 * The join bucket: about one attempt per second per user (plan B2).
-	 */
-	private final BucketConfiguration joinBucket;
-
-	/**
-	 * Each event's shared counts, never anything specific to a caller (D-013).
-	 */
-	private final Cache<Long, Counts> counts = Caffeine.newBuilder().expireAfterWrite(COUNTS_TTL)
-			.maximumSize(COUNTS_MAX_EVENTS).build();
-
-	/**
 	 * Creates the service.
 	 *
 	 * @param eventRepository     the {@link EventRepository}
 	 * @param rsvpRepository      the {@link RsvpRepository}
 	 * @param transactionTemplate the {@link TransactionTemplate}
-	 * @param proxyManager        the {@link ProxyManager} for rate-limit buckets
-	 * @param joinsPerSecond      how many join attempts a user may make in a
-	 *                            second; tests raise it
 	 */
 	public RsvpService(EventRepository eventRepository, RsvpRepository rsvpRepository,
-			TransactionTemplate transactionTemplate, ProxyManager<String> proxyManager,
-			@Value("${con-fuzion.rate-limiter.join.capacity:1}") int joinsPerSecond) {
+			TransactionTemplate transactionTemplate) {
 		this.eventRepository = eventRepository;
 		this.rsvpRepository = rsvpRepository;
 		this.transactionTemplate = transactionTemplate;
-		this.proxyManager = proxyManager;
-		this.joinBucket = BucketConfiguration.builder().addLimit(Bandwidth.builder().capacity(joinsPerSecond)
-				.refillGreedy(joinsPerSecond, Duration.ofSeconds(1)).build()).build();
 	}
 
 	/**
 	 * Joins an event. The checks run read-only, in D-013 rule 17's order, before
 	 * one short transaction locks the event row, adds the RSVP and, when a spot is
-	 * free, takes it. Only that claim counts against the join limit, so a repeat
-	 * (rule 5) or a refused join is never a 429.
+	 * free, takes it.
 	 *
 	 * @param userId  the signed-in user's ID
 	 * @param eventId the event's public ID
 	 * @return the caller's status and, while waitlisted, their position
-	 * @throws RateLimitException     when the caller claimed within the last second
 	 * @throws NoSuchElementException when the caller can't see the event, or it was
 	 *                                cancelled or a block came between them and the
 	 *                                host while joining
@@ -159,8 +108,6 @@ public class RsvpService {
 			throw new ConflictException(Conflict.SIGNUP_NOT_OPEN);
 		if (!now.isBefore(event.getStartsAt()))
 			throw new ConflictException(Conflict.SIGNUP_CLOSED);
-		if (!proxyManager.getProxy(JOIN_KEY_PREFIX + userId, () -> joinBucket).tryConsume(1))
-			throw new RateLimitException();
 
 		transactionTemplate.executeWithoutResult(tx -> {
 			var locked = rsvpRepository.lock(event.getId());
@@ -231,26 +178,6 @@ public class RsvpService {
 			throw new NoSuchElementException();
 		return new AttendeesResponse(rsvpRepository.findPeople(event.getId(), MyStatus.CONFIRMED.name(), userId),
 				isHost ? rsvpRepository.findPeople(event.getId(), MyStatus.WAITLISTED.name(), userId) : null);
-	}
-
-	/**
-	 * Returns an event's spot counts and the caller's own place. The counts may be
-	 * up to {@link #COUNTS_TTL} old; the caller's status and position are always
-	 * current.
-	 *
-	 * @param userId  the signed-in user's ID
-	 * @param eventId the event's public ID
-	 * @return the {@link SpotsResponse}
-	 * @throws NoSuchElementException when the caller can't see the event
-	 */
-	@Transactional(readOnly = true)
-	public SpotsResponse getSpots(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
-		var shared = counts.get(event.getId(), rsvpRepository::findCounts);
-		var mine = rsvpRepository.findMine(event.getId(), userId);
-		return new SpotsResponse(shared.capacity(), shared.confirmed(), shared.waitlisted(),
-				shared.capacity() == null ? null : Math.max(shared.capacity() - shared.confirmed(), 0),
-				mine.map(Mine::status).orElse(MyStatus.NONE), mine.map(Mine::position).orElse(null));
 	}
 
 	/**

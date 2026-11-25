@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.EventPageResponse;
 import app.confuzion.backend.model.record.EventRequest;
@@ -133,6 +134,9 @@ public class EventController {
 					ATTENDING }, defaultValue = "feed")) @RequestParam(defaultValue = "feed") @Pattern(regexp = "^(feed|hosting|attending)$") String scope,
 			@Parameter(description = "The previous page's nextCursor. Opaque; a cursor that wasn't issued for this scope is a 400.") @RequestParam(required = false) @Size(max = 200) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String cursor,
 			@Parameter(description = "Events per page, 1 to 50") @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
+		// A contract stub until #54 builds My schedule.
+		if (ATTENDING.equals(scope))
+			throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 		return new ResponseRecord<>(eventService.getEvents(HttpUtil.userId(authentication), scope, cursor, limit));
 	}
 

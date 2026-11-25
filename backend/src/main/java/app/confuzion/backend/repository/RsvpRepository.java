@@ -40,9 +40,8 @@ import app.confuzion.backend.model.record.RsvpResponse;
 /**
  * Native SQL for RSVPs (plan B4, D-013). Every write that changes who holds a
  * spot runs in a transaction that first locks the event row ({@link #lock} or
- * {@link #lockForBlock}, or the {@code PATCH} lock), so writes to one event run
- * one after another and can't deadlock. The methods that write assume the
- * caller holds that lock.
+ * {@link #lockForBlock}), so writes to one event run one after another and
+ * can't deadlock. The methods that write assume the caller holds that lock.
  *
  * @author mcawful
  */
@@ -204,21 +203,6 @@ public class RsvpRepository {
 	}
 
 	/**
-	 * Promotes waitlisted people in queue order into the free spots, after a
-	 * capacity edit (D-013 rule 4). Nobody is promoted once the event has started.
-	 *
-	 * @param eventId   the event's internal ID
-	 * @param freeSpots how many spots are free, {@link Integer#MAX_VALUE} for an
-	 *                  unlimited event
-	 */
-	public void fillFreeSpots(long eventId, int freeSpots) {
-		jdbc.sql("WITH promoted AS (UPDATE rsvp SET status = 'CONFIRMED', updated_at = now() WHERE id IN ("
-				+ NEXT_IN_LINE + ":freeSpots) RETURNING id) UPDATE event SET confirmed_count = confirmed_count + "
-				+ "(SELECT count(*) FROM promoted) WHERE id = :eventId").param("eventId", eventId)
-				.param("freeSpots", freeSpots).update();
-	}
-
-	/**
 	 * Locks, in ID order, every event of either user that a block must clean up:
 	 * those where the other holds an active RSVP, and those the other could still
 	 * be joining. A join takes the same lock and checks for a block under it, so
@@ -237,22 +221,6 @@ public class RsvpRepository {
 						AND r.user_id = CASE WHEN e.host_id = :a THEN CAST(:b AS uuid) ELSE CAST(:a AS uuid) END))
 				ORDER BY e.id FOR NO KEY UPDATE OF e""").param("a", a).param("b", b)
 				.query((rs, row) -> new BlockedEvent(rs.getLong("id"), rs.getObject("host_id", UUID.class))).list();
-	}
-
-	/**
-	 * Returns an event's shared spot counts.
-	 *
-	 * @param eventId the event's internal ID
-	 * @return the {@link Counts}
-	 */
-	public Counts findCounts(long eventId) {
-		return jdbc.sql("""
-				SELECT e.capacity, e.confirmed_count,
-					(SELECT count(*) FROM rsvp w WHERE w.event_id = e.id AND w.status = 'WAITLISTED') AS waitlisted
-				FROM event e WHERE e.id = :eventId""").param("eventId", eventId)
-				.query((rs, row) -> new Counts(rs.getObject("capacity", Integer.class), rs.getInt("confirmed_count"),
-						rs.getInt("waitlisted")))
-				.single();
 	}
 
 	/**
@@ -310,16 +278,5 @@ public class RsvpRepository {
 	 * @author mcawful
 	 */
 	public record Mine(MyStatus status, Integer position) {
-	}
-
-	/**
-	 * An event's spot counts, the same for everyone who can see it.
-	 *
-	 * @param capacity   the headcount, or {@code null} for unlimited
-	 * @param confirmed  how many people hold a spot, the host included
-	 * @param waitlisted how many people are waitlisted
-	 * @author mcawful
-	 */
-	public record Counts(Integer capacity, int confirmed, int waitlisted) {
 	}
 }

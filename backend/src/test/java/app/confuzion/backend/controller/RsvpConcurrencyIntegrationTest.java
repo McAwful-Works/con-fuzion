@@ -19,10 +19,7 @@
 package app.confuzion.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -42,26 +39,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.controller.EventFixtures.SeededEvent;
-import app.confuzion.backend.exception.ConflictException;
-import app.confuzion.backend.exception.ConflictException.Conflict;
-import app.confuzion.backend.model.record.EventRequest;
-import app.confuzion.backend.model.record.EventResponse.AudienceType;
-import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.RsvpResponse;
-import app.confuzion.backend.service.EventService;
 import app.confuzion.backend.service.RsvpService;
 
 /**
  * The RSVP concurrency suite (plan B4, D-013): parallel joins never overbook
- * and are served in insert order, freed and added spots go to the waitlist in
- * queue order, and joins interleaved with leaves and capacity raises never
- * leave anyone waitlisted while a spot is free, or deadlock.
+ * and are served in insert order, freed spots go to the waitlist in queue
+ * order, and joins interleaved with leaves never leave anyone waitlisted while
+ * a spot is free, or deadlock.
  *
  * @author mcawful
  */
 @Tag("integration")
-@SpringBootTest(properties = { "con-fuzion.rate-limiter.token.capacity=10000",
-		"con-fuzion.rate-limiter.join.capacity=10000" })
+@SpringBootTest(properties = "con-fuzion.rate-limiter.token.capacity=10000")
 @Import(TestcontainersConfiguration.class)
 class RsvpConcurrencyIntegrationTest {
 	/**
@@ -80,12 +70,6 @@ class RsvpConcurrencyIntegrationTest {
 	 */
 	@Autowired
 	private RsvpService rsvpService;
-
-	/**
-	 * The {@link EventService}, for capacity edits.
-	 */
-	@Autowired
-	private EventService eventService;
 
 	/**
 	 * The seeding helpers.
@@ -117,8 +101,7 @@ class RsvpConcurrencyIntegrationTest {
 	 * Tests the headline case. Capacity 11 with the host holding one spot: 200
 	 * parallel joins confirm exactly 10 guests and waitlist 190 in insert order.
 	 * Three confirmed guests leave and the first three waitlisted are confirmed in
-	 * order, raising the capacity by 2 confirms the next two, and cutting it below
-	 * the confirmed count is a 409 that saves nothing.
+	 * order.
 	 */
 	@Test
 	void testFirstComeFirstServed() throws Exception {
@@ -148,23 +131,12 @@ class RsvpConcurrencyIntegrationTest {
 					.containsExactlyElementsOf(nCopiesThen(i + 1, "CONFIRMED", 3 - i, "WAITLISTED"));
 			assertThat(fixtures.confirmedCount(event.id())).isEqualTo(11);
 		}
-
-		eventService.updateEvent(host, event.publicId(), request(13));
-		assertThat(statuses(event, queue.subList(13, 16))).containsExactly("CONFIRMED", "CONFIRMED", "WAITLISTED");
-		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(13);
-		assertThat(rsvpService.getSpots(queue.get(15).userId(), event.publicId()).myPosition()).isEqualTo(1);
-
-		assertThatThrownBy(() -> eventService.updateEvent(host, event.publicId(), request(12))).isInstanceOfSatisfying(
-				ConflictException.class, e -> assertThat(e.getConflict()).isEqualTo(Conflict.CAPACITY_BELOW_CONFIRMED));
-		assertThat(jdbcTemplate.queryForObject("SELECT capacity FROM event WHERE id = ?", Integer.class, event.id()))
-				.isEqualTo(13);
 	}
 
 	/**
-	 * Tests joins interleaved with leaves and capacity raises: every operation
-	 * succeeds (no deadlock, no lock timeout), the count matches the confirmed rows
-	 * and never exceeds the capacity, and nobody is left waitlisted while a spot is
-	 * free.
+	 * Tests joins interleaved with leaves: every operation succeeds (no deadlock,
+	 * no lock timeout), the count matches the confirmed rows and never exceeds the
+	 * capacity, and nobody is left waitlisted while a spot is free.
 	 */
 	@Test
 	void testInterleavedWritesNeverStrandTheWaitlist() throws Exception {
@@ -181,13 +153,6 @@ class RsvpConcurrencyIntegrationTest {
 				return guest;
 			});
 		}
-		tasks.add(() -> {
-			for (var capacity : List.of(8, 11, 14)) {
-				Thread.sleep(20);
-				eventService.updateEvent(host, event.publicId(), request(capacity));
-			}
-			return host;
-		});
 		Collections.shuffle(tasks);
 
 		parallel(tasks);
@@ -195,8 +160,8 @@ class RsvpConcurrencyIntegrationTest {
 		var confirmed = count(event, "CONFIRMED");
 		var waitlisted = count(event, "WAITLISTED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(confirmed);
-		assertThat(confirmed).isEqualTo(14);
-		assertThat(waitlisted).isEqualTo(120 - 30 + 1 - 14);
+		assertThat(confirmed).isEqualTo(5);
+		assertThat(waitlisted).isEqualTo(120 - 30 + 1 - 5);
 		assertThat(count(event, "LEFT")).isEqualTo(30);
 	}
 
@@ -300,19 +265,6 @@ class RsvpConcurrencyIntegrationTest {
 	private int count(SeededEvent event, String status) {
 		return jdbcTemplate.queryForObject("SELECT count(*) FROM rsvp WHERE event_id = ? AND status = ?", Integer.class,
 				event.id(), status);
-	}
-
-	/**
-	 * Builds the host's edit of the seeded event with a new capacity.
-	 *
-	 * @param capacity the new capacity
-	 * @return the {@link EventRequest}
-	 */
-	private EventRequest request(int capacity) {
-		return new EventRequest("Seeded", null, "Hall A", null,
-				Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS), null, "UTC", capacity, null,
-				LocationVisibility.CONFIRMED,
-				List.of(new EventRequest.AudienceEntry(AudienceType.GUILD, Long.toString(guildId), null, null)));
 	}
 
 	/**
