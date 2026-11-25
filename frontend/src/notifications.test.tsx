@@ -98,6 +98,43 @@ describe('the unread badge', () => {
     expect(await screen.findByRole('link', { name: 'Notifications, 99+ unread' })).toBeVisible();
   });
 
+  it('clears after the inbox is read, even when its first count was still loading', async () => {
+    // A fresh page starts the badge's count and the inbox together. Here the count is read before
+    // the inbox is marked read but arrives after it, so the badge has to fetch again, not keep it.
+    let releaseFirstCount = () => {};
+    let read = false;
+    let counts = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/me') return envelope('ME', me);
+        if (init?.method === 'POST' && path === '/api/notifications/read') {
+          await waitFor(() => expect(counts).toBe(1));
+          read = true;
+          return new Response(null, { status: 204 });
+        }
+        if (path === '/api/notifications?limit=1') {
+          counts += 1;
+          if (counts > 1) return page([], read ? 0 : 1);
+          await new Promise<void>((resolve) => {
+            releaseFirstCount = resolve;
+          });
+          return page([], 1);
+        }
+        if (path.startsWith('/api/notifications')) return page([note(12)], 1);
+        throw new Error(`Unmocked request: ${init?.method ?? 'GET'} ${path}`);
+      }),
+    );
+    renderApp('/notifications');
+
+    await waitFor(() => expect(counts).toBe(2));
+    releaseFirstCount();
+    expect(await screen.findByRole('link', { name: 'Notifications' })).toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByRole('link', { name: 'Notifications, 1 unread' })).toBeNull();
+  });
+
   it('has no badge when everything is read', async () => {
     signedIn((call) => (call.path.startsWith('/api/notifications') ? page([], 0) : undefined));
     renderApp('/notifications');

@@ -4,10 +4,31 @@ The owner runs these steps. Claude may draft commands but doesn't execute anythi
 Finished in M5 and M6, once maintenance mode and the infrastructure exist.
 
 ## 1. Contain
-- **Maintenance mode:** set `CONFUZION_MAINTENANCE=true` in the ECS task environment and redeploy. `/api` returns
-  503, except health checks.
+- **Maintenance mode** (D-015 rule 16): set `CONFUZION_MAINTENANCE=true` (`con-fuzion.maintenance`) in the ECS task
+  environment and redeploy. It's read at startup, so it takes effect only as each task restarts.
+  - Every `/api` route answers 503 with `errorType` `SERVICE_UNAVAILABLE`, signed in or not, and the app shows its
+    "back soon" page. That includes sign-in, logout and every write, so nothing reaches the database or the session
+    store from the API.
+  - `/api/actuator/health` still answers, so the load balancer keeps the tasks. The SPA's static files are still
+    served.
+  - Sessions aren't touched: users are still signed in when it's turned off again. To also sign everyone out, flush
+    the sessions as below.
+  - To turn it off, set `CONFUZION_MAINTENANCE=false` (or remove it) and redeploy.
+  - Check it from outside: `curl -i https://<host>/api/me` returns `503`, and `curl -i https://<host>/api/actuator/health`
+    returns `200`.
 - **Suspected session compromise:** flush all sessions in ElastiCache (`FLUSHDB` on the session database). Everyone
   has to sign in again.
+- **Compromised moderator or admin account:** an ADMIN removes the role in-app
+  (`DELETE /api/admin/users/{userId}/roles`). That ends all of that user's sessions at once and is audit-logged. If the
+  account's Discord ID is in `CONFUZION_ADMIN_BOOTSTRAP_DISCORD_IDS`, take it out of the config and redeploy **first**:
+  a bootstrap ID gets ADMIN back at its next sign-in. The last ADMIN can't be removed (409 `LAST_ADMIN`), so grant
+  ADMIN to a trusted account before removing it from the compromised one.
+- **No working admin** (the last admin lost their Discord account or MFA): add a trusted Discord ID to
+  `CONFUZION_ADMIN_BOOTSTRAP_DISCORD_IDS` and redeploy. It gets ADMIN at its next sign-in, audit-logged with no actor,
+  and the role is in effect only while that Discord account has 2FA on.
+- **Review what happened:** an ADMIN reads `GET /api/admin/audit` (newest first). It has every role change, session
+  purge, refused sign-in and moderator action. A database trigger refuses every `UPDATE`, `DELETE` and `TRUNCATE` on
+  it, so the app can't change it, even by a bug.
 - **Abusive account:** an ADMIN bans it in-app. That also purges its sessions.
 - **Edge flood:** tighten the WAF rate-based rule threshold.
 

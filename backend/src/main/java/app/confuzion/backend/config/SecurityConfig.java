@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.time.Duration;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -29,17 +30,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestCustomizers;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 import org.springframework.security.web.util.matcher.AnyRequestMatcher;
@@ -50,6 +54,7 @@ import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Spring Security: Discord sign-in, sessions, CSRF and security headers
@@ -96,6 +101,12 @@ public class SecurityConfig {
 	public static final String LOGIN_FAILURE_URL = "/welcome?login=failed";
 
 	/**
+	 * Where a refused sign-in (a ban or a suspension) lands: the same page with one
+	 * neutral message that says neither which (D-015 rule 5).
+	 */
+	public static final String LOGIN_REFUSED_URL = "/welcome?login=refused";
+
+	/**
 	 * The moderator role, as {@code hasRole} names it ({@code ROLE_MODERATOR}).
 	 */
 	public static final String MODERATOR = "MODERATOR";
@@ -132,13 +143,17 @@ public class SecurityConfig {
 	 * @param http                         the {@link HttpSecurity}
 	 * @param clientRegistrationRepository the {@link ClientRegistrationRepository}
 	 * @param userService                  the {@link DiscordOAuth2UserService}
+	 * @param jsonMapper                   the {@link JsonMapper}, for the
+	 *                                     maintenance response
+	 * @param maintenance                  whether maintenance mode is on
+	 *                                     ({@code con-fuzion.maintenance})
 	 * @return the {@link SecurityFilterChain}
 	 * @throws Exception when the configuration fails
 	 */
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http,
-			ClientRegistrationRepository clientRegistrationRepository, DiscordOAuth2UserService userService)
-			throws Exception {
+			ClientRegistrationRepository clientRegistrationRepository, DiscordOAuth2UserService userService,
+			JsonMapper jsonMapper, @Value("${con-fuzion.maintenance:false}") boolean maintenance) throws Exception {
 		var authorizationRequestResolver = new DefaultOAuth2AuthorizationRequestResolver(clientRegistrationRepository,
 				AUTHORIZATION_BASE_URI);
 		authorizationRequestResolver
@@ -185,7 +200,7 @@ public class SecurityConfig {
 						.loginProcessingUrl(LOGIN_PROCESSING_URL)
 						.userInfoEndpoint(endpoint -> endpoint.userService(userService))
 						.authorizedClientRepository(new NoTokenStore()).successHandler(SecurityConfig::onLoginSuccess)
-						.failureUrl(LOGIN_FAILURE_URL))
+						.failureHandler(SecurityConfig::onLoginFailure))
 				.logout(logout -> logout.logoutUrl(LOGOUT_URL)
 						.logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)))
 				.csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository))
@@ -202,6 +217,13 @@ public class SecurityConfig {
 								.maxAgeInSeconds(HSTS_MAX_AGE_SECONDS).requestMatcher(AnyRequestMatcher.INSTANCE))
 						.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
 						.permissionsPolicyHeader(permissions -> permissions.policy(PERMISSIONS_POLICY)));
+		// Maintenance mode sits just after the header writer, so its 503 carries the
+		// security headers, and before everything that could answer or act first: the
+		// CSRF check (a 403), sign-in and logout, and authorization (a 401 or 403). So
+		// every /api request gets the same 503, signed in or not, and none reaches the
+		// database. The session is only loaded lazily, so it isn't read either.
+		if (maintenance)
+			http.addFilterAfter(new MaintenanceFilter(jsonMapper), HeaderWriterFilter.class);
 		return http.build();
 	}
 
@@ -232,6 +254,22 @@ public class SecurityConfig {
 		var firstLogin = authentication.getPrincipal() instanceof OAuth2User user
 				&& Boolean.TRUE.equals(user.getAttribute(DiscordOAuth2UserService.FIRST_LOGIN_ATTRIBUTE));
 		response.sendRedirect(firstLogin ? "/onboarding" : "/");
+	}
+
+	/**
+	 * Sends a sign-in refused for a ban or a suspension to its neutral page, and
+	 * every other failed sign-in to the usual one. Neither says why.
+	 *
+	 * @param request   the {@link HttpServletRequest}
+	 * @param response  the {@link HttpServletResponse}
+	 * @param exception the {@link AuthenticationException}
+	 * @throws IOException when the redirect fails
+	 */
+	static void onLoginFailure(HttpServletRequest request, HttpServletResponse response,
+			AuthenticationException exception) throws IOException {
+		var refused = exception instanceof OAuth2AuthenticationException oauth
+				&& DiscordOAuth2UserService.SIGN_IN_REFUSED.equals(oauth.getError().getErrorCode());
+		response.sendRedirect(refused ? LOGIN_REFUSED_URL : LOGIN_FAILURE_URL);
 	}
 
 	/**

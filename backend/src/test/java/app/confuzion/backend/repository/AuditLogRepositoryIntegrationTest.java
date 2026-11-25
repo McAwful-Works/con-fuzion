@@ -27,6 +27,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.model.record.AuditDetails;
+import app.confuzion.backend.model.record.AuditEntryResponse;
 import app.confuzion.backend.model.record.AuditEntryResponse.Action;
 import app.confuzion.backend.model.record.AuditEntryResponse.TargetType;
 import app.confuzion.backend.model.record.GrantedRole;
@@ -127,6 +130,54 @@ class AuditLogRepositoryIntegrationTest {
 				.isEqualTo("81384788765712384");
 		assertThatThrownBy(() -> jdbcTemplate.update("DELETE FROM audit_log WHERE id = ?", id)).rootCause()
 				.hasMessageContaining("audit_log is insert-only");
+	}
+
+	/**
+	 * Tests that every statement that would change or remove rows fails, even one
+	 * that changes nothing visible. Each runs in its own (rolled back) transaction,
+	 * since the failure aborts it.
+	 *
+	 * @param statement the SQL, with the row ID as its one parameter where it takes
+	 *                  one
+	 */
+	@ParameterizedTest
+	@ValueSource(strings = { "UPDATE audit_log SET details = '{}' WHERE id = ?",
+			"UPDATE audit_log SET actor_id = NULL WHERE id = ?", "DELETE FROM audit_log WHERE id >= ?",
+			"TRUNCATE audit_log" })
+	void rowsCantBeUpdatedDeletedOrTruncated(String statement) {
+		var id = auditLogRepository.insert(UUID.randomUUID(), Action.EVENT_UNHIDDEN, TargetType.EVENT,
+				UUID.randomUUID().toString(), null);
+		var args = statement.contains("?") ? new Object[] { id } : new Object[0];
+
+		assertThatThrownBy(() -> jdbcTemplate.update(statement, args)).rootCause()
+				.hasMessageContaining("audit_log is insert-only");
+	}
+
+	/**
+	 * Tests that a page is newest first, starts after the given ID, and reads the
+	 * details back as written.
+	 */
+	@Test
+	void findPageIsNewestFirst() {
+		var actor = UUID.randomUUID();
+		var first = auditLogRepository.insert(actor, Action.EVENT_HIDDEN, TargetType.EVENT,
+				UUID.randomUUID().toString(), new AuditDetails("Unsafe", null, null, null, null, null, null));
+		var second = auditLogRepository.insert(null, Action.SIGN_IN_REFUSED, TargetType.DISCORD_ACCOUNT,
+				"81384788765712384", new AuditDetails(null, null, null, null, null, Action.USER_SUSPENDED, null));
+		var third = auditLogRepository.insert(actor, Action.EVENT_UNHIDDEN, TargetType.EVENT,
+				UUID.randomUUID().toString(), null);
+
+		assertThat(auditLogRepository.findPage(null, 2)).extracting(AuditEntryResponse::id).containsExactly(third,
+				second);
+		var older = auditLogRepository.findPage(third, 2);
+		assertThat(older).extracting(AuditEntryResponse::id).containsExactly(second, first);
+		assertThat(older.get(0).actorId()).isNull();
+		assertThat(older.get(0).targetId()).isEqualTo("81384788765712384");
+		assertThat(older.get(0).details().cause()).isEqualTo(Action.USER_SUSPENDED);
+		assertThat(older.get(1).actorId()).isEqualTo(actor);
+		assertThat(older.get(1).action()).isEqualTo(Action.EVENT_HIDDEN);
+		assertThat(older.get(1).details().reason()).isEqualTo("Unsafe");
+		assertThat(older.get(1).createdAt()).isNotNull();
 	}
 
 	/**

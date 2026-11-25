@@ -32,6 +32,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -131,6 +132,24 @@ public class GlobalControllerExceptionHandler {
 	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleDomainConflict(ConflictException e,
 			HttpServletResponse response) {
 		return respond(HttpStatus.CONFLICT, e, e.getConflict().name(), response);
+	}
+
+	/**
+	 * Handles a service's own authorization check failing after the security filter
+	 * chain let the request through, such as an admin whose role was removed while
+	 * their request waited for a lock: a 403 {@code (FORBIDDEN)}. The caller is
+	 * always signed in here. If method security is ever added, an anonymous
+	 * caller's denial would land here too and needs to stay a 401.
+	 *
+	 * @param e        the {@link AccessDeniedException}
+	 * @param response the {@link HttpServletResponse}
+	 * @return a {@link ResponseEntity} with an {@link HttpStatus} of
+	 *         {@code FORBIDDEN}
+	 */
+	@ExceptionHandler(AccessDeniedException.class)
+	public ResponseEntity<ResponseRecord<ErrorResponseBodyRecord>> handleForbidden(AccessDeniedException e,
+			HttpServletResponse response) {
+		return respond(HttpStatus.FORBIDDEN, e, response);
 	}
 
 	/**
