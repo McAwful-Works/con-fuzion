@@ -50,71 +50,58 @@ function loadWorker(windows: Array<Record<string, unknown>> = []) {
 }
 
 describe('the service worker push handler', () => {
-  it('shows what happened and the event title from the payload alone', async () => {
+  it('shows the sender’s text under the app name and opens the event on click', async () => {
     const worker = loadWorker();
     const [title, options] = await worker.push({
       type: 'SPOT_OFFERED',
       eventId: EVENT_ID,
-      eventTitle: 'Cosplay photo walk',
+      text: 'You were offered a spot in Cosplay photo walk.',
     });
-    expect(title).toBe('Cosplay photo walk');
-    expect(options.body).toBe(
-      'You were offered a spot in “Cosplay photo walk”. Open the app to accept.',
-    );
+    expect(title).toBe('Con-Fuzion');
+    expect(options.body).toBe('You were offered a spot in Cosplay photo walk.');
+    expect(options.tag).toBe(`SPOT_OFFERED:${EVENT_ID}`);
     expect(options.data.url).toBe(`/events/${EVENT_ID}`);
   });
 
-  it('reads the same fields from a nested payload, like an inbox entry', async () => {
+  it('opens the inbox for a push without an event (a friend invite accepted)', async () => {
     const worker = loadWorker();
-    const [title, options] = await worker.push({
-      type: 'EVENT_CANCELLED',
-      eventId: EVENT_ID,
-      payload: { eventTitle: 'Walk' },
+    const [, options] = await worker.push({
+      type: 'FRIEND_ACCEPTED',
+      text: 'A friend invite you sent was accepted.',
     });
-    expect(title).toBe('Walk');
-    expect(options.body).toBe('“Walk” was cancelled.');
+    expect(options.data.url).toBe('/notifications');
   });
 
-  it('writes every notification type', async () => {
-    const worker = loadWorker();
-    for (const type of [
-      'SPOT_OFFERED',
-      'SPOT_CONFIRMED',
-      'EVENT_CHANGED',
-      'EVENT_CANCELLED',
-      'EVENT_REMINDER',
-      'FRIEND_ACCEPTED',
-    ]) {
-      const [, options] = await worker.push({ type, eventId: EVENT_ID, eventTitle: 'Walk' });
-      expect(options.body.length).toBeGreaterThan(0);
-    }
-    expect(worker.showNotification).toHaveBeenCalledTimes(6);
-  });
-
-  it('never shows a location or a name, even if the payload carries one', async () => {
+  it('shows only the text field, so nothing else in a payload reaches the lock screen', async () => {
     const worker = loadWorker();
     const [title, options] = await worker.push({
       type: 'EVENT_CHANGED',
       eventId: EVENT_ID,
-      eventTitle: 'Walk',
+      text: '“Walk” changed.',
       location: 'Hall B fountain',
       friendName: 'Ada',
     });
     expect(JSON.stringify([title, options])).not.toMatch(/Hall B|Ada/);
   });
 
+  it('bounds very long text', async () => {
+    const worker = loadWorker();
+    const [, options] = await worker.push({ type: 'EVENT_CANCELLED', text: 'x'.repeat(5000) });
+    expect(options.body).toHaveLength(300);
+  });
+
   it.each([
     ['no data at all', undefined],
     ['data that is not JSON', 'not json {'],
     ['JSON that is not an object', '42'],
-    ['an unknown type', { type: 'SOMETHING_NEW', eventTitle: 'Walk' }],
+    ['text that is not a string', { type: 'EVENT_CANCELLED', text: { nested: true } }],
     ['an empty object', {}],
   ])('still shows a notification for %s (iOS revokes silent pushes)', async (_name, data) => {
     const worker = loadWorker();
     const [title, options] = await worker.push(data);
     expect(worker.showNotification).toHaveBeenCalledTimes(1);
-    expect(title.length).toBeGreaterThan(0);
-    expect(options.body.length).toBeGreaterThan(0);
+    expect(title).toBe('Con-Fuzion');
+    expect(options.body).toBe('You have a new notification.');
     expect(options.data.url).toBe('/notifications');
   });
 
@@ -126,7 +113,7 @@ describe('the service worker push handler', () => {
       shown = true;
       return undefined;
     });
-    await worker.push({ type: 'SPOT_CONFIRMED', eventId: EVENT_ID, eventTitle: 'Walk' });
+    await worker.push({ type: 'SPOT_CONFIRMED', eventId: EVENT_ID, text: 'Confirmed.' });
     expect(shown).toBe(true);
   });
 
@@ -135,7 +122,7 @@ describe('the service worker push handler', () => {
     const [, options] = await worker.push({
       type: 'EVENT_CANCELLED',
       eventId: '../../admin',
-      eventTitle: 'Walk',
+      text: 'Cancelled.',
     });
     expect(options.data.url).toBe('/notifications');
   });
