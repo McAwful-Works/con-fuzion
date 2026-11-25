@@ -1,11 +1,14 @@
 import { expect, test } from './hooks.mjs';
 import { createEvent, eventStatus, expectFeed } from './social.mjs';
 import {
+  acceptOffer,
   apiWrite,
+  crowd,
   expectAttendees,
   errorType,
   expectSpots,
   expectStatus,
+  fullEvent,
   goingHeading,
   joinEvent,
   leaveEvent,
@@ -15,60 +18,9 @@ import {
   userId,
   waitlistHeading,
 } from './rsvp.mjs';
-import { guild } from './support.mjs';
 
 // Each test signs in several users and makes a handful of joins, so the default 30 seconds is tight on a slow runner.
 test.describe.configure({ timeout: 90_000 });
-
-// One server per test, so no test sees the events another leaves in the shared database.
-let serverCounter = 0;
-function server(name) {
-  serverCounter += 1;
-  const run = String(Date.now()).slice(-9);
-  return guild(`6${run}${String(serverCounter).padStart(4, '0')}0000`, name);
-}
-
-/** A host and `count` guests who all see the server's events, because everyone is discoverable in it. */
-async function crowd(join, count) {
-  const con = server('Con Hall');
-  const host = await join('host', [con], { discoverable: [con.name] });
-  const guests = [];
-  for (let i = 1; i <= count; i += 1) {
-    guests.push(await join(`guest${i}`, [con], { discoverable: [con.name] }));
-  }
-  return { con, host, guests };
-}
-
-/**
- * A freed spot is offered to the next person in line (D-014). The UI to accept comes in #68, so this checks that
- * `player` is offered the spot (`/spots`) and accepts it through the API.
- */
-async function acceptOffer(player, eventId) {
-  const spots = await player.page.request.get(`/api/events/${eventId}/spots`);
-  expect(spots.status()).toBe(200);
-  expect((await spots.json()).body.myStatus).toBe('OFFERED');
-  const accepted = await apiWrite(player, 'POST', `/events/${eventId}/rsvp/accept`);
-  expect(accepted.status()).toBe(200);
-  expect((await accepted.json()).body.status).toBe('CONFIRMED');
-}
-
-/** A full event: capacity 3 (the host and two guests), then two more guests on the waitlist, in that order. */
-async function fullEvent(join, extra = {}) {
-  const { con, host, guests } = await crowd(join, 4);
-  const title = `Full house ${host.user.id.slice(-6)}`;
-  const id = await createEvent(host, {
-    title,
-    capacity: 3,
-    audience: { guilds: [con.name] },
-    ...extra,
-  });
-  const [a, b, c, d] = guests;
-  await joinEvent(a, id, 'Joined');
-  await joinEvent(b, id, 'Joined');
-  await joinEvent(c, id, 'Waitlisted #1');
-  await joinEvent(d, id, 'Waitlisted #2');
-  return { host, a, b, c, d, id, title, con };
-}
 
 test.describe('joining and the waitlist', () => {
   test('25. fill an event up: the next people land on the waitlist and see their position', async ({

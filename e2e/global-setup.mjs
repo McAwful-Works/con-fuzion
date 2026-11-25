@@ -2,6 +2,7 @@
 // Teardown is in global-teardown.mjs; if setup fails half way it stops what it started before rethrowing.
 
 import { spawn } from 'node:child_process';
+import { generateKeyPairSync } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
@@ -41,6 +42,29 @@ function jarPath() {
     );
   }
   return join(libs, jars[0]);
+}
+
+/**
+ * A throwaway VAPID key pair for this run, in the format the backend reads: base64url, the public key as an
+ * uncompressed P-256 point (0x04, x, y) and the private key as its raw 32-byte scalar. It exists only in this
+ * process and the jar's environment, never on disk, so there is nothing for a secret scanner to find. Without keys
+ * the jar turns push off (`/api/push/key` is a 404).
+ */
+function vapidKeys() {
+  const { publicKey, privateKey } = generateKeyPairSync('ec', {
+    namedCurve: 'prime256v1',
+  });
+  const { x, y } = publicKey.export({ format: 'jwk' });
+  const { d } = privateKey.export({ format: 'jwk' });
+  const point = Buffer.concat([
+    Buffer.from([4]),
+    Buffer.from(x, 'base64url'),
+    Buffer.from(y, 'base64url'),
+  ]);
+  return {
+    CONFUZION_VAPID_PUBLIC_KEY: point.toString('base64url'),
+    CONFUZION_VAPID_PRIVATE_KEY: d,
+  };
 }
 
 /** Refuses to run against a port something else already serves, so a stray backend can't be tested by mistake. */
@@ -106,7 +130,11 @@ export default async function globalSetup() {
         // Run from .run/ so the backend's own logs/ folder lands in the ignored directory.
         cwd: runDir,
         stdio: ['ignore', log, log],
-        env: { ...process.env, E2E_STUB_PORT: String(STUB_PORT) },
+        env: {
+          ...process.env,
+          E2E_STUB_PORT: String(STUB_PORT),
+          ...vapidKeys(),
+        },
       },
     );
     closeSync(log);

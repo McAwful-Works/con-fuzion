@@ -2,6 +2,8 @@
 // header the way the SPA sends it. Everything a person can do goes through the real UI.
 
 import { expect } from '@playwright/test';
+import { createEvent } from './social.mjs';
+import { guild } from './support.mjs';
 
 /** The Spots and signup panel on an event page. */
 export const panel = ({ page }) => page.getByRole('region', { name: 'Spots and signup' });
@@ -106,4 +108,54 @@ export async function errorType(response) {
   expect(envelope.body.errorMessage).toBeTruthy();
   expect(envelope.body.correlationId).toBeTruthy();
   return envelope.body.errorType;
+}
+
+// One server per test, so no test sees the events another leaves in the shared database.
+let serverCounter = 0;
+export function server(name) {
+  serverCounter += 1;
+  const run = String(Date.now()).slice(-9);
+  return guild(`6${run}${String(serverCounter).padStart(4, '0')}0000`, name);
+}
+
+/** A host and `count` guests who all see the server's events, because everyone is discoverable in it. */
+export async function crowd(join, count) {
+  const con = server('Con Hall');
+  const host = await join('host', [con], { discoverable: [con.name] });
+  const guests = [];
+  for (let i = 1; i <= count; i += 1) {
+    guests.push(await join(`guest${i}`, [con], { discoverable: [con.name] }));
+  }
+  return { con, host, guests };
+}
+
+/**
+ * A freed spot is offered to the next person in line (D-014). For the M3 tests, which are not about the accept UI (offers.spec.mjs
+ * covers that), this checks that `player` is offered the spot (`/spots`) and accepts it through the API.
+ */
+export async function acceptOffer(player, eventId) {
+  const spots = await player.page.request.get(`/api/events/${eventId}/spots`);
+  expect(spots.status()).toBe(200);
+  expect((await spots.json()).body.myStatus).toBe('OFFERED');
+  const accepted = await apiWrite(player, 'POST', `/events/${eventId}/rsvp/accept`);
+  expect(accepted.status()).toBe(200);
+  expect((await accepted.json()).body.status).toBe('CONFIRMED');
+}
+
+/** A full event: capacity 3 (the host and two guests), then two more guests on the waitlist, in that order. */
+export async function fullEvent(join, extra = {}) {
+  const { con, host, guests } = await crowd(join, 4);
+  const title = `Full house ${host.user.id.slice(-6)}`;
+  const id = await createEvent(host, {
+    title,
+    capacity: 3,
+    audience: { guilds: [con.name] },
+    ...extra,
+  });
+  const [a, b, c, d] = guests;
+  await joinEvent(a, id, 'Joined');
+  await joinEvent(b, id, 'Joined');
+  await joinEvent(c, id, 'Waitlisted #1');
+  await joinEvent(d, id, 'Waitlisted #2');
+  return { host, a, b, c, d, id, title, con };
 }

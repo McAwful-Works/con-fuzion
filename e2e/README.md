@@ -25,6 +25,17 @@ terms forbid scripting it. Nothing here touches the real Discord, and no credent
   a second (the backend's counts cache), so counts are read with `expectSpots`, which reloads until they match.
   The create form only takes whole minutes, so the signup-gating test creates its event through the API with the
   CSRF header (`apiWrite`).
+- `tests/offers.spec.mjs` (M4) covers offers (accept, decline, expiry), the inbox with its unread badge, and the push
+  subscribe call.
+  - **Expiry:** an offer's window can't be shorter than 10 minutes (a database CHECK), so the test pushes the open
+    offer's deadline into the past with `tests/db.mjs` and relies on the expiry job, which
+    `application-e2e.properties` runs every 2 seconds, to offer the spot to the next person. `db.mjs` runs the `psql`
+    CLI with the local-only credentials (the `CONFUZION_DB_*` variables, defaulting to the compose file's). With no
+    `psql` on the PATH it uses the one inside the compose Postgres container.
+  - **Push:** `global-setup.mjs` makes a throwaway VAPID key pair for each run and gives it to the jar in its
+    environment, so push is on (`/api/push/key` answers) and no key is ever written to disk. Headless Chromium has no
+    push service, so the test replaces the browser's `subscribe` with one that returns a fake subscription on
+    `fcm.googleapis.com`. It covers the subscribe call, not delivery. The sender's interval is an hour, so it never runs.
 
 ## Run it locally
 
