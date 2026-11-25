@@ -204,9 +204,7 @@ Context · Decision · Consequences · Trigger to revisit
 - **Revisit:** if the visibility query misses its latency target in the M7 load test, or if hosts ask for audiences
   that don't need the host to be discoverable.
 
-## D-013 RSVP: first come, first served, the waitlist and who sees it (2026-11-24) — Proposed
-- **Status:** the owner decisions below are the owner's. The numbered rules this contract adds wait for the owner's
-  confirmation; this entry becomes Accepted once they're confirmed.
+## D-013 RSVP: first come, first served, the waitlist and who sees it (2026-11-24) — Accepted
 - **Context:** M3 adds RSVP (#53): limited spots claimed first come, first served (D-002, plan B4), a waitlist in
   queue order, live spot counts and My schedule. This pins the API rules so #54 (backend), #55 (frontend) and #56
   (e2e) can build in parallel. The target is 5,000 joins in 10 seconds on one event with no overbooking (M7 load test).
@@ -234,7 +232,7 @@ Context · Decision · Consequences · Trigger to revisit
   - **Only the host and confirmed attendees get the attendee list.** Anyone else gets a 404.
   - **A waitlist position is shown only to its owner** (`position` from a join, `myPosition` from `/spots`). The host
     sees the waitlist as a list in queue order.
-- **Rules this contract adds (for the owner to confirm):**
+- **Rules this contract adds (confirmed by the owner, 2026-11-25):**
   1. **A removed person can't rejoin.** Their join is a 409 `RSVP_REMOVED`, and their `myStatus` is `REMOVED`. They
      still see the event while its audience reaches them. M3 has no undo. Someone who *left* may join again, at the
      back of the queue.
