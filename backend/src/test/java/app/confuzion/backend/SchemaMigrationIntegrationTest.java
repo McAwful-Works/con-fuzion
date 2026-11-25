@@ -25,11 +25,14 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,12 +42,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceUtils;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Integration tests for the migrations on Testcontainers Postgres: M1's
- * {@code app_user} and {@code user_guild}, and M2's social graph and events.
- * Each test rolls back.
+ * {@code app_user} and {@code user_guild}, M2's social graph and events, and
+ * M3's RSVPs. Each test rolls back, except the backfill test, which migrates a
+ * schema of its own and drops it.
  *
  * @author mcawful
  */
@@ -213,8 +218,9 @@ class SchemaMigrationIntegrationTest {
 	}
 
 	/**
-	 * Tests the event CHECKs: times in order, capacity 1 to 10,000, a non-negative
-	 * count, and known enum values.
+	 * Tests the event CHECKs: times in order, capacity 2 to 10,000 (D-013), a count
+	 * between 0 and the capacity, an offer window of 10 minutes to a day, and known
+	 * enum values.
 	 */
 	@Test
 	void eventChecks() throws SQLException {
@@ -222,13 +228,18 @@ class SchemaMigrationIntegrationTest {
 
 		assertRejected(() -> insertEvent(host, Duration.ZERO, null), DataIntegrityViolationException.class);
 		assertRejected(() -> insertEvent(host, null, 0), DataIntegrityViolationException.class);
+		assertRejected(() -> insertEvent(host, null, 1), DataIntegrityViolationException.class);
 		assertRejected(() -> insertEvent(host, null, 10001), DataIntegrityViolationException.class);
 		insertEvent(host, Duration.ofHours(25), 10000);
-		var eventId = insertEvent(host, null, 1);
+		var eventId = insertEvent(host, null, 2);
+		jdbcTemplate.update("UPDATE event SET confirmed_count = 2, confirm_window_minutes = 10 WHERE id = ?", eventId);
+		jdbcTemplate.update("UPDATE event SET confirm_window_minutes = 1440 WHERE id = ?", eventId);
 		for (var update : List.of("UPDATE event SET ends_at = starts_at WHERE id = ?",
 				"UPDATE event SET signup_opens_at = starts_at WHERE id = ?",
 				"UPDATE event SET confirmed_count = -1 WHERE id = ?",
-				"UPDATE event SET confirm_window_minutes = 0 WHERE id = ?",
+				"UPDATE event SET confirmed_count = 3 WHERE id = ?", "UPDATE event SET capacity = 1 WHERE id = ?",
+				"UPDATE event SET confirm_window_minutes = 9 WHERE id = ?",
+				"UPDATE event SET confirm_window_minutes = 1441 WHERE id = ?",
 				"UPDATE event SET status = 'DELETED' WHERE id = ?",
 				"UPDATE event SET location_visibility = 'EVERYONE' WHERE id = ?"))
 			assertRejected(() -> jdbcTemplate.update(update, eventId), DataIntegrityViolationException.class);
@@ -287,6 +298,111 @@ class SchemaMigrationIntegrationTest {
 		assertThat(indexDefinition("event_audience_guild_idx")).endsWith("(guild_id) WHERE (guild_id IS NOT NULL)");
 		assertThat(indexDefinition("event_audience_circle_idx")).endsWith("(circle_id) WHERE (circle_id IS NOT NULL)");
 		assertThat(indexDefinition("event_audience_user_idx")).endsWith("(user_id) WHERE (user_id IS NOT NULL)");
+	}
+
+	/**
+	 * Tests that Flyway applied the RSVP migration, with the planned columns and
+	 * defaults.
+	 */
+	@Test
+	void rsvpMigrationApplied() {
+		assertThat(jdbcTemplate.queryForObject(
+				"SELECT success FROM flyway_schema_history WHERE version = '202611242000'", Boolean.class)).isTrue();
+		assertThat(columns("rsvp")).containsExactlyInAnyOrder("id", "event_id", "user_id", "status", "created_at",
+				"updated_at");
+
+		var host = insertUser(81384788765712384L);
+		var rsvpId = insertRsvp(insertEvent(host, null, null), host, "CONFIRMED");
+
+		assertThat(jdbcTemplate.queryForMap("SELECT created_at IS NOT NULL AS has_created_at, "
+				+ "updated_at IS NOT NULL AS has_updated_at FROM rsvp WHERE id = ?", rsvpId))
+				.containsEntry("has_created_at", true).containsEntry("has_updated_at", true);
+	}
+
+	/**
+	 * Tests the RSVP rules the database enforces: known statuses, at most one
+	 * active RSVP per person per event while past ones pile up, and cascades from
+	 * the event and the user.
+	 */
+	@Test
+	void rsvpChecks() throws SQLException {
+		var host = insertUser(81384788765712384L);
+		var guest = insertUser(81384788765712385L);
+		var eventId = insertEvent(host, null, null);
+		var otherEventId = insertEvent(host, null, null);
+
+		assertRejected(() -> insertRsvp(eventId, guest, "OFFERED"), DataIntegrityViolationException.class);
+		insertRsvp(eventId, guest, "LEFT");
+		insertRsvp(eventId, guest, "LEFT");
+		insertRsvp(eventId, guest, "WAITLISTED");
+		assertRejected(() -> insertRsvp(eventId, guest, "CONFIRMED"), DuplicateKeyException.class);
+		assertRejected(() -> insertRsvp(eventId, guest, "WAITLISTED"), DuplicateKeyException.class);
+		insertRsvp(eventId, guest, "REMOVED");
+		insertRsvp(otherEventId, guest, "CONFIRMED");
+
+		jdbcTemplate.update("DELETE FROM event WHERE id = ?", otherEventId);
+		assertThat(
+				jdbcTemplate.queryForObject("SELECT count(*) FROM rsvp WHERE event_id = ?", Long.class, otherEventId))
+				.isZero();
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", guest);
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM rsvp WHERE user_id = ?", Long.class, guest))
+				.isZero();
+	}
+
+	/**
+	 * Tests the RSVP indexes: the active-RSVP key, the waitlist queue, My schedule
+	 * and the per-event lookup that also serves the event cascade.
+	 */
+	@Test
+	void rsvpIndexes() {
+		var active = "WHERE ((status)::text = ANY ((ARRAY['CONFIRMED'::character varying, "
+				+ "'WAITLISTED'::character varying])::text[]))";
+		assertThat(indexDefinition("rsvp_active_key")).startsWith("CREATE UNIQUE INDEX")
+				.endsWith("(event_id, user_id) " + active);
+		assertThat(indexDefinition("rsvp_queue_idx"))
+				.endsWith("(event_id, id) WHERE ((status)::text = 'WAITLISTED'::text)");
+		assertThat(indexDefinition("rsvp_user_active_idx")).endsWith("(user_id) " + active);
+		assertThat(indexDefinition("rsvp_event_user_idx")).endsWith("(event_id, user_id)");
+	}
+
+	/**
+	 * Tests the RSVP migration's backfill on events made before it: each gets its
+	 * host's confirmed RSVP, dated when the event was made, and a confirmed count
+	 * of 1, cancelled events included. A capacity of 1 becomes 2, and other
+	 * capacities are kept. The test migrates a schema of its own up to the events
+	 * migration, adds the events, migrates the rest, and drops the schema.
+	 */
+	@Test
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
+	void rsvpBackfill() {
+		var schema = "rsvp_backfill_check";
+		var flyway = Flyway.configure().dataSource(dataSource).schemas(schema).locations("classpath:db/migration");
+		try {
+			flyway.target("202611241710").load().migrate();
+			var host = jdbcTemplate.queryForObject(
+					"INSERT INTO " + schema
+							+ ".app_user (discord_id, username) VALUES (81384788765712384, 'host') RETURNING id",
+					UUID.class);
+			var insert = "INSERT INTO " + schema + ".event (host_id, title, location_text, starts_at, time_zone, "
+					+ "capacity, status, created_at) VALUES (?, 'Photo walk', 'Hall B', now() + interval '1 day', "
+					+ "'UTC', ?, ?, ?) RETURNING id";
+			var createdAt = Timestamp.from(Instant.parse("2026-11-20T12:00:00Z"));
+			var unlimited = jdbcTemplate.queryForObject(insert, Long.class, host, null, "PUBLISHED", createdAt);
+			var single = jdbcTemplate.queryForObject(insert, Long.class, host, 1, "PUBLISHED", createdAt);
+			var cancelled = jdbcTemplate.queryForObject(insert, Long.class, host, 50, "CANCELLED", createdAt);
+
+			flyway.target("latest").load().migrate();
+
+			assertThat(jdbcTemplate
+					.queryForList("SELECT event_id, user_id, status, created_at FROM " + schema + ".rsvp ORDER BY id"))
+					.containsExactly(rsvpRow(unlimited, host, createdAt), rsvpRow(single, host, createdAt),
+							rsvpRow(cancelled, host, createdAt));
+			assertThat(jdbcTemplate
+					.queryForList("SELECT id, capacity, confirmed_count FROM " + schema + ".event ORDER BY id"))
+					.containsExactly(eventRow(unlimited, null), eventRow(single, 2), eventRow(cancelled, 50));
+		} finally {
+			jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+		}
 	}
 
 	/**
@@ -430,6 +546,46 @@ class SchemaMigrationIntegrationTest {
 						+ "VALUES (?, 'Photo walk', 'Hall B', ?, ?, 'America/Chicago', ?) RETURNING id",
 				Long.class, host, Timestamp.from(now.plus(Duration.ofDays(1))),
 				endsIn == null ? null : Timestamp.from(now.plus(endsIn)), capacity);
+	}
+
+	/**
+	 * Inserts an RSVP.
+	 *
+	 * @param eventId the event's internal ID
+	 * @param userId  the user
+	 * @param status  the status
+	 * @return the RSVP's ID
+	 */
+	private long insertRsvp(long eventId, UUID userId, String status) {
+		return jdbcTemplate.queryForObject("INSERT INTO rsvp (event_id, user_id, status) VALUES (?, ?, ?) RETURNING id",
+				Long.class, eventId, userId, status);
+	}
+
+	/**
+	 * Returns the row the backfill should have written for an event.
+	 *
+	 * @param eventId   the event's internal ID
+	 * @param host      the host
+	 * @param createdAt when the event was made
+	 * @return the expected {@code rsvp} row
+	 */
+	private static Map<String, Object> rsvpRow(long eventId, UUID host, Timestamp createdAt) {
+		return Map.of("event_id", eventId, "user_id", host, "status", "CONFIRMED", "created_at", createdAt);
+	}
+
+	/**
+	 * Returns an event's expected capacity and count after the backfill.
+	 *
+	 * @param eventId  the event's internal ID
+	 * @param capacity the capacity, or {@code null}
+	 * @return the expected {@code event} row
+	 */
+	private static Map<String, Object> eventRow(long eventId, Integer capacity) {
+		var row = new HashMap<String, Object>();
+		row.put("id", eventId);
+		row.put("capacity", capacity);
+		row.put("confirmed_count", 1);
+		return row;
 	}
 
 	/**

@@ -113,7 +113,16 @@ class SecurityConfigIntegrationTest {
 			new Endpoint("GET", "/api/events?scope=hosting", null, 200),
 			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 404),
 			new Endpoint("PATCH", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", EVENT_BODY, 404),
-			new Endpoint("DELETE", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 404));
+			new Endpoint("DELETE", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60", null, 404),
+			// The RSVP contract stubs (D-013), until #54.
+			new Endpoint("GET", "/api/events?scope=attending", null, 501),
+			new Endpoint("POST", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/rsvp", null, 501),
+			new Endpoint("DELETE", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/rsvp", null, 501),
+			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/attendees", null, 501),
+			new Endpoint("DELETE",
+					"/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/rsvps/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null,
+					501),
+			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/spots", null, 501));
 
 	/**
 	 * The stub Discord.

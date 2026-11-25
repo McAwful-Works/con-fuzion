@@ -48,6 +48,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import app.confuzion.backend.exception.ConflictException;
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.LimitExceededException;
 import app.confuzion.backend.exception.RateLimitException;
@@ -172,6 +173,24 @@ class GlobalControllerExceptionHandlerTest {
 
 		assertThat(appender.list).hasSize(LimitExceededException.Limit.values().length)
 				.allSatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.DEBUG));
+	}
+
+	/**
+	 * Tests the {@code handleDomainConflict} method. Asserts a 409 whose errorType
+	 * is the conflict's name, with the generic message and a correlation ID.
+	 */
+	@Test
+	void testHandleDomainConflict() {
+		for (var conflict : ConflictException.Conflict.values()) {
+			var response = handler.handleDomainConflict(new ConflictException(conflict), new MockHttpServletResponse());
+
+			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+			var body = response.getBody().body();
+			assertThat(body.errorType()).isEqualTo(conflict.name());
+			assertThat(body.errorMessage()).isEqualTo(HttpStatus.CONFLICT.getReasonPhrase());
+			assertThat(body.correlationId()).isNotBlank()
+					.isEqualTo(response.getHeaders().getFirst(GlobalControllerExceptionHandler.CORRELATION_ID_HEADER));
+		}
 	}
 
 	/**

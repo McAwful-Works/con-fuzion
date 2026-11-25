@@ -62,6 +62,7 @@ import app.confuzion.backend.model.record.EventRequest;
 import app.confuzion.backend.model.record.EventResponse;
 import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.EventResponse.Status;
+import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.PersonResponse;
 import app.confuzion.backend.service.EventService;
 import tools.jackson.databind.json.JsonMapper;
@@ -107,7 +108,7 @@ class EventControllerTest {
 	private static final EventResponse RESPONSE = new EventResponse(UUID.randomUUID(),
 			new PersonResponse(USER_ID, "Host", "https://cdn.discordapp.com/embed/avatars/0.png"), "Walk", null,
 			"Hall B", false, LocationVisibility.VIEWERS, null, STARTS_AT, null, "UTC", null, null, Status.PUBLISHED,
-			true, List.of());
+			true, MyStatus.CONFIRMED, List.of());
 
 	/**
 	 * The mocked {@link EventService}.
@@ -132,7 +133,9 @@ class EventControllerTest {
 		return Stream.<MockHttpServletRequestBuilder>of(json(post("/api/events"), body(Map.of())),
 				json(post("/api/events"), body(everyField)),
 				json(post("/api/events"), body(Map.of("audience", audience(EventRequest.MAX_AUDIENCE)))),
-				get("/api/events"), get("/api/events").param("scope", "hosting").param("limit", "50"),
+				// The smallest capacity: the host and one guest.
+				json(post("/api/events"), body(Map.of("capacity", 2))), get("/api/events"),
+				get("/api/events").param("scope", "hosting").param("limit", "50"),
 				get("/api/events").param("scope", "feed").param("cursor", "eyJzIjoiMjAyNiJ9_-").param("limit", "1"),
 				get(EVENT), json(patch(EVENT), body(everyField)),
 				// An update may keep a start that has already passed.
@@ -194,7 +197,7 @@ class EventControllerTest {
 				Arguments.of("startsAt", "+1000000000-01-01T00:00:00Z"),
 				Arguments.of("signupOpensAt", STARTS_AT.minus(EventRequest.MAX_HORIZON).minusSeconds(1).toString()),
 				Arguments.of("signupOpensAt", STARTS_AT.toString()), Arguments.of("timeZone", null),
-				Arguments.of("timeZone", "Mars/Olympus_Mons"), Arguments.of("capacity", 0),
+				Arguments.of("timeZone", "Mars/Olympus_Mons"), Arguments.of("capacity", 0), Arguments.of("capacity", 1),
 				Arguments.of("capacity", 10001), Arguments.of("locationVisibility", null),
 				Arguments.of("locationVisibility", "EVERYONE"), Arguments.of("audience", null),
 				Arguments.of("audience", List.of()), Arguments.of("audience", audience(EventRequest.MAX_AUDIENCE + 1)),
@@ -244,10 +247,21 @@ class EventControllerTest {
 	 * @param query the bad query string
 	 */
 	@ParameterizedTest
-	@ValueSource(strings = { "scope=attending", "scope=FEED", "limit=0", "limit=51", "limit=ten", "cursor=a%20b",
-			"cursor=abc%3D" })
+	@ValueSource(strings = { "scope=going", "scope=ATTENDING", "scope=FEED", "limit=0", "limit=51", "limit=ten",
+			"cursor=a%20b", "cursor=abc%3D" })
 	void testListRejectsBadQuery(String query) throws Exception {
 		assertError(mockMvc, get("/api/events?" + query), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Tests that My schedule is a contract stub until #54: a 501 that never reaches
+	 * the service.
+	 */
+	@Test
+	void testAttendingIsNotImplemented() throws Exception {
+		assertError(mockMvc, get("/api/events").param("scope", "attending").principal(AUTHENTICATION),
+				HttpStatus.NOT_IMPLEMENTED);
+		verifyNoInteractions(eventService);
 	}
 
 	/**

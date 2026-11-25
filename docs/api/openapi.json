@@ -11,6 +11,9 @@
     "session" : [ ]
   } ],
   "tags" : [ {
+    "description" : "Joining, the waitlist, attendees and spot counts",
+    "name" : "rsvp"
+  }, {
     "description" : "Blocked users",
     "name" : "blocks"
   }, {
@@ -1040,18 +1043,18 @@
     },
     "/api/events" : {
       "get" : {
-        "description" : "Upcoming means the end (or, without one, the start plus 3 hours) is still in the future. feed: published events visible to the user, their own included. hosting: the user's own events, cancelled ones included. Sorted by start time, then ID.",
+        "description" : "Upcoming means the end (or, without one, the start plus 3 hours) is still in the future. feed: published events visible to the user, their own included. hosting: the user's own events, cancelled ones included. attending (My schedule): events where the user is confirmed or waitlisted, their own included (the host always holds a spot), and cancelled ones where they still are. Sorted by start time, then ID.",
         "operationId" : "getEvents",
         "parameters" : [ {
-          "description" : "feed or hosting",
+          "description" : "feed, hosting or attending",
           "in" : "query",
           "name" : "scope",
           "required" : false,
           "schema" : {
             "type" : "string",
             "default" : "feed",
-            "enum" : [ "feed", "hosting" ],
-            "pattern" : "^(feed|hosting)$"
+            "enum" : [ "feed", "hosting", "attending" ],
+            "pattern" : "^(feed|hosting|attending)$"
           }
         }, {
           "description" : "The previous page's nextCursor. Opaque; a cursor that wasn't issued for this scope is a 400.",
@@ -1143,7 +1146,7 @@
         "tags" : [ "events" ]
       },
       "post" : {
-        "description" : "Publishes it at once, hosted by the signed-in user. A host can create at most 20 events in any 24 hours.",
+        "description" : "Publishes it at once, hosted by the signed-in user, who holds its first spot (D-013). A host can create at most 20 events in any 24 hours.",
         "operationId" : "createEvent",
         "requestBody" : {
           "content" : {
@@ -1334,7 +1337,7 @@
         "tags" : [ "events" ]
       },
       "get" : {
-        "description" : "404 unless the user can see it (D-012). The host also sees their own cancelled events.",
+        "description" : "404 unless the user can see it (D-012). Once it's cancelled, the host and anyone still confirmed or waitlisted can see it (D-013). A CONFIRMED-only location is withheld unless the user is the host or confirmed.",
         "operationId" : "getEvent",
         "parameters" : [ {
           "description" : "The event's public ID",
@@ -1503,7 +1506,7 @@
                 }
               }
             },
-            "description" : "The event is cancelled, so it can't be edited."
+            "description" : "The event is cancelled or has ended, so it can't be edited. Or errorType CAPACITY_BELOW_CONFIRMED: the new capacity is smaller than the number already confirmed, the host included (D-013). Nothing is saved."
           },
           "429" : {
             "content" : {
@@ -1538,6 +1541,528 @@
         },
         "summary" : "Edit an event the user hosts",
         "tags" : [ "events" ]
+      }
+    },
+    "/api/events/{eventId}/attendees" : {
+      "get" : {
+        "description" : "Only the host and confirmed attendees can call this. Both get the confirmed list; the host also gets the waitlist, in queue order. Nobody else ever sees who is waitlisted.",
+        "operationId" : "getAttendees",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordAttendeesResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The caller is neither the host nor confirmed, or can't see the event."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "List who is going",
+        "tags" : [ "rsvp" ]
+      }
+    },
+    "/api/events/{eventId}/rsvp" : {
+      "delete" : {
+        "description" : "Gives up the caller's spot or place in the waitlist. A freed spot goes at once to the next person in the waitlist, who is confirmed (D-013; M4 turns this into an offer). Nobody is promoted once the event has started or is cancelled. Leaving without an RSVP is also a 204.",
+        "operationId" : "leave",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Left, or wasn't signed up."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The event doesn't exist, or the caller can't see it (D-012). The host, and anyone confirmed or waitlisted, can still see it once it's cancelled."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "errorType HOST_CANNOT_LEAVE: the host always holds a spot. They cancel the event instead."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Leave an event",
+        "tags" : [ "rsvp" ]
+      },
+      "post" : {
+        "description" : "Takes a free spot (CONFIRMED) or, when the event is full, the back of the waitlist (WAITLISTED, with a position). First come, first served: the claim is one atomic update, so the event is never overbooked. An unlimited event always confirms. Joining again while confirmed or waitlisted returns the current status and changes nothing, so a double tap is safe. Someone who left may join again, at the back of the queue. Checks run in this order: visibility (404), an existing RSVP (200 with its status, so the host always gets CONFIRMED), removal (RSVP_REMOVED), then the sign-up window (SIGNUP_NOT_OPEN, SIGNUP_CLOSED).",
+        "operationId" : "join",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordRsvpResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The event doesn't exist, or the caller can't see it (D-012). The host, and anyone confirmed or waitlisted, can still see it once it's cancelled."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "errorType SIGNUP_NOT_OPEN: signupOpensAt hasn't come yet. SIGNUP_CLOSED: the event has started. RSVP_REMOVED: the host removed the caller, who can't rejoin."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited (errorType TOO_MANY_REQUESTS). Joins are limited to about one attempt per second per user, so wait before retrying."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Join an event",
+        "tags" : [ "rsvp" ]
+      }
+    },
+    "/api/events/{eventId}/rsvps/{userId}" : {
+      "delete" : {
+        "description" : "Takes away their spot or place in the waitlist, and they can't rejoin. A freed spot goes to the next person in the waitlist, as for leaving. Removing someone who isn't signed up is also a 204, and writes nothing: they can still join. 404 unless the user is the host.",
+        "operationId" : "removeAttendee",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "description" : "The person's user ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Removed, or wasn't signed up."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The user isn't the event's host."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "errorType HOST_CANNOT_LEAVE: the host always holds a spot. They cancel the event instead."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Remove someone from an event the user hosts",
+        "tags" : [ "rsvp" ]
+      }
+    },
+    "/api/events/{eventId}/spots" : {
+      "get" : {
+        "description" : "A small response for polling: about every 3 seconds in the 2 minutes around signupOpensAt, every 30 seconds otherwise, and not while the page is hidden. Anyone who can see the event can call it. myStatus and myPosition are always the caller's own. Send the last ETag in If-None-Match to get a bodiless 304 while nothing the caller would see has changed. Responses are sent with Cache-Control: private, no-cache.",
+        "operationId" : "getSpots",
+        "parameters" : [ {
+          "description" : "The event's public ID",
+          "in" : "path",
+          "name" : "eventId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "description" : "The ETag of the caller's last 200 from this endpoint.",
+          "in" : "header",
+          "name" : "If-None-Match",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordSpotsResponse"
+                }
+              }
+            },
+            "description" : "OK",
+            "headers" : {
+              "ETag" : {
+                "description" : "A tag for this response, which is specific to the caller. Send it back in If-None-Match.",
+                "schema" : {
+                  "type" : "string"
+                },
+                "style" : "simple"
+              }
+            }
+          },
+          "304" : {
+            "description" : "Not modified: If-None-Match matches. No body."
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The request failed validation."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Not signed in."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "The event doesn't exist, or the caller can't see it (D-012). The host, and anyone confirmed or waitlisted, can still see it once it's cancelled."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Rate limited. Try again later."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Unexpected server error."
+          },
+          "default" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseRecordErrorResponseBodyRecord"
+                }
+              }
+            },
+            "description" : "Any other error."
+          }
+        },
+        "summary" : "Get spot counts",
+        "tags" : [ "rsvp" ]
       }
     },
     "/api/friends" : {
@@ -2451,6 +2976,26 @@
   },
   "components" : {
     "schemas" : {
+      "AttendeesResponse" : {
+        "type" : "object",
+        "properties" : {
+          "confirmed" : {
+            "type" : "array",
+            "description" : "People holding a spot, in the order they joined, so the host comes first. Leaves out anyone who has blocked the caller or whom the caller has blocked.",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonResponse"
+            }
+          },
+          "waitlist" : {
+            "type" : [ "array", "null" ],
+            "description" : "Only the host gets this: the waitlist in queue order, next in line first. Null for everyone else.",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonResponse"
+            }
+          }
+        },
+        "required" : [ "confirmed", "waitlist" ]
+      },
       "AudienceEntryRequest" : {
         "type" : "object",
         "properties" : {
@@ -2596,8 +3141,9 @@
           "capacity" : {
             "type" : [ "integer", "null" ],
             "format" : "int32",
+            "description" : "The headcount, the host included (the host always holds a spot), so at least 2. Null for unlimited. An update can't make it smaller than the number already confirmed.",
             "maximum" : 10000,
-            "minimum" : 1
+            "minimum" : 2
           },
           "description" : {
             "type" : [ "string", "null" ],
@@ -2665,8 +3211,9 @@
           "capacity" : {
             "type" : [ "integer", "null" ],
             "format" : "int32",
+            "description" : "The headcount, the host included. Null for unlimited.",
             "maximum" : 10000,
-            "minimum" : 1
+            "minimum" : 2
           },
           "description" : {
             "type" : [ "string", "null" ]
@@ -2687,6 +3234,7 @@
           },
           "location" : {
             "type" : [ "string", "null" ],
+            "description" : "Null when locationHidden: the location is CONFIRMED-only and the viewer is neither the host nor confirmed.",
             "example" : "Hall B fountain"
           },
           "locationHidden" : {
@@ -2695,6 +3243,11 @@
           "locationVisibility" : {
             "type" : "string",
             "enum" : [ "VIEWERS", "CONFIRMED" ]
+          },
+          "myStatus" : {
+            "type" : "string",
+            "description" : "Where the viewer stands. CONFIRMED for the host. The waitlist position is in GET /api/events/{eventId}/spots.",
+            "enum" : [ "NONE", "CONFIRMED", "WAITLISTED", "REMOVED" ]
           },
           "signupOpensAt" : {
             "type" : [ "string", "null" ],
@@ -2721,7 +3274,7 @@
             "example" : "Cosplay photo walk"
           }
         },
-        "required" : [ "audience", "capacity", "description", "endsAt", "host", "id", "isHost", "location", "locationHidden", "locationVisibility", "signupOpensAt", "startsAt", "status", "tag", "timeZone", "title" ]
+        "required" : [ "audience", "capacity", "description", "endsAt", "host", "id", "isHost", "location", "locationHidden", "locationVisibility", "myStatus", "signupOpensAt", "startsAt", "status", "tag", "timeZone", "title" ]
       },
       "GuildListResponse" : {
         "type" : "object",
@@ -2881,6 +3434,19 @@
         },
         "required" : [ "avatarUrl", "displayName", "id" ]
       },
+      "ResponseRecordAttendeesResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/AttendeesResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
       "ResponseRecordCircleListResponse" : {
         "type" : "object",
         "properties" : {
@@ -2889,7 +3455,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2902,7 +3468,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2915,7 +3481,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2928,7 +3494,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2941,7 +3507,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2954,7 +3520,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2967,7 +3533,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2980,7 +3546,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -2993,7 +3559,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -3006,7 +3572,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -3019,7 +3585,7 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
@@ -3032,10 +3598,93 @@
           },
           "responseType" : {
             "type" : "string",
-            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "UNKNOWN" ]
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
           }
         },
         "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordRsvpResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/RsvpResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "ResponseRecordSpotsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/SpotsResponse"
+          },
+          "responseType" : {
+            "type" : "string",
+            "enum" : [ "ERROR", "ME", "GUILD", "GUILD_LIST", "PERSON", "PERSON_LIST", "INVITE", "INVITE_PREVIEW", "CIRCLE", "CIRCLE_LIST", "EVENT", "EVENT_PAGE", "RSVP", "ATTENDEES", "SPOTS", "UNKNOWN" ]
+          }
+        },
+        "required" : [ "body", "responseType" ]
+      },
+      "RsvpResponse" : {
+        "type" : "object",
+        "properties" : {
+          "position" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "1-based place in the waitlist: 1 + the number of people waitlisted ahead of the caller. Null when CONFIRMED.",
+            "minimum" : 1
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "CONFIRMED", "WAITLISTED" ]
+          }
+        },
+        "required" : [ "position", "status" ]
+      },
+      "SpotsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "capacity" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "The headcount, the host included. Null for unlimited.",
+            "maximum" : 10000,
+            "minimum" : 2
+          },
+          "confirmed" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "People holding a spot, the host included.",
+            "minimum" : 1
+          },
+          "myPosition" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "The caller's own 1-based place in the waitlist: 1 + the number of people waitlisted ahead of them. Null unless myStatus is WAITLISTED.",
+            "minimum" : 1
+          },
+          "myStatus" : {
+            "type" : "string",
+            "enum" : [ "NONE", "CONFIRMED", "WAITLISTED", "REMOVED" ]
+          },
+          "spotsLeft" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "capacity - confirmed. Null for unlimited. Nobody is promoted once the event has started, so this can be above 0 while people are waitlisted; sign-up is closed by then.",
+            "minimum" : 0
+          },
+          "waitlisted" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Always 0 for an unlimited event.",
+            "minimum" : 0
+          }
+        },
+        "required" : [ "capacity", "confirmed", "myPosition", "myStatus", "spotsLeft", "waitlisted" ]
       },
       "UpdateGuildRequest" : {
         "type" : "object",

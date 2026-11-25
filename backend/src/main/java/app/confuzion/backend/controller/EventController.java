@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.EventPageResponse;
 import app.confuzion.backend.model.record.EventRequest;
@@ -71,6 +72,11 @@ public class EventController {
 			+ "saved.";
 
 	/**
+	 * The scope that lists the events the caller is signed up for.
+	 */
+	private static final String ATTENDING = "attending";
+
+	/**
 	 * The {@link EventService}.
 	 */
 	private final EventService eventService;
@@ -93,8 +99,8 @@ public class EventController {
 	 */
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
-	@Operation(summary = "Create an event", description = "Publishes it at once, hosted by the signed-in user. A host "
-			+ "can create at most 20 events in any 24 hours.")
+	@Operation(summary = "Create an event", description = "Publishes it at once, hosted by the signed-in user, who "
+			+ "holds its first spot (D-013). A host can create at most 20 events in any 24 hours.")
 	// Declaring the 404 drops springdoc's inferred 201, so the 201 is declared too.
 	@ApiResponse(responseCode = "201", description = "Created")
 	@ApiResponse(responseCode = "404", description = UNUSABLE_AUDIENCE)
@@ -106,11 +112,11 @@ public class EventController {
 	}
 
 	/**
-	 * Returns a page of upcoming events: the signed-in user's feed, or the events
-	 * they host.
+	 * Returns a page of upcoming events: the signed-in user's feed, the events they
+	 * host, or the events they are signed up for.
 	 *
 	 * @param authentication the session's {@link Authentication}
-	 * @param scope          {@code feed} or {@code hosting}
+	 * @param scope          {@code feed}, {@code hosting} or {@code attending}
 	 * @param cursor         the {@code nextCursor} from the previous page, or
 	 *                       {@code null} for the first page
 	 * @param limit          the most events to return
@@ -119,12 +125,18 @@ public class EventController {
 	@GetMapping
 	@Operation(summary = "List upcoming events", description = "Upcoming means the end (or, without one, the start plus "
 			+ "3 hours) is still in the future. feed: published events visible to the user, their own included. "
-			+ "hosting: the user's own events, cancelled ones included. Sorted by start time, then ID.")
+			+ "hosting: the user's own events, cancelled ones included. attending (My schedule): events where the user "
+			+ "is confirmed or waitlisted, their own included (the host always holds a spot), and cancelled ones where "
+			+ "they still are. Sorted by start time, then ID.")
 	public ResponseRecord<EventPageResponse> getEvents(@Parameter(hidden = true) Authentication authentication,
-			@Parameter(description = "feed or hosting", schema = @Schema(type = "string", allowableValues = { "feed",
-					"hosting" }, defaultValue = "feed")) @RequestParam(defaultValue = "feed") @Pattern(regexp = "^(feed|hosting)$") String scope,
+			@Parameter(description = "feed, hosting or attending", schema = @Schema(type = "string", allowableValues = {
+					"feed", "hosting",
+					ATTENDING }, defaultValue = "feed")) @RequestParam(defaultValue = "feed") @Pattern(regexp = "^(feed|hosting|attending)$") String scope,
 			@Parameter(description = "The previous page's nextCursor. Opaque; a cursor that wasn't issued for this scope is a 400.") @RequestParam(required = false) @Size(max = 200) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String cursor,
 			@Parameter(description = "Events per page, 1 to 50") @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
+		// A contract stub until #54 builds My schedule.
+		if (ATTENDING.equals(scope))
+			throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 		return new ResponseRecord<>(eventService.getEvents(HttpUtil.userId(authentication), scope, cursor, limit));
 	}
 
@@ -136,8 +148,9 @@ public class EventController {
 	 * @return the {@link EventResponse} envelope
 	 */
 	@GetMapping("/{eventId}")
-	@Operation(summary = "Get an event", description = "404 unless the user can see it (D-012). The host also sees "
-			+ "their own cancelled events.")
+	@Operation(summary = "Get an event", description = "404 unless the user can see it (D-012). Once it's cancelled, "
+			+ "the host and anyone still confirmed or waitlisted can see it (D-013). A CONFIRMED-only location is "
+			+ "withheld unless the user is the host or confirmed.")
 	public ResponseRecord<EventResponse> getEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
 		return new ResponseRecord<>(eventService.getEvent(HttpUtil.userId(authentication), eventId));
@@ -162,7 +175,9 @@ public class EventController {
 			+ "past.")
 	@ApiResponse(responseCode = "404", description = "The user isn't the host, or a newly added audience entry "
 			+ "can't be used. " + UNUSABLE_AUDIENCE)
-	@ApiResponse(responseCode = "409", description = "The event is cancelled, so it can't be edited.")
+	@ApiResponse(responseCode = "409", description = "The event is cancelled or has ended, so it can't be edited. "
+			+ "Or errorType CAPACITY_BELOW_CONFIRMED: the new capacity is smaller than the number already confirmed, "
+			+ "the host included (D-013). Nothing is saved.")
 	public ResponseRecord<EventResponse> updateEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId,
 			@Valid @RequestBody EventRequest request) {

@@ -42,6 +42,7 @@ import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.TestcontainersConfiguration;
+import app.confuzion.backend.exception.ConflictException.Conflict;
 import app.confuzion.backend.exception.LimitExceededException;
 
 /**
@@ -106,7 +107,9 @@ class OpenApiConfigIntegrationTest {
 				"/api/auth/logout-everywhere", "/api/friends", "/api/friends/{userId}", "/api/friends/invites",
 				"/api/friends/invites/{token}", "/api/friends/invites/{token}/accept", "/api/people", "/api/circles",
 				"/api/circles/{circleId}", "/api/circles/{circleId}/members/{userId}", "/api/blocks",
-				"/api/blocks/{userId}", "/api/events", "/api/events/{eventId}");
+				"/api/blocks/{userId}", "/api/events", "/api/events/{eventId}", "/api/events/{eventId}/rsvp",
+				"/api/events/{eventId}/attendees", "/api/events/{eventId}/rsvps/{userId}",
+				"/api/events/{eventId}/spots");
 		assertThat(paths.get("/api/me")).containsOnlyKeys("get", "patch");
 		assertThat(paths.get("/api/me/guilds")).containsOnlyKeys("get", "put");
 		assertThat(paths.get("/api/me/guilds/{guildId}")).containsOnlyKeys("put");
@@ -125,6 +128,10 @@ class OpenApiConfigIntegrationTest {
 		assertThat(paths.get("/api/blocks/{userId}")).containsOnlyKeys("put", "delete");
 		assertThat(paths.get("/api/events")).containsOnlyKeys("get", "post");
 		assertThat(paths.get("/api/events/{eventId}")).containsOnlyKeys("get", "patch", "delete");
+		assertThat(paths.get("/api/events/{eventId}/rsvp")).containsOnlyKeys("post", "delete");
+		assertThat(paths.get("/api/events/{eventId}/attendees")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/events/{eventId}/rsvps/{userId}")).containsOnlyKeys("delete");
+		assertThat(paths.get("/api/events/{eventId}/spots")).containsOnlyKeys("get");
 	}
 
 	/**
@@ -146,6 +153,71 @@ class OpenApiConfigIntegrationTest {
 		assertThat(responses("/api/events", "get")).containsKey("400").doesNotContainKey("403");
 		assertThat(document.<String>read("$.paths['/api/events'].post.responses['429'].description"))
 				.contains(LimitExceededException.Limit.EVENT_LIMIT.name());
+		assertThat(document.<String>read("$.paths['/api/events/{eventId}'].patch.responses['409'].description"))
+				.contains(Conflict.CAPACITY_BELOW_CONFIRMED.name());
+	}
+
+	/**
+	 * Tests the RSVP operations (D-013): typed envelopes, bodiless 204s, each
+	 * documented 409 errorType, and the spot counts' ETag, If-None-Match and
+	 * bodiless 304.
+	 */
+	@Test
+	void rsvpOperations() {
+		assertThat(successRef("/api/events/{eventId}/rsvp", "post"))
+				.isEqualTo("#/components/schemas/ResponseRecordRsvpResponse");
+		assertThat(successRef("/api/events/{eventId}/attendees", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordAttendeesResponse");
+		assertThat(successRef("/api/events/{eventId}/spots", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordSpotsResponse");
+		assertThat(responses("/api/events/{eventId}/rsvp", "post")).containsKeys("200", "400", "403", "404", "409",
+				"429");
+		for (var removal : List.of("/api/events/{eventId}/rsvp", "/api/events/{eventId}/rsvps/{userId}"))
+			assertThat(responses(removal, "delete")).containsKeys("204", "403", "404", "409").doesNotContainKey("200");
+		assertThat(responses("/api/events/{eventId}/attendees", "get")).containsKeys("200", "404")
+				.doesNotContainKey("403");
+		assertThat(conflicts("/api/events/{eventId}/rsvp", "post")).contains(Conflict.SIGNUP_NOT_OPEN.name(),
+				Conflict.SIGNUP_CLOSED.name(), Conflict.RSVP_REMOVED.name());
+		assertThat(conflicts("/api/events/{eventId}/rsvp", "delete")).contains(Conflict.HOST_CANNOT_LEAVE.name());
+		assertThat(conflicts("/api/events/{eventId}/rsvps/{userId}", "delete"))
+				.contains(Conflict.HOST_CANNOT_LEAVE.name());
+		assertThat(document.<String>read("$.paths['/api/events/{eventId}/rsvp'].post.responses['429'].description"))
+				.contains("TOO_MANY_REQUESTS");
+
+		assertThat(responses("/api/events/{eventId}/spots", "get")).containsKeys("200", "304", "404");
+		assertThat(document.<Map<String, Object>>read("$.paths['/api/events/{eventId}/spots'].get.responses['304']"))
+				.doesNotContainKey("content");
+		assertThat(document
+				.<Map<String, Object>>read("$.paths['/api/events/{eventId}/spots'].get.responses['200'].headers"))
+				.containsOnlyKeys("ETag");
+		assertThat(document
+				.<List<String>>read("$.paths['/api/events/{eventId}/spots'].get.parameters[?(@.in == 'header')].name"))
+				.containsExactly("If-None-Match");
+	}
+
+	/**
+	 * Tests the RSVP schemas: the caller's own status and position, a waitlist only
+	 * the host gets, and people as public profiles.
+	 */
+	@Test
+	void rsvpSchemas() {
+		Map<String, Map<String, Object>> rsvp = document.read("$.components.schemas.RsvpResponse.properties");
+		assertThat(rsvp).containsOnlyKeys("status", "position");
+		assertThat(rsvp.get("status").get("enum")).isEqualTo(List.of("CONFIRMED", "WAITLISTED"));
+		assertThat((List<String>) rsvp.get("position").get("type")).contains("null");
+
+		Map<String, Map<String, Object>> spots = document.read("$.components.schemas.SpotsResponse.properties");
+		assertThat(spots).containsOnlyKeys("capacity", "confirmed", "waitlisted", "spotsLeft", "myStatus",
+				"myPosition");
+		assertThat(spots.get("myStatus").get("enum")).isEqualTo(List.of("NONE", "CONFIRMED", "WAITLISTED", "REMOVED"));
+		for (var nullable : List.of("capacity", "spotsLeft", "myPosition"))
+			assertThat((List<String>) spots.get(nullable).get("type")).contains("null");
+
+		Map<String, Map<String, Object>> attendees = document.read("$.components.schemas.AttendeesResponse.properties");
+		assertThat(attendees).containsOnlyKeys("confirmed", "waitlist");
+		assertThat((List<String>) attendees.get("waitlist").get("type")).contains("null");
+		assertThat(document.<String>read("$.components.schemas.AttendeesResponse.properties.confirmed.items.$ref"))
+				.isEqualTo("#/components/schemas/PersonResponse");
 	}
 
 	/**
@@ -157,7 +229,11 @@ class OpenApiConfigIntegrationTest {
 		Map<String, Map<String, Object>> properties = document.read("$.components.schemas.EventResponse.properties");
 		assertThat(properties).containsOnlyKeys("id", "host", "title", "description", "location", "locationHidden",
 				"locationVisibility", "tag", "startsAt", "endsAt", "timeZone", "signupOpensAt", "capacity", "status",
-				"isHost", "audience");
+				"isHost", "myStatus", "audience");
+		assertThat(properties.get("myStatus").get("enum"))
+				.isEqualTo(List.of("NONE", "CONFIRMED", "WAITLISTED", "REMOVED"));
+		assertThat(document.<Integer>read("$.components.schemas.EventRequest.properties.capacity.minimum"))
+				.isEqualTo(2);
 		assertThat((List<String>) properties.get("location").get("type")).contains("null");
 		assertThat((List<String>) properties.get("audience").get("type")).contains("null");
 		assertThat(document.<Map<String, Object>>read("$.components.schemas.AudienceEntryRequest.properties"))
@@ -168,7 +244,7 @@ class OpenApiConfigIntegrationTest {
 				.isEqualTo(50);
 		assertThat(document
 				.<List<String>>read("$.paths['/api/events'].get.parameters[?(@.name == 'scope')].schema.enum[*]"))
-				.containsExactly("feed", "hosting");
+				.containsExactly("feed", "hosting", "attending");
 	}
 
 	/**
@@ -250,7 +326,7 @@ class OpenApiConfigIntegrationTest {
 	void everyOperationDocumentsTheErrorEnvelope() {
 		List<Map<String, Map<String, Object>>> responses = document.read("$.paths.*.*.responses");
 
-		assertThat(responses).hasSize(28).allSatisfy(byStatus -> {
+		assertThat(responses).hasSize(33).allSatisfy(byStatus -> {
 			assertThat(byStatus).containsKeys("500", "default");
 			byStatus.forEach((code, response) -> {
 				if (code.startsWith("4") || code.startsWith("5") || code.equals("default"))
@@ -307,6 +383,18 @@ class OpenApiConfigIntegrationTest {
 	 */
 	private Map<String, Object> responses(String path, String method) {
 		return document.read("$.paths['" + path + "']." + method + ".responses");
+	}
+
+	/**
+	 * Returns the description of an operation's 409 response, which names its
+	 * domain errorTypes.
+	 *
+	 * @param path   the path
+	 * @param method the HTTP method, in lower case
+	 * @return the description
+	 */
+	private String conflicts(String path, String method) {
+		return document.read("$.paths['" + path + "']." + method + ".responses['409'].description");
 	}
 
 	/**
