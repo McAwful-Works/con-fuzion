@@ -41,6 +41,8 @@ import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import app.confuzion.backend.exception.ConflictException;
+import app.confuzion.backend.exception.ConflictException.Conflict;
 import app.confuzion.backend.exception.EventNotEditableException;
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.LimitExceededException;
@@ -94,6 +96,11 @@ public class EventService {
 	private static final String HOSTING = "hosting";
 
 	/**
+	 * The scope that lists My schedule.
+	 */
+	private static final String ATTENDING = "attending";
+
+	/**
 	 * Separates a cursor's fields before encoding.
 	 */
 	private static final String CURSOR_SEPARATOR = ",";
@@ -124,7 +131,7 @@ public class EventService {
 	private final SocialRepository socialRepository;
 
 	/**
-	 * The {@link RsvpRepository}, for where the viewer stands.
+	 * The {@link RsvpRepository}, for where the viewer stands and capacity edits.
 	 */
 	private final RsvpRepository rsvpRepository;
 
@@ -197,11 +204,12 @@ public class EventService {
 	}
 
 	/**
-	 * Returns a page of upcoming events: the caller's feed, or the events they
-	 * host.
+	 * Returns a page of upcoming events: the caller's feed, the events they host,
+	 * or My schedule.
 	 *
 	 * @param viewer the signed-in user's ID
-	 * @param scope  {@code feed} or {@code hosting}, already validated
+	 * @param scope  {@code feed}, {@code hosting} or {@code attending}, already
+	 *               validated
 	 * @param cursor the previous page's cursor, or {@code null} for the first page
 	 * @param limit  the most events to return, already validated
 	 * @return the page
@@ -211,9 +219,11 @@ public class EventService {
 	@Transactional(readOnly = true)
 	public EventPageResponse getEvents(UUID viewer, String scope, String cursor, int limit) {
 		var after = cursor == null ? Cursor.FIRST : Cursor.decode(scope, cursor);
-		var events = HOSTING.equals(scope)
-				? eventRepository.findHosting(viewer, after.startsAt(), after.id(), limit + 1)
-				: eventRepository.findFeed(viewer, after.startsAt(), after.id(), limit + 1);
+		var events = switch (scope) {
+		case HOSTING -> eventRepository.findHosting(viewer, after.startsAt(), after.id(), limit + 1);
+		case ATTENDING -> eventRepository.findAttending(viewer, after.startsAt(), after.id(), limit + 1);
+		default -> eventRepository.findFeed(viewer, after.startsAt(), after.id(), limit + 1);
+		};
 		if (events.size() <= limit)
 			return new EventPageResponse(toResponses(viewer, events), null);
 		var page = events.subList(0, limit);
@@ -225,7 +235,9 @@ public class EventService {
 	/**
 	 * Replaces every editable field of an event the caller hosts, its audience
 	 * included. Entries already on the event are kept without a re-check; only new
-	 * ones must be usable. The event row stays locked until the transaction ends.
+	 * ones must be usable. The event row stays locked until the transaction ends,
+	 * so the capacity check can't race a join (D-013). Once saved, waitlisted
+	 * people fill any free spots in queue order, if the event hasn't started.
 	 *
 	 * @param hostId  the signed-in user's ID
 	 * @param eventId the event's public ID
@@ -235,6 +247,8 @@ public class EventService {
 	 *                                   audience entry can't be used; nothing is
 	 *                                   saved
 	 * @throws EventNotEditableException when the event is cancelled or has ended
+	 * @throws ConflictException         when the capacity is below the number
+	 *                                   already confirmed; nothing is saved
 	 * @throws InvalidInputException     when the request moves the start into the
 	 *                                   past
 	 */
@@ -246,6 +260,8 @@ public class EventService {
 			throw new EventNotEditableException();
 		if (!micros(request.startsAt()).equals(event.getStartsAt()) && !request.startsAt().isAfter(now))
 			throw new InvalidInputException();
+		if (request.capacity() != null && request.capacity() < event.getConfirmedCount())
+			throw new ConflictException(Conflict.CAPACITY_BELOW_CONFIRMED);
 
 		var current = audienceRepository.findByEventIdOrderById(event.getId());
 		var currentRefs = current.stream().map(EventAudience::ref).collect(toSet());
@@ -255,6 +271,8 @@ public class EventService {
 				.map(ref -> new EventAudience(event.getId(), ref)).toList());
 		apply(event, request);
 		eventRepository.flush();
+		rsvpRepository.fillFreeSpots(event.getId(),
+				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
 		return toResponses(hostId, List.of(event)).getFirst();
 	}
 

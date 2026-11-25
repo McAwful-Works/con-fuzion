@@ -40,8 +40,9 @@ import app.confuzion.backend.model.record.RsvpResponse;
 /**
  * Native SQL for RSVPs (plan B4, D-013). Every write that changes who holds a
  * spot runs in a transaction that first locks the event row ({@link #lock} or
- * {@link #lockForBlock}), so writes to one event run one after another and
- * can't deadlock. The methods that write assume the caller holds that lock.
+ * {@link #lockForBlock}, or the {@code PATCH} lock), so writes to one event run
+ * one after another and can't deadlock. The methods that write assume the
+ * caller holds that lock.
  *
  * @author mcawful
  */
@@ -53,16 +54,17 @@ public class RsvpRepository {
 	private static final String ACTIVE = "('CONFIRMED', 'WAITLISTED')";
 
 	/**
-	 * Selects the next waitlisted RSVP of {@code :eventId}, but only while the
-	 * event is published and hasn't started: nobody is promoted after that (D-013
-	 * rule 2). The start is compared with the statement's time, not the
-	 * transaction's, since a write may wait for locks across the start.
+	 * Selects the next {@code :count} waitlisted RSVPs of {@code :eventId}, in
+	 * queue order, but only while the event is published and hasn't started: nobody
+	 * is promoted after that (D-013 rule 2). The start is compared with the
+	 * statement's time, not the transaction's, since a write may wait for locks
+	 * across the start.
 	 */
 	private static final String NEXT_IN_LINE = """
 			SELECT w.id FROM rsvp w JOIN event e ON e.id = w.event_id
 			WHERE w.event_id = :eventId AND w.status = 'WAITLISTED' AND e.status = 'PUBLISHED'
 				AND e.starts_at > statement_timestamp()
-			ORDER BY w.id LIMIT 1""";
+			ORDER BY w.id LIMIT :count""";
 
 	/**
 	 * The {@link JdbcClient}.
@@ -201,7 +203,23 @@ public class RsvpRepository {
 	public void freeSpot(long eventId) {
 		jdbc.sql("WITH next AS (UPDATE rsvp SET status = 'CONFIRMED', updated_at = now() WHERE id = (" + NEXT_IN_LINE
 				+ ") RETURNING id) UPDATE event SET confirmed_count = confirmed_count - 1 "
-				+ "WHERE id = :eventId AND NOT EXISTS (SELECT 1 FROM next)").param("eventId", eventId).update();
+				+ "WHERE id = :eventId AND NOT EXISTS (SELECT 1 FROM next)").param("eventId", eventId).param("count", 1)
+				.update();
+	}
+
+	/**
+	 * Promotes waitlisted people in queue order into the free spots, after a
+	 * capacity edit (D-013 rule 4). Nobody is promoted once the event has started.
+	 *
+	 * @param eventId   the event's internal ID
+	 * @param freeSpots how many spots are free, {@link Integer#MAX_VALUE} for an
+	 *                  unlimited event
+	 */
+	public void fillFreeSpots(long eventId, int freeSpots) {
+		jdbc.sql("WITH promoted AS (UPDATE rsvp SET status = 'CONFIRMED', updated_at = now() WHERE id IN ("
+				+ NEXT_IN_LINE + ") RETURNING id) UPDATE event SET confirmed_count = confirmed_count + "
+				+ "(SELECT count(*) FROM promoted) WHERE id = :eventId").param("eventId", eventId)
+				.param("count", freeSpots).update();
 	}
 
 	/**

@@ -254,14 +254,14 @@ class EventControllerTest {
 	}
 
 	/**
-	 * Tests that My schedule is a contract stub until #54: a 501 that never reaches
-	 * the service.
+	 * Tests that My schedule passes its scope on to the service.
 	 */
 	@Test
-	void testAttendingIsNotImplemented() throws Exception {
-		assertError(mockMvc, get("/api/events").param("scope", "attending").principal(AUTHENTICATION),
-				HttpStatus.NOT_IMPLEMENTED);
-		verifyNoInteractions(eventService);
+	void testAttendingScope() throws Exception {
+		when(eventService.getEvents(USER_ID, "attending", null, 20)).thenReturn(new EventPageResponse(List.of(), null));
+		mockMvc.perform(get("/api/events").param("scope", "attending").principal(AUTHENTICATION))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("EVENT_PAGE"));
+		verify(eventService).getEvents(USER_ID, "attending", null, 20);
 	}
 
 	/**

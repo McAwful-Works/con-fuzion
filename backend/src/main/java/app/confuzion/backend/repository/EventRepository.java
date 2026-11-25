@@ -41,15 +41,15 @@ import jakarta.persistence.LockModeType;
 public interface EventRepository extends JpaRepository<Event, Long> {
 	/**
 	 * Whether the viewer {@code :viewer} may see event {@code e}: the one
-	 * visibility predicate that the detail view, the feed and RSVP share. The host
-	 * always sees their own events. Anyone else needs no block between them and the
-	 * host, either way, and then either an active ({@code CONFIRMED} or
-	 * {@code WAITLISTED}) RSVP, which keeps a cancelled event visible too (D-013
-	 * rule 10), or a published event with an audience entry that matches them: a
-	 * {@code USER} entry naming them, a {@code FRIENDS} entry while they are the
-	 * host's friend, a {@code CIRCLE} entry for one of the host's circles they are
-	 * in, or a {@code GUILD} entry for a server where both of them are discoverable
-	 * now.
+	 * visibility predicate that the detail view, the feed, My schedule and RSVP
+	 * share. The host always sees their own events. Anyone else needs no block
+	 * between them and the host, either way, and then either an active
+	 * ({@code CONFIRMED} or {@code WAITLISTED}) RSVP, which keeps a cancelled event
+	 * visible too (D-013 rule 10), or a published event with an audience entry that
+	 * matches them: a {@code USER} entry naming them, a {@code FRIENDS} entry while
+	 * they are the host's friend, a {@code CIRCLE} entry for one of the host's
+	 * circles they are in, or a {@code GUILD} entry for a server where both of them
+	 * are discoverable now.
 	 */
 	String VISIBLE = """
 			(e.host_id = :viewer OR (NOT EXISTS (SELECT 1 FROM block b
@@ -150,6 +150,28 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	@Query(value = "SELECT e.* FROM event e WHERE e.host_id = :hostId AND " + UPCOMING + " AND " + AFTER_CURSOR
 			+ " ORDER BY e.starts_at, e.public_id LIMIT :limit", nativeQuery = true)
 	List<Event> findHosting(@Param("hostId") UUID hostId, @Param("afterStartsAt") Instant afterStartsAt,
+			@Param("afterId") UUID afterId, @Param("limit") int limit);
+
+	/**
+	 * Returns a page of My schedule (D-013 rule 12): upcoming events where the
+	 * viewer is confirmed or waitlisted, their own included, and cancelled ones
+	 * while they still hold an RSVP.
+	 *
+	 * @param viewer        the viewer's user ID
+	 * @param afterStartsAt the cursor's start time
+	 * @param afterId       the cursor's event public ID
+	 * @param limit         the most events to return
+	 * @return the events, in {@code (starts_at, public_id)} order
+	 */
+	@Query(value = """
+			SELECT e.* FROM event e
+			WHERE e.id IN (SELECT r.event_id FROM rsvp r
+					WHERE r.user_id = :viewer AND r.status IN ('CONFIRMED', 'WAITLISTED'))
+				AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + """
+			ORDER BY e.starts_at, e.public_id
+			LIMIT :limit
+			""", nativeQuery = true)
+	List<Event> findAttending(@Param("viewer") UUID viewer, @Param("afterStartsAt") Instant afterStartsAt,
 			@Param("afterId") UUID afterId, @Param("limit") int limit);
 
 	/**
