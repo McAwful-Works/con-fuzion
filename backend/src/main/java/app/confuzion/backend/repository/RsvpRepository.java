@@ -208,8 +208,10 @@ public class RsvpRepository {
 	}
 
 	/**
-	 * Promotes waitlisted people in queue order into the free spots, after a
-	 * capacity edit (D-013 rule 4). Nobody is promoted once the event has started.
+	 * Promotes waitlisted people in queue order into the free spots, after any
+	 * saved edit: a raised or removed capacity (D-013 rule 4), or a start moved
+	 * back into the future, which reopens sign-up. Nobody is promoted once the
+	 * event has started.
 	 *
 	 * @param eventId   the event's internal ID
 	 * @param freeSpots how many spots are free, {@link Integer#MAX_VALUE} for an

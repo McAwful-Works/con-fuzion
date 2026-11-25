@@ -168,34 +168,39 @@ class RsvpConcurrencyIntegrationTest {
 	}
 
 	/**
-	 * Tests joins interleaved with leaves and capacity raises: every operation
-	 * succeeds (no deadlock, no lock timeout), the count matches the confirmed rows
-	 * and never exceeds the capacity, and nobody is left waitlisted while a spot is
+	 * Tests joins interleaved with leaves and capacity raises, the raises starting
+	 * once 20 joins are done so they land among the rest: every operation succeeds
+	 * (no deadlock, no lock timeout), the count matches the confirmed rows and
+	 * never exceeds the capacity, and nobody is left waitlisted while a spot is
 	 * free.
 	 */
 	@Test
 	void testInterleavedWritesNeverStrandTheWaitlist() throws Exception {
 		var event = event(5);
 		var guests = guests(120);
+		var joined = new CountDownLatch(20);
 		var tasks = new ArrayList<Callable<Object>>();
 		for (var i = 0; i < guests.size(); i++) {
 			var guest = guests.get(i);
 			var leaves = i % 4 == 0;
 			tasks.add(() -> {
 				rsvpService.join(guest, event.publicId());
+				joined.countDown();
 				if (leaves)
 					rsvpService.leave(guest, event.publicId());
 				return guest;
 			});
 		}
-		tasks.add(() -> {
+		Collections.shuffle(tasks);
+		// Submitted first, so it holds a thread from the start.
+		tasks.addFirst(() -> {
+			joined.await();
 			for (var capacity : List.of(8, 11, 14)) {
-				Thread.sleep(20);
 				eventService.updateEvent(host, event.publicId(), request(capacity));
+				Thread.sleep(5);
 			}
 			return host;
 		});
-		Collections.shuffle(tasks);
 
 		parallel(tasks);
 
