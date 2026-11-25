@@ -36,8 +36,11 @@ import app.confuzion.backend.exception.LimitExceededException;
 import app.confuzion.backend.exception.LimitExceededException.Limit;
 import app.confuzion.backend.model.record.InvitePreviewResponse;
 import app.confuzion.backend.model.record.InviteResponse;
+import app.confuzion.backend.model.record.NotificationPayload;
+import app.confuzion.backend.model.record.NotificationResponse.Type;
 import app.confuzion.backend.model.record.PersonListResponse;
 import app.confuzion.backend.model.record.PersonResponse;
+import app.confuzion.backend.repository.NotificationRepository;
 import app.confuzion.backend.repository.SocialRepository;
 
 /**
@@ -77,6 +80,11 @@ public class FriendService {
 	private final SocialRepository socialRepository;
 
 	/**
+	 * The {@link NotificationRepository}.
+	 */
+	private final NotificationRepository notificationRepository;
+
+	/**
 	 * The CSPRNG for tokens.
 	 */
 	private final SecureRandom random = new SecureRandom();
@@ -90,17 +98,20 @@ public class FriendService {
 	/**
 	 * Creates the service.
 	 *
-	 * @param socialRepository the {@link SocialRepository}
-	 * @param appOrigin        the app's public origin, such as
-	 *                         {@code https://example.com}, with no path
+	 * @param socialRepository       the {@link SocialRepository}
+	 * @param notificationRepository the {@link NotificationRepository}
+	 * @param appOrigin              the app's public origin, such as
+	 *                               {@code https://example.com}, with no path
 	 * @throws IllegalArgumentException when the origin isn't an http(s) origin
 	 */
-	public FriendService(SocialRepository socialRepository, @Value("${con-fuzion.app.origin}") String appOrigin) {
+	public FriendService(SocialRepository socialRepository, NotificationRepository notificationRepository,
+			@Value("${con-fuzion.app.origin}") String appOrigin) {
 		var origin = URI.create(appOrigin);
 		if (!("https".equals(origin.getScheme()) || "http".equals(origin.getScheme())) || origin.getHost() == null
 				|| !origin.getRawPath().isEmpty() || origin.getRawQuery() != null || origin.getRawFragment() != null)
 			throw new IllegalArgumentException("con-fuzion.app.origin must be an http(s) origin with no path");
 		this.socialRepository = socialRepository;
+		this.notificationRepository = notificationRepository;
 		this.inviteUrlPrefix = appOrigin + "/invite/";
 	}
 
@@ -144,7 +155,8 @@ public class FriendService {
 	 * Accepts an invite. The claim is one atomic {@code UPDATE}, so only one of two
 	 * concurrent accepts wins. The pair is then locked and checked for a block; a
 	 * block rolls the claim back, so the invite isn't used up. Already being
-	 * friends is fine: the invite is still used up.
+	 * friends is fine: the invite is still used up. The inviter gets a
+	 * {@code FRIEND_ACCEPTED} notification in the same transaction (D-014).
 	 *
 	 * @param me    the accepting user's ID
 	 * @param token the token from the link
@@ -158,6 +170,8 @@ public class FriendService {
 		if (socialRepository.isBlockedEitherWay(me, inviter))
 			throw new NoSuchElementException();
 		socialRepository.insertFriendship(me, inviter);
+		notificationRepository.insert(inviter, Type.FRIEND_ACCEPTED, null,
+				new NotificationPayload(null, null, null, null, me));
 		return socialRepository.findPerson(inviter).orElseThrow();
 	}
 

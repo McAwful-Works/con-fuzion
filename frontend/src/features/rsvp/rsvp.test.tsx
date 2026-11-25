@@ -105,6 +105,7 @@ const spotsA: Spots = {
   spotsLeft: 6,
   myStatus: 'NONE',
   myPosition: null,
+  offerExpiresAt: null,
 };
 const spotsB: Spots = { ...spotsA, confirmed: 5, spotsLeft: 5 };
 

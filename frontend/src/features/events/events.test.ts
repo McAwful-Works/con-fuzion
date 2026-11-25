@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Event } from '../../api/events';
 import { audienceSummary, circleEntry, friendsEntry, guildEntry, userEntry } from './audience';
 import { dayKey, eventTimes, groupByDay, utcToZonedLocal, zonedToUtcIso } from './time';
-import { emptyValues, validateEvent, type EventFormValues } from './validation';
+import { emptyValues, validateEvent, valuesFromEvent, type EventFormValues } from './validation';
 
 const NOW = new Date('2030-06-01T12:00:00Z');
 
@@ -53,6 +53,7 @@ const base: Event = {
   title: 'Photo walk',
   description: null,
   location: 'Hall B',
+  confirmWindowMinutes: 30,
   locationHidden: false,
   locationVisibility: 'VIEWERS',
   tag: null,
@@ -162,8 +163,29 @@ describe('form validation', () => {
       endsAt: null,
       signupOpensAt: null,
       capacity: 12,
+      confirmWindowMinutes: 30,
       audience: [{ type: 'FRIENDS' }],
     });
+  });
+
+  it('sends the offer window, from 10 minutes to 24 hours', () => {
+    expect(
+      validateEvent(valid({ confirmWindowMinutes: '10' }), NOW).request?.confirmWindowMinutes,
+    ).toBe(10);
+    expect(
+      validateEvent(valid({ confirmWindowMinutes: '1440' }), NOW).request?.confirmWindowMinutes,
+    ).toBe(1440);
+    for (const bad of ['', '  ', '9', '1441', '2.5', 'soon', '-30']) {
+      const { errors, request } = validateEvent(valid({ confirmWindowMinutes: bad }), NOW);
+      expect(errors.confirmWindowMinutes, bad).toBeTruthy();
+      expect(request).toBeNull();
+    }
+  });
+
+  it('starts an edit from the event’s own offer window and sends it back', () => {
+    const values = valuesFromEvent({ ...base, confirmWindowMinutes: 90 });
+    expect(values.confirmWindowMinutes).toBe('90');
+    expect(emptyValues('America/Chicago').confirmWindowMinutes).toBe('30');
   });
 
   it('sends the confirmed-only setting', () => {

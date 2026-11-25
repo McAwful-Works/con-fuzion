@@ -20,13 +20,19 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
@@ -36,43 +42,72 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import app.confuzion.backend.model.record.NotificationPageResponse;
+import app.confuzion.backend.service.NotificationService;
+
 /**
- * Unit tests for the {@link NotificationController} stubs: a valid request is a
- * 501 until #66, and a bad one is a 400 first.
+ * Unit tests for the {@link NotificationController}: a valid request reaches
+ * the service for the caller only, and a bad one is a 400 before it gets there.
  *
  * @author mcawful
  */
 class NotificationControllerTest {
 	/**
+	 * The signed-in user's ID.
+	 */
+	private static final UUID USER_ID = UUID.randomUUID();
+
+	/**
 	 * The signed-in user.
 	 */
 	private static final Authentication AUTHENTICATION = UsernamePasswordAuthenticationToken
-			.authenticated(UUID.randomUUID().toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+			.authenticated(USER_ID.toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+	/**
+	 * The mocked {@link NotificationService}.
+	 */
+	private final NotificationService notificationService = mock(NotificationService.class);
 
 	/**
 	 * The {@link MockMvc}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new NotificationController());
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new NotificationController(notificationService));
 
 	/**
-	 * Returns one valid request per operation.
-	 *
-	 * @return the requests
+	 * Tests that a page request passes the caller, cursor and limit to the service
+	 * and returns its page in the envelope.
 	 */
-	static Stream<MockHttpServletRequestBuilder> validRequests() {
-		return Stream.of(get("/api/notifications"), get("/api/notifications?cursor=abc_123-X&limit=50"),
-				json(post("/api/notifications/read"), "{\"upTo\":42}"));
+	@Test
+	void testGetNotificationsReturnsThePage() throws Exception {
+		var page = new NotificationPageResponse(List.of(), "MTI", 3);
+		when(notificationService.getInbox(USER_ID, "abc_123-X", 50)).thenReturn(page);
+
+		mockMvc.perform(get("/api/notifications?cursor=abc_123-X&limit=50").principal(AUTHENTICATION))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("NOTIFICATION_PAGE"))
+				.andExpect(jsonPath("$.body.unreadCount").value(3))
+				.andExpect(jsonPath("$.body.nextCursor").value("MTI"));
 	}
 
 	/**
-	 * Tests that a valid request is a 501 in the error envelope.
-	 *
-	 * @param request the request
+	 * Tests that the first page defaults to 20 notifications and no cursor.
 	 */
-	@ParameterizedTest
-	@MethodSource("validRequests")
-	void testValidRequestsAreNotImplementedYet(MockHttpServletRequestBuilder request) throws Exception {
-		assertError(mockMvc, request.principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
+	@Test
+	void testGetNotificationsDefaults() throws Exception {
+		when(notificationService.getInbox(USER_ID, null, 20))
+				.thenReturn(new NotificationPageResponse(List.of(), null, 0));
+
+		mockMvc.perform(get("/api/notifications").principal(AUTHENTICATION)).andExpect(status().isOk());
+	}
+
+	/**
+	 * Tests that marking read is a 204 and marks only the caller's own.
+	 */
+	@Test
+	void testMarkReadIsNoContent() throws Exception {
+		mockMvc.perform(json(post("/api/notifications/read"), "{\"upTo\":42}").principal(AUTHENTICATION))
+				.andExpect(status().isNoContent());
+
+		verify(notificationService).markRead(USER_ID, 42L);
 	}
 
 	/**
