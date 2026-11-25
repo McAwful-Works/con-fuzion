@@ -108,11 +108,21 @@ export async function makeCircle({ page }, circleName, members) {
 
 /**
  * Creates an event through the form and returns its ID (from the URL it lands on).
- * `audience`: `friends` (bool), `guilds`, `circles` (names), `people` (players).
+ * `audience`: `friends` (bool), `guilds`, `circles` (names), `people` (players). `capacity` (2 or more, host
+ * included) is left empty for an unlimited event. `days` and `hour` (UTC) set the start; with no end an event lasts
+ * 3 hours, so events that start less than 3 hours apart overlap.
  */
 export async function createEvent(
   { page },
-  { title, location = 'Hall B, table 4', locationConfirmedOnly = false, audience },
+  {
+    title,
+    location = 'Hall B, table 4',
+    locationConfirmedOnly = false,
+    capacity,
+    days = 2,
+    hour = 15,
+    audience,
+  },
 ) {
   await page.goto('/events/new');
   await page.getByLabel('Title').fill(title);
@@ -120,7 +130,8 @@ export async function createEvent(
   if (locationConfirmedOnly) {
     await page.getByLabel('Show location only to confirmed attendees').check();
   }
-  await page.getByLabel('Starts').fill(localInput(2, 15));
+  await page.getByLabel('Starts').fill(localInput(days, hour));
+  if (capacity !== undefined) await page.getByLabel('Capacity').fill(String(capacity));
   if (audience.friends) await page.getByLabel('All my friends').check();
   for (const g of audience.guilds ?? []) await page.getByLabel(g).check();
   for (const c of audience.circles ?? []) await page.getByLabel(c).check();
