@@ -16,6 +16,10 @@ terms forbid scripting it. Nothing here touches the real Discord, and no credent
   both, pass or fail. It refuses to start if the ports are already taken, so it can't test someone else's server.
 - Each test signs in as its **own** Discord user (a fresh ID per test), so no test depends on another and no table
   needs truncating. The fake's state is reset before every test.
+- `tests/social.spec.mjs` (M2) needs several signed-in users at once: the `join` fixture (`tests/hooks.mjs`) signs each
+  in through the real UI in its own browser context, with its own guild list. Give two users guilds with the same
+  IDs and they share a server. Friends, circles and events are made through the UI too (`tests/social.mjs`), and a
+  hidden event is asserted both in the feed and as a 404 from `/api/events/{id}`.
 
 ## Run it locally
 
