@@ -17,9 +17,14 @@ export function Home() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Events</h1>
-        <Link to="/events/new" className="btn btn-primary">
-          Create an event
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/schedule" className="btn btn-secondary">
+            My schedule
+          </Link>
+          <Link to="/events/new" className="btn btn-primary">
+            Create an event
+          </Link>
+        </div>
       </div>
       <div role="group" aria-label="Which events" className="flex gap-2">
         {TABS.map((tab) => (

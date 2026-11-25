@@ -1,6 +1,7 @@
 import {
   AUDIENCE_MAX,
   EVENT_CAPACITY_MAX,
+  EVENT_CAPACITY_MIN,
   EVENT_DESCRIPTION_MAX,
   EVENT_LOCATION_MAX,
   EVENT_TAG_MAX,
@@ -168,8 +169,12 @@ export function validateEvent(
   const capacityText = values.capacity.trim();
   if (capacityText) {
     capacity = Number(capacityText);
-    if (!/^\d+$/.test(capacityText) || capacity < 1 || capacity > EVENT_CAPACITY_MAX) {
-      errors.capacity = `Capacity must be a whole number from 1 to ${EVENT_CAPACITY_MAX}.`;
+    if (
+      !/^\d+$/.test(capacityText) ||
+      capacity < EVENT_CAPACITY_MIN ||
+      capacity > EVENT_CAPACITY_MAX
+    ) {
+      errors.capacity = `Capacity must be a whole number from ${EVENT_CAPACITY_MIN} to ${EVENT_CAPACITY_MAX}.`;
     }
   }
 

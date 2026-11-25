@@ -27,6 +27,24 @@ export default defineConfig({
       workbox: {
         // The SPA shell fallback must never swallow API calls.
         navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [
+          {
+            // My schedule reads offline from its last good response, and so does `/api/me`, which
+            // the app needs to know you're signed in. Nothing else is cached: every other API call,
+            // and every write, goes to the network. The app clears this cache when a session ends.
+            urlPattern: ({ url }) =>
+              url.pathname === '/api/me' ||
+              (url.pathname === '/api/events' && url.searchParams.get('scope') === 'attending'),
+            handler: 'NetworkFirst',
+            options: {
+              // Keep in sync with OFFLINE_CACHE in src/api/offlineCache.ts.
+              cacheName: 'my-schedule',
+              networkTimeoutSeconds: 5,
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 10, maxAgeSeconds: 7 * 24 * 60 * 60 },
+            },
+          },
+        ],
       },
     }),
   ],

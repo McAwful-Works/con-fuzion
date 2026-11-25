@@ -11,6 +11,7 @@ import { Home } from './routes/Home';
 import { Invite } from './routes/Invite';
 import { Landing } from './routes/Landing';
 import { Onboarding } from './routes/Onboarding';
+import { Schedule } from './routes/Schedule';
 import { Settings } from './routes/Settings';
 
 export const routes: RouteObject[] = [
@@ -25,6 +26,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <Home /> },
           { path: '/onboarding', element: <Onboarding /> },
+          { path: '/schedule', element: <Schedule /> },
           { path: '/events/new', element: <EventNew /> },
           { path: '/events/:eventId', element: <EventDetail /> },
           { path: '/events/:eventId/edit', element: <EventEdit /> },
