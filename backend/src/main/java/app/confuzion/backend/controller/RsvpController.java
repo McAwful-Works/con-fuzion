@@ -157,8 +157,8 @@ public class RsvpController {
 	@Operation(summary = "Accept an offered spot", description = "Turns the caller's open offer into a confirmed spot "
 			+ "(D-014). It works until offerExpiresAt, even if the expiry job hasn't run yet or the event has since "
 			+ "started. Accepting again while confirmed returns CONFIRMED and changes nothing. Checks run in this "
-			+ "order: visibility (404), already confirmed (200), an offer past its deadline (OFFER_EXPIRED), then an "
-			+ "open offer on a published event (NO_OFFER).")
+			+ "order: visibility (404), already confirmed (200), an offer past its deadline or expired (OFFER_EXPIRED), "
+			+ "then CONFIRMED for an open offer on a published event, and NO_OFFER otherwise.")
 	@ApiResponse(responseCode = "200", description = "OK: status is CONFIRMED.")
 	@ApiResponse(responseCode = "404", description = NOT_VISIBLE)
 	@ApiResponse(responseCode = "409", description = "errorType OFFER_EXPIRED: the caller's offer ran out; they may "

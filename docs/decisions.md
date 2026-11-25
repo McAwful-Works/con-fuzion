@@ -413,6 +413,22 @@ Context · Decision · Consequences · Trigger to revisit
   14. **`GET /api/push/key`** needs a session, like every API route (docs/security.md allows only health and
       `/api/meta/support` without one). It's a 404 when the server has no VAPID keys, and the client then hides the
       push setting.
+  15. **An offer past its deadline is expired at once, whether or not the expiry job has run.** Reads treat
+      `offer_expires_at <= statement_timestamp()` as no RSVP: `myStatus` is `NONE`, with no `offerExpiresAt`. A join
+      first ends that offer as `EXPIRED` and frees the spot (rule 2), under the event row lock, then joins at the back
+      of the queue. An accept is a 409 `OFFER_EXPIRED` while the caller's latest RSVP on the event is a past-deadline
+      offer or `EXPIRED`, and `NO_OFFER` otherwise.
+  16. **Cancelling leaves open offers alone.** They stay `OFFERED` until their deadline, so the person keeps seeing the
+      cancelled event and gets `EVENT_CANCELLED` like every other active RSVP. Accepting is a 409 `NO_OFFER`, and the
+      client shows no Accept button on a cancelled event (`EventResponse.status`). At the deadline the expiry job ends
+      them as `EXPIRED` without offering the spot again (rule 2).
+  17. **Making a capacity unlimited** before the start confirms every waitlisted person and every open offer at once,
+      each with `SPOT_CONFIRMED`, because an unlimited event never has a waitlist (D-013 rule 3). Any other raise
+      offers each new spot to the next person in line (or confirms them, within the window before the start).
+  18. **Signed-out devices stop getting pushes.** On sign-out the client calls `PushSubscription.unsubscribe()` as well
+      as `DELETE /api/push/subscriptions`, so the endpoint dies even if the server call fails (for example on an
+      expired session); the sender then deletes it on the push service's 404 or 410. "Log out everywhere" also deletes
+      all of the user's `push_subscription` rows.
 - **For the implementation:**
   - **#65 makes `OFFERED` count** in the M3 code that names the active statuses: `RsvpRepository.ACTIVE`, `findMine`
     and `findStatuses` (which also return `offerExpiresAt`), `lockForBlock`, `EventRepository.VISIBLE`'s active-RSVP
@@ -425,6 +441,10 @@ Context · Decision · Consequences · Trigger to revisit
     `SKIP LOCKED` so several tasks share the work, and re-checks the offer under the lock.
   - **Every trigger writes through `NotificationRepository.insert`,** in the same transaction as the change it reports
     (plan B8). It sets `push_status` (rule 12).
+  - **#67's sender** re-checks the endpoint's host with `java.net.URI.getHost()` against rule 13's list before each
+    send and doesn't follow redirects, so the allowlist holds even if the request pattern is loosened later. A
+    `PENDING` row whose user has turned push off, or has no subscription left, by send time ends as `FAILED`. #67
+    also makes "log out everywhere" delete the user's subscriptions (rule 18).
   - **#68** runs `npm run gen:api` and sends `confirmWindowMinutes` from the event form. After #68 the field could
     become required; that's a later contract change, not part of M4.
 - **Consequences:** a freed spot waits for someone who wants it instead of going to someone who may not have noticed,

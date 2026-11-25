@@ -60,7 +60,9 @@ public class NotificationRepository {
 	/**
 	 * Adds a notification to a user's inbox. It's queued for push ({@code PENDING})
 	 * when the user has push on and at least one subscription, and is inbox only
-	 * ({@code NONE}) otherwise.
+	 * ({@code NONE}) otherwise. The recipient must exist: pick them from rows that
+	 * reference them, because a missing one throws, rolling back the change being
+	 * reported too.
 	 *
 	 * @param userId  the recipient's user ID
 	 * @param type    what happened
