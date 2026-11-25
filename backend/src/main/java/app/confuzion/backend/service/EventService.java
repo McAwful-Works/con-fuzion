@@ -63,6 +63,7 @@ import app.confuzion.backend.repository.AppUserRepository;
 import app.confuzion.backend.repository.EventAudienceRepository;
 import app.confuzion.backend.repository.EventAudienceRepository.LabelledEntry;
 import app.confuzion.backend.repository.EventRepository;
+import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.SocialRepository;
 import app.confuzion.backend.repository.UserGuildRepository;
 
@@ -123,6 +124,11 @@ public class EventService {
 	private final SocialRepository socialRepository;
 
 	/**
+	 * The {@link RsvpRepository}, for where the viewer stands.
+	 */
+	private final RsvpRepository rsvpRepository;
+
+	/**
 	 * Creates the service.
 	 *
 	 * @param eventRepository     the {@link EventRepository}
@@ -130,15 +136,17 @@ public class EventService {
 	 * @param appUserRepository   the {@link AppUserRepository}
 	 * @param userGuildRepository the {@link UserGuildRepository}
 	 * @param socialRepository    the {@link SocialRepository}
+	 * @param rsvpRepository      the {@link RsvpRepository}
 	 */
 	public EventService(EventRepository eventRepository, EventAudienceRepository audienceRepository,
 			AppUserRepository appUserRepository, UserGuildRepository userGuildRepository,
-			SocialRepository socialRepository) {
+			SocialRepository socialRepository, RsvpRepository rsvpRepository) {
 		this.eventRepository = eventRepository;
 		this.audienceRepository = audienceRepository;
 		this.appUserRepository = appUserRepository;
 		this.userGuildRepository = userGuildRepository;
 		this.socialRepository = socialRepository;
+		this.rsvpRepository = rsvpRepository;
 	}
 
 	/**
@@ -346,8 +354,8 @@ public class EventService {
 	}
 
 	/**
-	 * Maps events to what the viewer may see, loading hosts and (for the viewer's
-	 * own events) audiences in one query each.
+	 * Maps events to what the viewer may see, loading hosts, where the viewer
+	 * stands and (for the viewer's own events) audiences in one query each.
 	 *
 	 * @param viewer the viewer's user ID
 	 * @param events the events, which the viewer may see
@@ -360,34 +368,35 @@ public class EventService {
 		var audiences = ownIds.isEmpty() ? Map.<Long, List<AudienceEntry>>of()
 				: audienceRepository.findLabelled(ownIds).stream().collect(
 						groupingBy(LabelledEntry::getEventId, mapping(EventService::toAudienceEntry, toList())));
-		return events.stream().map(event -> toResponse(viewer, event, hosts.get(event.getHostId()), audiences))
-				.toList();
+		var statuses = rsvpRepository.findStatuses(viewer, events.stream().map(Event::getId).toList());
+		return events.stream().map(event -> toResponse(viewer, event, hosts.get(event.getHostId()),
+				statuses.getOrDefault(event.getId(), MyStatus.NONE), audiences)).toList();
 	}
 
 	/**
 	 * Maps one event to what the viewer may see. Only the host gets the audience,
 	 * and a {@link LocationVisibility#CONFIRMED} location is withheld from everyone
-	 * else (until M3 adds confirmed attendees).
+	 * but the host and confirmed attendees (D-013).
 	 *
 	 * @param viewer    the viewer's user ID
 	 * @param event     the {@link Event}
 	 * @param host      the host
+	 * @param myStatus  where the viewer stands
 	 * @param audiences the audiences of the viewer's own events, by event ID
 	 * @return the {@link EventResponse}
 	 */
-	private static EventResponse toResponse(UUID viewer, Event event, AppUser host,
+	private static EventResponse toResponse(UUID viewer, Event event, AppUser host, MyStatus myStatus,
 			Map<Long, List<AudienceEntry>> audiences) {
 		var isHost = event.getHostId().equals(viewer);
-		var locationHidden = !isHost && event.getLocationVisibility() == LocationVisibility.CONFIRMED;
+		var locationHidden = !isHost && myStatus != MyStatus.CONFIRMED
+				&& event.getLocationVisibility() == LocationVisibility.CONFIRMED;
 		return new EventResponse(event.getPublicId(),
 				new PersonResponse(host.getId(),
 						host.getGlobalName() != null ? host.getGlobalName() : host.getUsername(),
 						UserService.avatarUrl(host.getDiscordId(), host.getAvatarHash())),
 				event.getTitle(), event.getDescription(), locationHidden ? null : event.getLocationText(),
 				locationHidden, event.getLocationVisibility(), event.getTag(), event.getStartsAt(), event.getEndsAt(),
-				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getStatus(), isHost,
-				// Until joining is built (#54), the host's RSVP is the only one there is.
-				isHost ? MyStatus.CONFIRMED : MyStatus.NONE,
+				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getStatus(), isHost, myStatus,
 				isHost ? audiences.getOrDefault(event.getId(), List.of()) : null);
 	}
 

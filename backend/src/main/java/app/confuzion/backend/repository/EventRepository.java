@@ -41,20 +41,23 @@ import jakarta.persistence.LockModeType;
 public interface EventRepository extends JpaRepository<Event, Long> {
 	/**
 	 * Whether the viewer {@code :viewer} may see event {@code e}: the one
-	 * visibility predicate that the detail view and the feed share, and that RSVP
-	 * will reuse. The host always sees their own events. Anyone else sees an event
-	 * only when it is published, neither of them has blocked the other, and one of
-	 * its audience entries matches the viewer: a {@code USER} entry naming them, a
-	 * {@code FRIENDS} entry while they are the host's friend, a {@code CIRCLE}
-	 * entry for one of the host's circles they are in, or a {@code GUILD} entry for
-	 * a server where both of them are discoverable now.
+	 * visibility predicate that the detail view, the feed and RSVP share. The host
+	 * always sees their own events. Anyone else needs no block between them and the
+	 * host, either way, and then either an active ({@code CONFIRMED} or
+	 * {@code WAITLISTED}) RSVP, which keeps a cancelled event visible too (D-013
+	 * rule 10), or a published event with an audience entry that matches them: a
+	 * {@code USER} entry naming them, a {@code FRIENDS} entry while they are the
+	 * host's friend, a {@code CIRCLE} entry for one of the host's circles they are
+	 * in, or a {@code GUILD} entry for a server where both of them are discoverable
+	 * now.
 	 */
 	String VISIBLE = """
-			(e.host_id = :viewer OR (e.status = 'PUBLISHED'
-				AND NOT EXISTS (SELECT 1 FROM block b
+			(e.host_id = :viewer OR (NOT EXISTS (SELECT 1 FROM block b
 					WHERE (b.blocker_id = e.host_id AND b.blocked_id = :viewer)
 						OR (b.blocker_id = :viewer AND b.blocked_id = e.host_id))
-				AND EXISTS (SELECT 1 FROM event_audience a WHERE a.event_id = e.id AND (
+				AND (EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id AND r.user_id = :viewer
+						AND r.status IN ('CONFIRMED', 'WAITLISTED'))
+				OR e.status = 'PUBLISHED' AND EXISTS (SELECT 1 FROM event_audience a WHERE a.event_id = e.id AND (
 					(a.type = 'USER' AND a.user_id = :viewer)
 					OR (a.type = 'FRIENDS' AND EXISTS (SELECT 1 FROM friendship f
 						WHERE f.user_a = LEAST(e.host_id, CAST(:viewer AS uuid))
@@ -64,7 +67,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 						WHERE c.id = a.circle_id AND c.owner_id = e.host_id))
 					OR (a.type = 'GUILD' AND EXISTS (SELECT 1 FROM user_guild vg
 						JOIN user_guild hg ON hg.guild_id = vg.guild_id AND hg.user_id = e.host_id AND hg.discoverable
-						WHERE vg.guild_id = a.guild_id AND vg.user_id = :viewer AND vg.discoverable))))))
+						WHERE vg.guild_id = a.guild_id AND vg.user_id = :viewer AND vg.discoverable)))))))
 			""";
 
 	/**
@@ -98,8 +101,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	 * Returns a page of the viewer's feed: upcoming published events they may see,
 	 * their own included. The candidates come from the viewer's audience keys (plan
 	 * B2): entries naming them, entries for circles they are in or servers where
-	 * they are discoverable, and their own and their friends' recent events.
-	 * {@link #VISIBLE} then decides.
+	 * they are discoverable, events where they hold an active RSVP, and their own
+	 * and their friends' recent events. {@link #VISIBLE} then decides.
 	 *
 	 * @param viewer        the viewer's user ID
 	 * @param afterStartsAt the cursor's start time
@@ -111,6 +114,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 			SELECT e.* FROM event e
 			WHERE e.id IN (
 					SELECT a.event_id FROM event_audience a WHERE a.user_id = :viewer
+					UNION ALL
+					SELECT r.event_id FROM rsvp r WHERE r.user_id = :viewer AND r.status IN ('CONFIRMED', 'WAITLISTED')
 					UNION ALL
 					SELECT a.event_id FROM circle_member cm JOIN event_audience a ON a.circle_id = cm.circle_id
 						WHERE cm.user_id = :viewer

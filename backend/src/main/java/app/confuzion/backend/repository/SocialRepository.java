@@ -50,7 +50,7 @@ public class SocialRepository {
 	/**
 	 * The {@code app_user u} columns that {@link #PERSON} reads.
 	 */
-	private static final String PERSON_COLUMNS = "u.id, u.discord_id, u.username, u.global_name, u.avatar_hash";
+	static final String PERSON_COLUMNS = "u.id, u.discord_id, u.username, u.global_name, u.avatar_hash";
 
 	/**
 	 * Sorts people by display name, ignoring case, then by ID so ties are stable.
@@ -60,7 +60,7 @@ public class SocialRepository {
 	/**
 	 * True when neither {@code :me} nor {@code u} has blocked the other.
 	 */
-	private static final String NOT_BLOCKED = """
+	static final String NOT_BLOCKED = """
 			NOT EXISTS (SELECT 1 FROM block b WHERE (b.blocker_id = :me AND b.blocked_id = u.id)
 				OR (b.blocker_id = u.id AND b.blocked_id = :me))""";
 
@@ -84,8 +84,7 @@ public class SocialRepository {
 	/**
 	 * Maps {@link #PERSON_COLUMNS} to a {@link PersonResponse}.
 	 */
-	private static final RowMapper<PersonResponse> PERSON = (rs, rowNum) -> new PersonResponse(
-			rs.getObject("id", UUID.class),
+	static final RowMapper<PersonResponse> PERSON = (rs, rowNum) -> new PersonResponse(rs.getObject("id", UUID.class),
 			Objects.requireNonNullElse(rs.getString("global_name"), rs.getString("username")),
 			UserService.avatarUrl(rs.getLong("discord_id"), rs.getString("avatar_hash")));
 

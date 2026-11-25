@@ -36,6 +36,8 @@ import app.confuzion.backend.model.record.AttendeesResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
 import app.confuzion.backend.model.record.RsvpResponse;
 import app.confuzion.backend.model.record.SpotsResponse;
+import app.confuzion.backend.service.RsvpService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -47,9 +49,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * The {@link RestController} for joining events, the waitlist, attendee lists
- * and spot counts (D-013). Every operation is a contract stub that answers 501
- * until #54 implements it. An event the caller can't see is a 404 (D-012), and
- * the user ID always comes from the session, never from the request.
+ * and spot counts (D-013). Spot counts are a contract stub that answers 501
+ * until a later part of #54. An event the caller can't see is a 404 (D-012),
+ * and the user ID always comes from the session, never from the request.
  *
  * @author mcawful
  */
@@ -68,6 +70,20 @@ public class RsvpController {
 	 */
 	private static final String HOST_CANNOT_LEAVE = "errorType HOST_CANNOT_LEAVE: the host always holds a spot. They "
 			+ "cancel the event instead.";
+
+	/**
+	 * The {@link RsvpService}.
+	 */
+	private final RsvpService rsvpService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param rsvpService the {@link RsvpService}
+	 */
+	public RsvpController(RsvpService rsvpService) {
+		this.rsvpService = rsvpService;
+	}
 
 	/**
 	 * Joins an event: a spot if one is free, otherwise the back of the waitlist.
@@ -93,7 +109,7 @@ public class RsvpController {
 			+ "about one attempt per second per user, so wait before retrying.")
 	public ResponseRecord<RsvpResponse> join(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(rsvpService.join(HttpUtil.userId(authentication), eventId));
 	}
 
 	/**
@@ -113,7 +129,7 @@ public class RsvpController {
 	@ApiResponse(responseCode = "409", description = HOST_CANNOT_LEAVE)
 	public void leave(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		rsvpService.leave(HttpUtil.userId(authentication), eventId);
 	}
 
 	/**
@@ -132,7 +148,7 @@ public class RsvpController {
 			+ "event.")
 	public ResponseRecord<AttendeesResponse> getAttendees(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(rsvpService.getAttendees(HttpUtil.userId(authentication), eventId));
 	}
 
 	/**
@@ -154,7 +170,7 @@ public class RsvpController {
 	public void removeAttendee(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId,
 			@Parameter(description = "The person's user ID") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		rsvpService.remove(HttpUtil.userId(authentication), eventId, userId);
 	}
 
 	/**
