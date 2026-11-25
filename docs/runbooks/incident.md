@@ -21,8 +21,10 @@ Finished in M5 and M6, once maintenance mode and the infrastructure exist.
   3. Every existing subscription was made with the old public key, so push services refuse new pushes to it (the
      sender marks those notifications `FAILED`; the inbox still has them). Each browser gets pushes again once it
      subscribes with the new key on its next visit.
-  4. If the old private key leaked, also delete every subscription so nothing signed by the old key is ever accepted
-     again: `DELETE FROM push_subscription;`. Users keep their push setting and re-subscribe on their next visit.
+  4. If the old private key leaked, also delete every subscription, `DELETE FROM push_subscription;`, so the sender
+     stops trying old-key subscriptions. That doesn't stop the push services accepting the old key: whoever holds it
+     and a browser's endpoint can push to that browser until it unsubscribes. Each browser does that on its next visit,
+     when it sees the new key, unsubscribes and subscribes again (#69). Users keep their push setting.
   - **To turn push off** in an emergency, unset both values and redeploy: `/api/push/key` becomes a 404 and nothing is
     sent. Pending notifications wait in the queue.
 - **AWS:** deploys use GitHub OIDC (no static keys). If a human's credentials leaked, deactivate them in IAM and

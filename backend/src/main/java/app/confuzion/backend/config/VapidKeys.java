@@ -62,7 +62,7 @@ public class VapidKeys {
 	private final VAPIDKeyPair keyPair;
 
 	/**
-	 * The public key as configured, or {@code null} when push is off.
+	 * The public key, base64url without padding, or {@code null} when push is off.
 	 */
 	private final String publicKey;
 
@@ -83,8 +83,11 @@ public class VapidKeys {
 		}
 		if (publicKey.isBlank() || privateKey.isBlank())
 			throw new IllegalStateException("Set both VAPID keys, or neither to turn push off");
-		this.publicKey = publicKey.strip();
-		this.keyPair = parse(this.publicKey, privateKey.strip());
+		this.keyPair = parse(publicKey.strip(), privateKey.strip());
+		// Served without padding, as PushKeyResponse promises, however it was pasted
+		// in.
+		this.publicKey = Base64.getUrlEncoder().withoutPadding()
+				.encodeToString(Base64.getUrlDecoder().decode(publicKey.strip()));
 	}
 
 	/**

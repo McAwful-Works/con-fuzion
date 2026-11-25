@@ -44,7 +44,8 @@ class VapidKeysTest {
 	}
 
 	/**
-	 * Tests that a matching pair is read, and the public key is served as given.
+	 * Tests that a matching pair is read, and the public key is served without
+	 * padding even when it was configured with it.
 	 */
 	@Test
 	void testReadsAMatchingPair() {
@@ -53,6 +54,7 @@ class VapidKeysTest {
 		assertThat(keys.publicKey()).contains(pair[0]);
 		assertThat(keys.keyPair()).hasValueSatisfying(
 				keyPair -> assertThat(keyPair.extractPublicKeyInUncompressedFormAsString()).isEqualTo(pair[0]));
+		assertThat(new VapidKeys(pair[0] + "=", pair[1] + "=").publicKey()).contains(pair[0]);
 	}
 
 	/**
