@@ -46,6 +46,7 @@ const walk: Schemas['EventResponse'] = {
   tag: 'Photoshoot',
   host: ada,
   isHost: false,
+  myStatus: 'NONE',
   status: 'PUBLISHED',
   audience: null,
   capacity: null,
@@ -65,6 +66,7 @@ const mine: Schemas['EventResponse'] = {
   title: 'My panel',
   host,
   isHost: true,
+  myStatus: 'CONFIRMED',
   locationVisibility: 'CONFIRMED',
   capacity: 20,
   audience: [

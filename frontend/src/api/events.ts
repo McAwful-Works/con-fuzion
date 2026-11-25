@@ -7,7 +7,7 @@ export type Event = Schemas['EventResponse'];
 export type EventRequest = Schemas['EventRequest'];
 export type AudienceEntry = Schemas['AudienceEntryResponse'];
 export type AudienceEntryRequest = Schemas['AudienceEntryRequest'];
-export type EventScope = 'feed' | 'hosting';
+export type EventScope = 'feed' | 'hosting' | 'attending';
 
 const EVENTS = '/events' satisfies ContractPath;
 const EVENT = '/events/{eventId}' satisfies ContractPath;
@@ -17,6 +17,8 @@ export const EVENT_TITLE_MAX = 100;
 export const EVENT_DESCRIPTION_MAX = 2000;
 export const EVENT_LOCATION_MAX = 200;
 export const EVENT_TAG_MAX = 30;
+/** D-013: the capacity is the whole headcount and the host holds a spot, so at least 2. */
+export const EVENT_CAPACITY_MIN = 2;
 export const EVENT_CAPACITY_MAX = 10000;
 export const AUDIENCE_MAX = 50;
 export const FEED_PAGE_SIZE = 20;
@@ -26,6 +28,9 @@ const events = ['events'] as const;
 export function useEventFeed(scope: EventScope) {
   return useInfiniteQuery({
     queryKey: [...events, 'list', scope],
+    // My schedule is also served from the service worker's cache when offline, so let the first
+    // request go out even without a connection (the default would pause it until we're back online).
+    networkMode: scope === 'attending' ? 'offlineFirst' : 'online',
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const query = new URLSearchParams({ scope, limit: String(FEED_PAGE_SIZE) });

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { api, type ContractPath } from './client';
+import { endOfflineSession, forgetOtherUsersCache } from './offlineCache';
 import type { components } from './schema';
 
 type Schemas = components['schemas'];
@@ -20,7 +21,14 @@ export const singleGuildKey = ['guild'] as const;
 export function useMe() {
   return useQuery({
     queryKey: meKey,
-    queryFn: async () => (await api<Schemas['ResponseRecordMeResponse']>('/me')).body,
+    // Like My schedule, it can come from the service worker's cache, so a cold start offline still
+    // gets past the sign-in gate. Without this the query would wait for a connection that isn't coming.
+    networkMode: 'offlineFirst',
+    queryFn: async () => {
+      const { body } = await api<Schemas['ResponseRecordMeResponse']>('/me');
+      forgetOtherUsersCache(body.id);
+      return body;
+    },
     staleTime: 60_000,
   });
 }
@@ -103,6 +111,10 @@ export function useSignOut(everywhere: boolean) {
     mutationFn: () =>
       api<void>(everywhere ? SIGN_OUT_EVERYWHERE_PATH : SIGN_OUT_PATH, { method: 'POST' }),
     // Drop everything cached for the old session so nothing leaks into the next sign-in.
-    onSuccess: () => queryClient.clear(),
+    onSuccess: () => {
+      queryClient.clear();
+      // The service worker keeps the last My schedule response for offline use; it must not outlive the session.
+      endOfflineSession();
+    },
   });
 }

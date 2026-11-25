@@ -75,6 +75,8 @@ function SubmitError({ error }: { error: unknown }) {
     );
   }
   if (error instanceof ApiError && error.status === 409) {
+    // CAPACITY_BELOW_CONFIRMED is worded by ErrorState; a plain 409 means the event was cancelled.
+    if (error.code === 'CAPACITY_BELOW_CONFIRMED') return <ErrorState error={error} />;
     return <p role="alert">This event has been cancelled, so it can’t be edited.</p>;
   }
   return <ErrorState error={error} />;
@@ -261,10 +263,11 @@ export function EventForm({
         <h2 id="spots-heading" className="text-xl font-semibold">
           Spots (optional)
         </h2>
-        <p className="text-ink-muted text-sm">
-          Saved with the event now. Signing up for spots arrives in a later update.
-        </p>
-        <Field label="Capacity" error={errors.capacity}>
+        <Field
+          label="Capacity"
+          hint="The total headcount, and it includes you: you hold the first spot, so the smallest is 2. Leave it empty for no limit. When it’s full, people join a waitlist."
+          error={errors.capacity}
+        >
           {(p) => (
             <input
               id={p.id}

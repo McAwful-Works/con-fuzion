@@ -9,6 +9,8 @@ import { Skeleton } from '../components/Skeleton';
 import { entryKey, entryLabel } from '../features/events/audience';
 import { HIDDEN_LOCATION_TEXT } from '../features/events/EventCard';
 import { EventTimes } from '../features/events/EventTimes';
+import { AttendeeList } from '../features/rsvp/AttendeeList';
+import { RsvpPanel } from '../features/rsvp/RsvpPanel';
 
 export function EventNotFound() {
   return (
@@ -44,8 +46,8 @@ function CancelEvent({ event }: { event: Event }) {
       onConfirm={() => cancel.mutate(undefined, { onSuccess: () => setAsking(false) })}
     >
       <p>
-        The event is cancelled and drops out of everyone’s feed. Only you can still see it, and a
-        cancelled event can’t be edited or brought back.
+        The event is cancelled and drops out of everyone’s feed. Only you and the people who are
+        going or waiting can still open it, and a cancelled event can’t be edited or brought back.
       </p>
     </ConfirmPanel>
   );
@@ -106,6 +108,11 @@ export function EventDetail() {
       </p>
 
       {event.description && <p className="break-words whitespace-pre-wrap">{event.description}</p>}
+
+      <RsvpPanel event={event} />
+
+      {/* Only the host and confirmed attendees get the list; anyone else would get a 404. */}
+      {(event.isHost || event.myStatus === 'CONFIRMED') && <AttendeeList event={event} />}
 
       {event.isHost && event.audience && (
         <section aria-labelledby="audience-heading" className="space-y-2">

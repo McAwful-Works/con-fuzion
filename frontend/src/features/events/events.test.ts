@@ -62,6 +62,7 @@ const base: Event = {
     avatarUrl: 'https://cdn.discordapp.com/embed/avatars/1.png',
   },
   isHost: false,
+  myStatus: 'NONE',
   status: 'PUBLISHED',
   audience: null,
   capacity: null,
@@ -207,6 +208,14 @@ describe('form validation', () => {
     ]);
     expect(validateEvent(valid({ capacity: '10001' }), NOW).errors.capacity).toBeDefined();
     expect(validateEvent(valid({ capacity: '1.5' }), NOW).errors.capacity).toBeDefined();
+  });
+
+  it('needs a capacity of at least 2, because the host takes a spot', () => {
+    const one = validateEvent(valid({ capacity: '1' }), NOW);
+    expect(one.errors.capacity).toMatch(/from 2 to 10000/);
+    expect(one.request).toBeNull();
+    expect(validateEvent(valid({ capacity: '2' }), NOW).request?.capacity).toBe(2);
+    expect(validateEvent(valid({ capacity: '' }), NOW).request?.capacity).toBeNull();
   });
 
   it('keeps the start in the future and within a year either way', () => {

@@ -2,12 +2,15 @@ import { useEventFeed, type EventScope } from '../../api/events';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
 import { EventCard } from './EventCard';
+import { findOverlaps } from './schedule';
 import { groupByDay } from './time';
 
 const EMPTY: Record<EventScope, string> = {
   feed: 'No upcoming events yet. Events from your friends, circles and servers will show up here, or host one yourself.',
   hosting:
     'You’re not hosting anything yet. Events you create show up here, including cancelled ones.',
+  attending:
+    'Nothing on your schedule yet. Events you join, wait for or host show up here, so you can see them all in one place.',
 };
 
 /** Upcoming events grouped by day in each event's own time zone, loaded a page at a time. */
@@ -33,6 +36,9 @@ export function EventFeed({ scope }: { scope: EventScope }) {
   const events = data.pages.flatMap((page) => page.events);
   if (events.length === 0) return <p className="text-ink-muted">{EMPTY[scope]}</p>;
 
+  // My schedule marks events that run at the same time, across every day loaded so far.
+  const overlaps = scope === 'attending' ? findOverlaps(events) : undefined;
+
   return (
     <div className="space-y-6">
       {groupByDay(events).map((day) => (
@@ -42,7 +48,7 @@ export function EventFeed({ scope }: { scope: EventScope }) {
           </h2>
           <ul className="space-y-3">
             {day.events.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard key={event.id} event={event} overlaps={overlaps?.get(event.id)} />
             ))}
           </ul>
         </section>

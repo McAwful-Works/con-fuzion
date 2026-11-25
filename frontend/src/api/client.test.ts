@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, ApiError } from './client';
+import { api, apiConditional, ApiError } from './client';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -94,5 +94,33 @@ describe('api client', () => {
     const error = await api('/events').catch((e: unknown) => e);
 
     expect(error).toMatchObject({ status: 502, code: undefined });
+  });
+
+  describe('apiConditional', () => {
+    it('sends If-None-Match and returns the body with its ETag', async () => {
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify({ n: 1 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ETag: '"v1"' },
+        }),
+      );
+
+      const result = await apiConditional('/events/e1/spots', { ifNoneMatch: '"v0"' });
+
+      expect(sentHeaders().get('If-None-Match')).toBe('"v0"');
+      expect(result).toEqual({ notModified: false, body: { n: 1 }, etag: '"v1"' });
+    });
+
+    it('reports a 304 as "nothing changed" instead of an error', async () => {
+      fetchMock.mockResolvedValue(new Response(null, { status: 304 }));
+      expect(await apiConditional('/events/e1/spots', { ifNoneMatch: '"v1"' })).toEqual({
+        notModified: true,
+      });
+    });
+
+    it('still throws for a real error', async () => {
+      fetchMock.mockResolvedValue(json({ responseType: 'ERROR', body: { errorType: 'X' } }, 404));
+      await expect(apiConditional('/events/e1/spots')).rejects.toBeInstanceOf(ApiError);
+    });
   });
 });

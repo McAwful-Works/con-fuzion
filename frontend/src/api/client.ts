@@ -57,13 +57,16 @@ export interface ApiOptions {
   /** Serialised as JSON. */
   body?: unknown;
   signal?: AbortSignal;
+  /** Sent as `If-None-Match`; see `apiConditional`. */
+  ifNoneMatch?: string;
 }
 
-/** Same-origin JSON call. `path` is relative to the API root, for example `/me`. */
-export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+/** Sends the request and throws an `ApiError` for every non-2xx response, except a 304 when `allow304`. */
+async function send(path: string, options: ApiOptions, allow304 = false): Promise<Response> {
   const method = (options.method ?? 'GET').toUpperCase();
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (options.ifNoneMatch) headers['If-None-Match'] = options.ifNoneMatch;
   if (!SAFE_METHODS.has(method)) {
     const token = csrfToken();
     if (token) headers['X-XSRF-TOKEN'] = token;
@@ -77,6 +80,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
     signal: options.signal,
   });
 
+  if (allow304 && response.status === 304) return response;
   if (!response.ok) {
     let code: string | undefined;
     let correlationId: string | undefined;
@@ -91,10 +95,40 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
     }
     throw new ApiError(response.status, code, correlationId);
   }
+  return response;
+}
 
+async function readBody<T>(response: Response): Promise<T> {
   // A 204 has no body. Otherwise callers receive the D-010 envelope `{ responseType, body }` as-is.
   // A redirect that ends on an HTML page (Spring's default logout) is a success with nothing to read.
   if (!response.headers.get('Content-Type')?.includes('json')) return undefined as T;
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/** Same-origin JSON call. `path` is relative to the API root, for example `/me`. */
+export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  return readBody<T>(await send(path, options));
+}
+
+/** The result of a conditional GET: the body and its ETag, or "nothing changed" (a 304). */
+export type Conditional<T> =
+  { notModified: true } | { notModified: false; body: T; etag: string | null };
+
+/**
+ * A GET that sends `ifNoneMatch` (the last ETag) and treats a bodiless 304 as "nothing changed",
+ * so the caller keeps the data it has. Setting the header ourselves makes the browser pass the 304
+ * through instead of answering from its own HTTP cache.
+ */
+export async function apiConditional<T>(
+  path: string,
+  options: { ifNoneMatch?: string; signal?: AbortSignal } = {},
+): Promise<Conditional<T>> {
+  const response = await send(path, options, true);
+  if (response.status === 304) return { notModified: true };
+  return {
+    notModified: false,
+    body: await readBody<T>(response),
+    etag: response.headers.get('ETag'),
+  };
 }
