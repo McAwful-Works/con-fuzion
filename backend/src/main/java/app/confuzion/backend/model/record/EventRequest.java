@@ -44,23 +44,26 @@ import jakarta.validation.constraints.Size;
  * Both take the whole event: an update replaces every editable field. Text
  * fields other than the description have no leading or trailing whitespace.
  *
- * @param title              the title
- * @param description        the description as plain text, or {@code null}.
- *                           Empty or whitespace-only text is stored as
- *                           {@code null}
- * @param location           where the event is
- * @param tag                a short label, or {@code null}
- * @param startsAt           when the event starts: in the future on create, and
- *                           within a year of now either way
- * @param endsAt             when it ends, after {@code startsAt} and at most 7
- *                           days later, or {@code null}
- * @param timeZone           the IANA time zone to show times in
- * @param capacity           the number of spots, the host's included, 2 to
- *                           10,000, or {@code null} for unlimited (D-013)
- * @param signupOpensAt      when sign-up opens, before {@code startsAt}, or
- *                           {@code null} to open it at once
- * @param locationVisibility who may see the location
- * @param audience           who the event is for, 1 to 50 distinct entries
+ * @param title                the title
+ * @param description          the description as plain text, or {@code null}.
+ *                             Empty or whitespace-only text is stored as
+ *                             {@code null}
+ * @param location             where the event is
+ * @param tag                  a short label, or {@code null}
+ * @param startsAt             when the event starts: in the future on create,
+ *                             and within a year of now either way
+ * @param endsAt               when it ends, after {@code startsAt} and at most
+ *                             7 days later, or {@code null}
+ * @param timeZone             the IANA time zone to show times in
+ * @param capacity             the number of spots, the host's included, 2 to
+ *                             10,000, or {@code null} for unlimited (D-013)
+ * @param confirmWindowMinutes how long an offered spot is held, 10 to 1,440;
+ *                             {@code null} means 30 when creating and the
+ *                             current window when editing (D-014)
+ * @param signupOpensAt        when sign-up opens, before {@code startsAt}, or
+ *                             {@code null} to open it at once
+ * @param locationVisibility   who may see the location
+ * @param audience             who the event is for, 1 to 50 distinct entries
  * @author mcawful
  */
 public record EventRequest(
@@ -72,6 +75,7 @@ public record EventRequest(
 		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "After startsAt and at most 7 days later.") Instant endsAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "America/Chicago", maxLength = IanaTimeZone.MAX_LENGTH) @NotNull @IanaTimeZone String timeZone,
 		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "The headcount, the host included (the host always holds a spot), so at least 2. Null for unlimited. An update can't make it smaller than the number already confirmed.") @Min(2) @Max(10000) Integer capacity,
+		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, minimum = "10", maximum = "1440", description = "How many minutes a freed spot is held for the next person in line to accept (D-014). Missing or null means 30 when creating and keeps the current window when editing. A change applies to later offers, not to open ones.") @Min(10) @Max(1440) Integer confirmWindowMinutes,
 		@Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "Before startsAt and at most a year earlier.") Instant signupOpensAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED) @NotNull LocationVisibility locationVisibility,
 		@Schema(requiredMode = RequiredMode.REQUIRED, description = "1 to 50 entries, each at most once.") @NotNull @Size(min = 1, max = EventRequest.MAX_AUDIENCE) List<@NotNull @Valid AudienceEntry> audience) {

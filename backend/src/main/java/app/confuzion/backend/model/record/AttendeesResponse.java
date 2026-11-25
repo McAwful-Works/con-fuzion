@@ -32,10 +32,13 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  *                  host comes first
  * @param waitlist  for the host only, the waitlist in queue order; {@code null}
  *                  for everyone else
+ * @param offered   for the host only, the people holding an open offer, in
+ *                  queue order; {@code null} for everyone else
  * @author mcawful
  */
 public record AttendeesResponse(
 		@Schema(requiredMode = RequiredMode.REQUIRED, description = "People holding a spot, in the order they joined, so the host comes first. Leaves out anyone who has blocked the caller or whom the caller has blocked.") List<PersonResponse> confirmed,
-		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Only the host gets this: the waitlist in queue order, next in line first. Null for everyone else.") List<PersonResponse> waitlist)
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Only the host gets this: the waitlist in queue order, next in line first. Null for everyone else.") List<PersonResponse> waitlist,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Only the host gets this: the people holding an open offer, in queue order (D-014). Their spots count as taken. Null for everyone else.") List<PersonResponse> offered)
 		implements ResponseBodyObject {
 }

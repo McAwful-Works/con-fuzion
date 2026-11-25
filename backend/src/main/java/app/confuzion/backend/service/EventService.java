@@ -329,8 +329,9 @@ public class EventService {
 
 	/**
 	 * Copies a request's editable fields onto an event. A blank description is
-	 * stored as {@code null}, and times are cut to the database's microseconds, so
-	 * the response echoes what was stored.
+	 * stored as {@code null}, a missing offer window keeps the current one (D-014),
+	 * and times are cut to the database's microseconds, so the response echoes what
+	 * was stored.
 	 *
 	 * @param event   the {@link Event}
 	 * @param request the validated {@link EventRequest}
@@ -345,6 +346,8 @@ public class EventService {
 		event.setEndsAt(micros(request.endsAt()));
 		event.setTimeZone(request.timeZone());
 		event.setCapacity(request.capacity());
+		if (request.confirmWindowMinutes() != null)
+			event.setConfirmWindowMinutes(request.confirmWindowMinutes());
 		event.setSignupOpensAt(micros(request.signupOpensAt()));
 		event.setLocationVisibility(request.locationVisibility());
 		event.setUpdatedAt(Instant.now());
@@ -414,8 +417,8 @@ public class EventService {
 						UserService.avatarUrl(host.getDiscordId(), host.getAvatarHash())),
 				event.getTitle(), event.getDescription(), locationHidden ? null : event.getLocationText(),
 				locationHidden, event.getLocationVisibility(), event.getTag(), event.getStartsAt(), event.getEndsAt(),
-				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getStatus(), isHost, myStatus,
-				isHost ? audiences.getOrDefault(event.getId(), List.of()) : null);
+				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getConfirmWindowMinutes(),
+				event.getStatus(), isHost, myStatus, isHost ? audiences.getOrDefault(event.getId(), List.of()) : null);
 	}
 
 	/**

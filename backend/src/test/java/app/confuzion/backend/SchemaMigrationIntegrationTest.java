@@ -309,7 +309,7 @@ class SchemaMigrationIntegrationTest {
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT success FROM flyway_schema_history WHERE version = '202611242000'", Boolean.class)).isTrue();
 		assertThat(columns("rsvp")).containsExactlyInAnyOrder("id", "event_id", "user_id", "status", "created_at",
-				"updated_at");
+				"updated_at", "offer_expires_at");
 
 		var host = insertUser(81384788765712384L);
 		var rsvpId = insertRsvp(insertEvent(host, null, null), host, "CONFIRMED");
@@ -331,7 +331,7 @@ class SchemaMigrationIntegrationTest {
 		var eventId = insertEvent(host, null, null);
 		var otherEventId = insertEvent(host, null, null);
 
-		assertRejected(() -> insertRsvp(eventId, guest, "OFFERED"), DataIntegrityViolationException.class);
+		assertRejected(() -> insertRsvp(eventId, guest, "PENDING"), DataIntegrityViolationException.class);
 		insertRsvp(eventId, guest, "LEFT");
 		insertRsvp(eventId, guest, "LEFT");
 		insertRsvp(eventId, guest, "WAITLISTED");
@@ -350,19 +350,134 @@ class SchemaMigrationIntegrationTest {
 	}
 
 	/**
-	 * Tests the RSVP indexes: the active-RSVP key, the waitlist queue, My schedule
-	 * and the per-event lookup that also serves the event cascade.
+	 * Tests the RSVP indexes: the active-RSVP key and My schedule (which count an
+	 * open offer from M4), the waitlist queue, the per-event lookup that also
+	 * serves the event cascade, and the offer expiry job's.
 	 */
 	@Test
 	void rsvpIndexes() {
 		var active = "WHERE ((status)::text = ANY ((ARRAY['CONFIRMED'::character varying, "
-				+ "'WAITLISTED'::character varying])::text[]))";
+				+ "'WAITLISTED'::character varying, 'OFFERED'::character varying])::text[]))";
 		assertThat(indexDefinition("rsvp_active_key")).startsWith("CREATE UNIQUE INDEX")
 				.endsWith("(event_id, user_id) " + active);
 		assertThat(indexDefinition("rsvp_queue_idx"))
 				.endsWith("(event_id, id) WHERE ((status)::text = 'WAITLISTED'::text)");
 		assertThat(indexDefinition("rsvp_user_active_idx")).endsWith("(user_id) " + active);
 		assertThat(indexDefinition("rsvp_event_user_idx")).endsWith("(event_id, user_id)");
+		assertThat(indexDefinition("rsvp_offer_expiry_idx"))
+				.endsWith("(offer_expires_at) WHERE ((status)::text = 'OFFERED'::text)");
+	}
+
+	/**
+	 * Tests that Flyway applied the notifications migration (D-014), with the
+	 * planned columns.
+	 */
+	@Test
+	void notificationsMigrationApplied() {
+		assertThat(jdbcTemplate.queryForObject(
+				"SELECT success FROM flyway_schema_history WHERE version = '202611251200'", Boolean.class)).isTrue();
+		assertThat(columns("notification")).containsExactlyInAnyOrder("id", "user_id", "type", "event_id", "payload",
+				"read_at", "push_status", "created_at");
+		assertThat(columns("push_subscription")).containsExactlyInAnyOrder("id", "user_id", "endpoint", "p256dh",
+				"auth", "created_at");
+	}
+
+	/**
+	 * Tests the offer rules the database enforces: a deadline exactly while
+	 * {@code OFFERED}, an open offer as the one active RSVP, and expired offers
+	 * piling up like past RSVPs.
+	 */
+	@Test
+	void offerChecks() throws SQLException {
+		var host = insertUser(81384788765712384L);
+		var guest = insertUser(81384788765712385L);
+		var eventId = insertEvent(host, null, null);
+		var offer = "INSERT INTO rsvp (event_id, user_id, status, offer_expires_at) VALUES (?, ?, ?, ?)";
+		var deadline = Timestamp.from(Instant.now().plus(Duration.ofMinutes(30)));
+
+		assertRejected(() -> jdbcTemplate.update(offer, eventId, guest, "OFFERED", null),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(offer, eventId, guest, "WAITLISTED", deadline),
+				DataIntegrityViolationException.class);
+		insertRsvp(eventId, guest, "EXPIRED");
+		insertRsvp(eventId, guest, "EXPIRED");
+		jdbcTemplate.update(offer, eventId, guest, "OFFERED", deadline);
+		assertRejected(() -> insertRsvp(eventId, guest, "WAITLISTED"), DuplicateKeyException.class);
+		assertRejected(() -> jdbcTemplate.update(offer, eventId, guest, "OFFERED", deadline),
+				DuplicateKeyException.class);
+	}
+
+	/**
+	 * Tests the notification rules the database enforces: known types and push
+	 * statuses, an event for every type but {@code FRIEND_ACCEPTED}, an object
+	 * payload, and cascades from the user and the event.
+	 */
+	@Test
+	void notificationChecks() throws SQLException {
+		var host = insertUser(81384788765712384L);
+		var guest = insertUser(81384788765712385L);
+		var eventId = insertEvent(host, null, null);
+		var otherEventId = insertEvent(host, null, null);
+		var insert = "INSERT INTO notification (user_id, type, event_id, payload, push_status) "
+				+ "VALUES (?, ?, ?, CAST(? AS jsonb), ?)";
+
+		assertRejected(() -> jdbcTemplate.update(insert, guest, "SPOT_REMOVED", eventId, "{}", "NONE"),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, guest, "SPOT_OFFERED", eventId, "{}", "QUEUED"),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, guest, "SPOT_OFFERED", null, "{}", "NONE"),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, host, "FRIEND_ACCEPTED", eventId, "{}", "NONE"),
+				DataIntegrityViolationException.class);
+		assertRejected(() -> jdbcTemplate.update(insert, guest, "SPOT_OFFERED", eventId, "[]", "NONE"),
+				DataIntegrityViolationException.class);
+		for (var type : List.of("SPOT_OFFERED", "SPOT_CONFIRMED", "EVENT_CHANGED", "EVENT_CANCELLED", "EVENT_REMINDER"))
+			jdbcTemplate.update(insert, guest, type, eventId, "{}", "PENDING");
+		jdbcTemplate.update(insert, guest, "EVENT_REMINDER", otherEventId, "{}", "SENT");
+		jdbcTemplate.update(insert, host, "FRIEND_ACCEPTED", null, "{}", "FAILED");
+
+		jdbcTemplate.update("DELETE FROM event WHERE id = ?", otherEventId);
+		assertThat(
+				jdbcTemplate.queryForObject("SELECT count(*) FROM notification WHERE user_id = ?", Long.class, guest))
+				.isEqualTo(5);
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", guest);
+		assertThat(jdbcTemplate.queryForList("SELECT user_id FROM notification WHERE user_id IN (?, ?)", UUID.class,
+				host, guest)).containsExactly(host);
+	}
+
+	/**
+	 * Tests that a push endpoint is stored once, whoever subscribed with it, and
+	 * that subscriptions go with their user.
+	 */
+	@Test
+	void pushSubscriptionChecks() throws SQLException {
+		var first = insertUser(81384788765712384L);
+		var second = insertUser(81384788765712385L);
+		var insert = "INSERT INTO push_subscription (user_id, endpoint, p256dh, auth) VALUES (?, ?, 'k', 'a')";
+		var endpoint = "https://fcm.googleapis.com/fcm/send/abc";
+
+		jdbcTemplate.update(insert, first, endpoint);
+		assertRejected(() -> jdbcTemplate.update(insert, second, endpoint), DuplicateKeyException.class);
+		jdbcTemplate.update(insert, first, endpoint + "d");
+
+		jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", first);
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM push_subscription WHERE user_id = ?", Long.class,
+				first)).isZero();
+	}
+
+	/**
+	 * Tests the notification and push indexes: the inbox, the sender's queue, the
+	 * event cascade, and a user's subscriptions oldest first.
+	 */
+	@Test
+	void notificationIndexes() {
+		assertThat(indexDefinition("notification_inbox_idx")).endsWith("(user_id, id DESC)");
+		assertThat(indexDefinition("notification_push_idx"))
+				.endsWith("(id) WHERE ((push_status)::text = 'PENDING'::text)");
+		assertThat(indexDefinition("notification_event_idx")).endsWith("(event_id)");
+		assertThat(indexDefinition("push_subscription_endpoint_key")).startsWith("CREATE UNIQUE INDEX")
+				.endsWith("(endpoint)");
+		assertThat(indexDefinition("push_subscription_user_idx")).endsWith("(user_id, id)");
 	}
 
 	/**

@@ -18,6 +18,8 @@
  */
 package app.confuzion.backend.model.record;
 
+import java.time.Instant;
+
 import app.confuzion.backend.model.ResponseBodyObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
@@ -27,22 +29,26 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * /api/events/{eventId}/spots} for polling. Everyone who can see the event gets
  * the counts; the status and position are always the caller's own.
  *
- * @param capacity   the headcount, the host included, or {@code null} for
- *                   unlimited
- * @param confirmed  how many people hold a spot, the host included
- * @param waitlisted how many people are in the waitlist
- * @param spotsLeft  {@code capacity - confirmed}, or {@code null} for unlimited
- * @param myStatus   where the caller stands
- * @param myPosition the caller's place in the waitlist, or {@code null} unless
- *                   they are waitlisted
+ * @param capacity       the headcount, the host included, or {@code null} for
+ *                       unlimited
+ * @param confirmed      how many people hold a spot, the host included
+ * @param waitlisted     how many people are in the waitlist
+ * @param spotsLeft      {@code capacity - confirmed}, or {@code null} for
+ *                       unlimited
+ * @param myStatus       where the caller stands
+ * @param myPosition     the caller's place in the waitlist, or {@code null}
+ *                       unless they are waitlisted
+ * @param offerExpiresAt when the caller's offer runs out, or {@code null}
+ *                       unless they hold one
  * @author mcawful
  */
 public record SpotsResponse(
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "2", maximum = "10000", description = "The headcount, the host included. Null for unlimited.") Integer capacity,
-		@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "1", description = "People holding a spot, the host included.") int confirmed,
+		@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "1", description = "People holding a spot, the host included. A spot held by an open offer counts (D-014).") int confirmed,
 		@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "0", description = "Always 0 for an unlimited event.") int waitlisted,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "0", description = "capacity - confirmed. Null for unlimited. Nobody is promoted once the event has started, so this can be above 0 while people are waitlisted; sign-up is closed by then.") Integer spotsLeft,
 		@Schema(requiredMode = RequiredMode.REQUIRED) MyStatus myStatus,
-		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "1", description = "The caller's own 1-based place in the waitlist: 1 + the number of people waitlisted ahead of them. Null unless myStatus is WAITLISTED.") Integer myPosition)
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "1", description = "The caller's own 1-based place in the waitlist: 1 + the number of people waitlisted ahead of them. Null unless myStatus is WAITLISTED.") Integer myPosition,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "When the caller's own offer runs out. Null unless myStatus is OFFERED.") Instant offerExpiresAt)
 		implements ResponseBodyObject {
 }

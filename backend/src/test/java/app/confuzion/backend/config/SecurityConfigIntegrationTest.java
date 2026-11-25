@@ -123,7 +123,18 @@ class SecurityConfigIntegrationTest {
 			new Endpoint("DELETE",
 					"/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/rsvps/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null,
 					404),
-			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/spots", null, 404));
+			new Endpoint("GET", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/spots", null, 404),
+			// Offers, the inbox and push (D-014): 501 stubs until #65, #66 and #67.
+			new Endpoint("POST", "/api/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/rsvp/accept", null, 501),
+			new Endpoint("GET", "/api/notifications", null, 501),
+			new Endpoint("POST", "/api/notifications/read", "{\"upTo\":1}", 501),
+			new Endpoint("GET", "/api/push/key", null, 501),
+			new Endpoint("POST", "/api/push/subscriptions",
+					"{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"," + "\"keys\":{\"p256dh\":\"B"
+							+ "A".repeat(86) + "\",\"auth\":\"c2VjcmV0LXNlY3JldC0xMg\"}}",
+					501),
+			new Endpoint("DELETE", "/api/push/subscriptions",
+					"{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}", 501));
 
 	/**
 	 * The stub Discord.

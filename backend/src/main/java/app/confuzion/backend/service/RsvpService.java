@@ -233,7 +233,8 @@ public class RsvpService {
 				.filter(MyStatus.CONFIRMED::equals).isEmpty())
 			throw new NoSuchElementException();
 		return new AttendeesResponse(rsvpRepository.findPeople(event.getId(), MyStatus.CONFIRMED.name(), userId),
-				isHost ? rsvpRepository.findPeople(event.getId(), MyStatus.WAITLISTED.name(), userId) : null);
+				isHost ? rsvpRepository.findPeople(event.getId(), MyStatus.WAITLISTED.name(), userId) : null,
+				isHost ? rsvpRepository.findPeople(event.getId(), MyStatus.OFFERED.name(), userId) : null);
 	}
 
 	/**
@@ -253,7 +254,7 @@ public class RsvpService {
 		var mine = rsvpRepository.findMine(event.getId(), userId);
 		return new SpotsResponse(shared.capacity(), shared.confirmed(), shared.waitlisted(),
 				shared.capacity() == null ? null : Math.max(shared.capacity() - shared.confirmed(), 0),
-				mine.map(Mine::status).orElse(MyStatus.NONE), mine.map(Mine::position).orElse(null));
+				mine.map(Mine::status).orElse(MyStatus.NONE), mine.map(Mine::position).orElse(null), null);
 	}
 
 	/**
@@ -290,6 +291,6 @@ public class RsvpService {
 	 * @return the {@link RsvpResponse}
 	 */
 	private static RsvpResponse toRsvp(Mine mine) {
-		return new RsvpResponse(RsvpResponse.Status.valueOf(mine.status().name()), mine.position());
+		return new RsvpResponse(RsvpResponse.Status.valueOf(mine.status().name()), mine.position(), null);
 	}
 }

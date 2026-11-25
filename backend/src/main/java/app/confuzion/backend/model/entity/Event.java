@@ -37,9 +37,7 @@ import lombok.Setter;
 
 /**
  * A meetup ({@code event}). Its audience entries are {@link EventAudience}
- * rows. Columns that M2 doesn't use yet ({@code confirmed_count},
- * {@code confirm_window_minutes}, {@code created_at}) aren't mapped, so inserts
- * take their database defaults.
+ * rows. {@code created_at} isn't mapped, so inserts take its database default.
  *
  * @author mcawful
  */
@@ -129,6 +127,13 @@ public class Event {
 	 */
 	@Column(name = "signup_opens_at")
 	private Instant signupOpensAt;
+
+	/**
+	 * How many minutes an offered spot is held (D-014), 30 unless the host picks
+	 * another window.
+	 */
+	@Column(name = "confirm_window_minutes", nullable = false)
+	private int confirmWindowMinutes = 30;
 
 	/**
 	 * Who may see the location.

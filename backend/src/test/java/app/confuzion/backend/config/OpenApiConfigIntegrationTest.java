@@ -43,6 +43,7 @@ import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.exception.ConflictException.Conflict;
+import app.confuzion.backend.model.record.PushSubscriptionRequest;
 import app.confuzion.backend.exception.LimitExceededException;
 
 /**
@@ -69,6 +70,11 @@ class OpenApiConfigIntegrationTest {
 	 * The error envelope's schema reference.
 	 */
 	private static final String ERROR_ENVELOPE_REF = "#/components/schemas/ResponseRecordErrorResponseBodyRecord";
+
+	/**
+	 * Every {@code myStatus} value, in order.
+	 */
+	private static final List<String> MY_STATUSES = List.of("NONE", "CONFIRMED", "WAITLISTED", "OFFERED", "REMOVED");
 
 	/**
 	 * The {@link WebApplicationContext}.
@@ -109,7 +115,8 @@ class OpenApiConfigIntegrationTest {
 				"/api/circles/{circleId}", "/api/circles/{circleId}/members/{userId}", "/api/blocks",
 				"/api/blocks/{userId}", "/api/events", "/api/events/{eventId}", "/api/events/{eventId}/rsvp",
 				"/api/events/{eventId}/attendees", "/api/events/{eventId}/rsvps/{userId}",
-				"/api/events/{eventId}/spots");
+				"/api/events/{eventId}/spots", "/api/events/{eventId}/rsvp/accept", "/api/notifications",
+				"/api/notifications/read", "/api/push/key", "/api/push/subscriptions");
 		assertThat(paths.get("/api/me")).containsOnlyKeys("get", "patch");
 		assertThat(paths.get("/api/me/guilds")).containsOnlyKeys("get", "put");
 		assertThat(paths.get("/api/me/guilds/{guildId}")).containsOnlyKeys("put");
@@ -132,6 +139,11 @@ class OpenApiConfigIntegrationTest {
 		assertThat(paths.get("/api/events/{eventId}/attendees")).containsOnlyKeys("get");
 		assertThat(paths.get("/api/events/{eventId}/rsvps/{userId}")).containsOnlyKeys("delete");
 		assertThat(paths.get("/api/events/{eventId}/spots")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/events/{eventId}/rsvp/accept")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/notifications")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/notifications/read")).containsOnlyKeys("post");
+		assertThat(paths.get("/api/push/key")).containsOnlyKeys("get");
+		assertThat(paths.get("/api/push/subscriptions")).containsOnlyKeys("post", "delete");
 	}
 
 	/**
@@ -202,22 +214,82 @@ class OpenApiConfigIntegrationTest {
 	@Test
 	void rsvpSchemas() {
 		Map<String, Map<String, Object>> rsvp = document.read("$.components.schemas.RsvpResponse.properties");
-		assertThat(rsvp).containsOnlyKeys("status", "position");
-		assertThat(rsvp.get("status").get("enum")).isEqualTo(List.of("CONFIRMED", "WAITLISTED"));
+		assertThat(rsvp).containsOnlyKeys("status", "position", "offerExpiresAt");
+		assertThat(rsvp.get("status").get("enum")).isEqualTo(List.of("CONFIRMED", "WAITLISTED", "OFFERED"));
 		assertThat((List<String>) rsvp.get("position").get("type")).contains("null");
+		assertThat((List<String>) rsvp.get("offerExpiresAt").get("type")).contains("null");
 
 		Map<String, Map<String, Object>> spots = document.read("$.components.schemas.SpotsResponse.properties");
-		assertThat(spots).containsOnlyKeys("capacity", "confirmed", "waitlisted", "spotsLeft", "myStatus",
-				"myPosition");
-		assertThat(spots.get("myStatus").get("enum")).isEqualTo(List.of("NONE", "CONFIRMED", "WAITLISTED", "REMOVED"));
-		for (var nullable : List.of("capacity", "spotsLeft", "myPosition"))
+		assertThat(spots).containsOnlyKeys("capacity", "confirmed", "waitlisted", "spotsLeft", "myStatus", "myPosition",
+				"offerExpiresAt");
+		assertThat(spots.get("myStatus").get("enum")).isEqualTo(MY_STATUSES);
+		for (var nullable : List.of("capacity", "spotsLeft", "myPosition", "offerExpiresAt"))
 			assertThat((List<String>) spots.get(nullable).get("type")).contains("null");
 
 		Map<String, Map<String, Object>> attendees = document.read("$.components.schemas.AttendeesResponse.properties");
-		assertThat(attendees).containsOnlyKeys("confirmed", "waitlist");
+		assertThat(attendees).containsOnlyKeys("confirmed", "waitlist", "offered");
 		assertThat((List<String>) attendees.get("waitlist").get("type")).contains("null");
+		assertThat((List<String>) attendees.get("offered").get("type")).contains("null");
 		assertThat(document.<String>read("$.components.schemas.AttendeesResponse.properties.confirmed.items.$ref"))
 				.isEqualTo("#/components/schemas/PersonResponse");
+	}
+
+	/**
+	 * Tests the offer, inbox and push operations (D-014): typed envelopes, bodiless
+	 * 204s with request bodies, the accept's 409 and the subscription allowlist.
+	 */
+	@Test
+	void notifyOperations() {
+		assertThat(successRef("/api/events/{eventId}/rsvp/accept", "post"))
+				.isEqualTo("#/components/schemas/ResponseRecordRsvpResponse");
+		assertThat(responses("/api/events/{eventId}/rsvp/accept", "post")).containsKeys("200", "403", "404", "409");
+		assertThat(conflicts("/api/events/{eventId}/rsvp/accept", "post")).contains(Conflict.OFFER_EXPIRED.name(),
+				Conflict.NO_OFFER.name());
+		assertThat(successRef("/api/notifications", "get"))
+				.isEqualTo("#/components/schemas/ResponseRecordNotificationPageResponse");
+		assertThat(document.<List<String>>read("$.paths['/api/notifications'].get.parameters[*].name"))
+				.containsExactlyInAnyOrder("cursor", "limit");
+		assertThat(successRef("/api/push/key", "get")).isEqualTo("#/components/schemas/ResponseRecordPushKeyResponse");
+		assertThat(responses("/api/push/key", "get")).containsKeys("200", "404");
+		for (var write : List.of(List.of("/api/notifications/read", "post"), List.of("/api/push/subscriptions", "post"),
+				List.of("/api/push/subscriptions", "delete"))) {
+			assertThat(responses(write.get(0), write.get(1))).containsKeys("204", "400", "403")
+					.doesNotContainKey("200");
+			assertThat(document.<Object>read("$.paths['" + write.get(0) + "']." + write.get(1) + ".requestBody"))
+					.isNotNull();
+		}
+		assertThat(document.<String>read("$.components.schemas.PushSubscriptionRequest.properties.endpoint.pattern"))
+				.isEqualTo(PushSubscriptionRequest.ENDPOINT_PATTERN);
+		assertThat(document.<List<String>>read("$.components.schemas.PushSubscriptionRequest.required"))
+				.containsExactlyInAnyOrder("endpoint", "keys");
+	}
+
+	/**
+	 * Tests the inbox schemas: every notification type, a payload with only
+	 * optional per-type fields and no location or name, and the page's unread
+	 * count.
+	 */
+	@Test
+	void notificationSchemas() {
+		Map<String, Map<String, Object>> item = document.read("$.components.schemas.NotificationResponse.properties");
+		assertThat(item).containsOnlyKeys("id", "type", "eventId", "payload", "createdAt", "read");
+		assertThat(item.get("type").get("enum")).isEqualTo(List.of("SPOT_OFFERED", "SPOT_CONFIRMED", "EVENT_CHANGED",
+				"EVENT_CANCELLED", "EVENT_REMINDER", "FRIEND_ACCEPTED"));
+		assertThat((List<String>) item.get("eventId").get("type")).contains("null");
+
+		Map<String, Map<String, Object>> payload = document.read("$.components.schemas.NotificationPayload.properties");
+		assertThat(payload).containsOnlyKeys("eventTitle", "offerExpiresAt", "startsAt", "changes", "friendId");
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.NotificationPayload"))
+				.doesNotContainKey("required");
+		assertThat(
+				document.<List<String>>read("$.components.schemas.NotificationPayload.properties.changes.items.enum"))
+				.containsExactly("START", "END", "LOCATION");
+
+		Map<String, Map<String, Object>> page = document
+				.read("$.components.schemas.NotificationPageResponse.properties");
+		assertThat(page).containsOnlyKeys("items", "nextCursor", "unreadCount");
+		assertThat(page.get("unreadCount")).containsEntry("maximum", 100);
+		assertThat((List<String>) page.get("nextCursor").get("type")).contains("null");
 	}
 
 	/**
@@ -228,10 +300,16 @@ class OpenApiConfigIntegrationTest {
 	void eventSchemas() {
 		Map<String, Map<String, Object>> properties = document.read("$.components.schemas.EventResponse.properties");
 		assertThat(properties).containsOnlyKeys("id", "host", "title", "description", "location", "locationHidden",
-				"locationVisibility", "tag", "startsAt", "endsAt", "timeZone", "signupOpensAt", "capacity", "status",
-				"isHost", "myStatus", "audience");
-		assertThat(properties.get("myStatus").get("enum"))
-				.isEqualTo(List.of("NONE", "CONFIRMED", "WAITLISTED", "REMOVED"));
+				"locationVisibility", "tag", "startsAt", "endsAt", "timeZone", "signupOpensAt", "capacity",
+				"confirmWindowMinutes", "status", "isHost", "myStatus", "audience");
+		assertThat(properties.get("myStatus").get("enum")).isEqualTo(MY_STATUSES);
+		assertThat(document.<List<String>>read("$.components.schemas.EventResponse.required"))
+				.contains("confirmWindowMinutes");
+		assertThat(
+				document.<Map<String, Object>>read("$.components.schemas.EventRequest.properties.confirmWindowMinutes"))
+				.containsEntry("minimum", 10).containsEntry("maximum", 1440);
+		assertThat(document.<List<String>>read("$.components.schemas.EventRequest.required"))
+				.doesNotContain("confirmWindowMinutes");
 		assertThat(document.<Integer>read("$.components.schemas.EventRequest.properties.capacity.minimum"))
 				.isEqualTo(2);
 		assertThat((List<String>) properties.get("location").get("type")).contains("null");
@@ -326,7 +404,7 @@ class OpenApiConfigIntegrationTest {
 	void everyOperationDocumentsTheErrorEnvelope() {
 		List<Map<String, Map<String, Object>>> responses = document.read("$.paths.*.*.responses");
 
-		assertThat(responses).hasSize(33).allSatisfy(byStatus -> {
+		assertThat(responses).hasSize(39).allSatisfy(byStatus -> {
 			assertThat(byStatus).containsKeys("500", "default");
 			byStatus.forEach((code, response) -> {
 				if (code.startsWith("4") || code.startsWith("5") || code.equals("default"))

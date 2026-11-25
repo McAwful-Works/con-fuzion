@@ -100,6 +100,16 @@ public enum ResponseType {
 	SPOTS,
 
 	/**
+	 * Indicates a {@link NotificationPageResponse} body.
+	 */
+	NOTIFICATION_PAGE,
+
+	/**
+	 * Indicates a {@link PushKeyResponse} body.
+	 */
+	PUSH_KEY,
+
+	/**
 	 * Indicates the response body is unknown.
 	 */
 	UNKNOWN
