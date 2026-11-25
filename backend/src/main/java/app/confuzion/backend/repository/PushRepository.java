@@ -19,6 +19,7 @@
 package app.confuzion.backend.repository;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -141,25 +142,41 @@ public class PushRepository {
 	}
 
 	/**
-	 * Claims the oldest {@code PENDING} notifications, locking them until the
-	 * transaction ends. Rows another sender has locked are skipped, so several
-	 * senders never claim the same row.
+	 * Claims the oldest {@code PENDING} notifications after an ID, in one statement
+	 * that marks them {@code SENT} as it returns them. Rows another sender is
+	 * claiming are skipped ({@code SKIP LOCKED}) and the claim commits at once, so
+	 * several senders never claim the same row, and no lock is held while the
+	 * pushes go out. The sender then marks the ones that weren't sent. A row whose
+	 * type or payload this version can't read comes back with a {@code null} type,
+	 * so one bad row can't stop the queue.
 	 *
-	 * @param limit the most to claim
+	 * @param afterId only rows with a higher ID, so a run can walk past rows it put
+	 *                back
+	 * @param limit   the most to claim
 	 * @return the claimed notifications, oldest first
 	 */
-	public List<Pending> claimPending(int limit) {
-		return jdbc.sql("""
-				SELECT n.id, n.user_id, n.type, e.public_id, n.payload, u.push_enabled
-				FROM notification n JOIN app_user u ON u.id = n.user_id LEFT JOIN event e ON e.id = n.event_id
-				WHERE n.push_status = 'PENDING'
-				ORDER BY n.id LIMIT :limit
-				FOR UPDATE OF n SKIP LOCKED""").param("limit", limit)
-				.query((rs, row) -> new Pending(rs.getLong("id"), rs.getObject("user_id", UUID.class),
-						NotificationResponse.Type.valueOf(rs.getString("type")), rs.getObject("public_id", UUID.class),
-						jsonMapper.readValue(rs.getString("payload"), NotificationPayload.class),
-						rs.getBoolean("push_enabled")))
-				.list();
+	public List<Pending> claimPending(long afterId, int limit) {
+		var rows = jdbc.sql("""
+				WITH claimed AS (
+					SELECT id FROM notification WHERE push_status = 'PENDING' AND id > :afterId
+					ORDER BY id LIMIT :limit FOR UPDATE SKIP LOCKED)
+				UPDATE notification n SET push_status = 'SENT' FROM claimed c WHERE n.id = c.id
+				RETURNING n.id, n.user_id, n.type, n.payload,
+					(SELECT e.public_id FROM event e WHERE e.id = n.event_id) AS public_id,
+					(SELECT u.push_enabled FROM app_user u WHERE u.id = n.user_id) AS push_enabled""")
+				.param("afterId", afterId).param("limit", limit).query((rs, row) -> {
+					NotificationResponse.Type type = null;
+					NotificationPayload payload = null;
+					try {
+						type = NotificationResponse.Type.valueOf(rs.getString("type"));
+						payload = jsonMapper.readValue(rs.getString("payload"), NotificationPayload.class);
+					} catch (RuntimeException unreadable) {
+						type = null;
+					}
+					return new Pending(rs.getLong("id"), rs.getObject("user_id", UUID.class), type,
+							rs.getObject("public_id", UUID.class), payload, rs.getBoolean("push_enabled"));
+				}).list();
+		return rows.stream().sorted(Comparator.comparingLong(Pending::id)).toList();
 	}
 
 	/**
@@ -182,7 +199,7 @@ public class PushRepository {
 	 * Sets the {@code push_status} of some notifications.
 	 *
 	 * @param ids    the notification IDs
-	 * @param status {@code SENT} or {@code FAILED}
+	 * @param status {@code FAILED}, or {@code PENDING} to put a row back
 	 * @return how many were updated
 	 */
 	public int markPushStatus(Collection<Long> ids, String status) {
@@ -193,14 +210,15 @@ public class PushRepository {
 	}
 
 	/**
-	 * A notification waiting to be pushed.
+	 * A notification claimed for pushing.
 	 *
 	 * @param id          the notification's ID
 	 * @param userId      the recipient's ID
-	 * @param type        what happened
+	 * @param type        what happened, or {@code null} when the row can't be read
 	 * @param eventId     the event's public ID, or {@code null} for
 	 *                    {@code FRIEND_ACCEPTED}
-	 * @param payload     what the notification says
+	 * @param payload     what the notification says, or {@code null} when the row
+	 *                    can't be read
 	 * @param pushEnabled whether the recipient still has push on
 	 * @author mcawful
 	 */

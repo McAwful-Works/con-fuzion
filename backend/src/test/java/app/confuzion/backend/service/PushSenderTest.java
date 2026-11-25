@@ -115,6 +115,7 @@ class PushSenderTest {
 				.isEqualTo("Photo walk has a new start time and location.");
 		assertThat(PushSender.text(Type.EVENT_CHANGED, changed(List.of(Change.START, Change.END, Change.LOCATION))))
 				.isEqualTo("Photo walk has a new start time, end time and location.");
+		assertThat(PushSender.text(Type.EVENT_CHANGED, changed(List.of()))).isEqualTo("Photo walk was updated.");
 		var friend = UUID.randomUUID();
 		assertThat(PushSender.text(Type.FRIEND_ACCEPTED, new NotificationPayload(null, null, null, null, friend)))
 				.isEqualTo("Someone accepted your friend invite.").doesNotContain(friend.toString());

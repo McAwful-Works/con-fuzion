@@ -61,8 +61,9 @@ public class SessionService {
 	/**
 	 * Ends every session of the signed-in user, on every device, and deletes all
 	 * their push subscriptions so no signed-out device gets another push (D-014
-	 * rule 18). The current session is invalidated through the request, so it isn't
-	 * saved again when this request ends.
+	 * rule 18). Sessions go first, so a database error can't leave them alive. The
+	 * current session is invalidated through the request, so it isn't saved again
+	 * when this request ends.
 	 *
 	 * @param request        the {@link HttpServletRequest}
 	 * @param response       the {@link HttpServletResponse}
@@ -70,8 +71,8 @@ public class SessionService {
 	 */
 	public void logoutEverywhere(HttpServletRequest request, HttpServletResponse response,
 			Authentication authentication) {
-		pushService.unsubscribeAll(HttpUtil.userId(authentication));
 		new SecurityContextLogoutHandler().logout(request, response, authentication);
 		sessionRepository.findByPrincipalName(authentication.getName()).keySet().forEach(sessionRepository::deleteById);
+		pushService.unsubscribeAll(HttpUtil.userId(authentication));
 	}
 }

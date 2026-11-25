@@ -56,11 +56,9 @@ tests make throwaway pairs at run time, so no key or key-shaped fixture is ever 
   ```sh
   openssl ecparam -name prime256v1 -genkey -noout -out vapid.pem
   # Public key: the last 65 bytes of the SubjectPublicKeyInfo
-  openssl ec -in vapid.pem -pubout -outform DER | tail -c 65 | base64 | tr -d '
-=' | tr '/+' '_-'
+  openssl ec -in vapid.pem -pubout -outform DER | tail -c 65 | base64 | tr -d '\n=' | tr '/+' '_-'
   # Private key: the 32 bytes after the 7-byte SEC1 header
-  openssl ec -in vapid.pem -outform DER | tail -c +8 | head -c 32 | base64 | tr -d '
-=' | tr '/+' '_-'
+  openssl ec -in vapid.pem -outform DER | tail -c +8 | head -c 32 | base64 | tr -d '\n=' | tr '/+' '_-'
   ```
   Put both values in Secrets Manager, then delete `vapid.pem` and clear the terminal. Never paste the private key into
   chat, an issue, a commit or a log. `npx web-push generate-vapid-keys` prints the same format, if Node is at hand.

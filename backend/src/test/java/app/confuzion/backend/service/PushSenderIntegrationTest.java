@@ -39,7 +39,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.config.VapidKeys;
@@ -90,12 +89,6 @@ class PushSenderIntegrationTest {
 	 */
 	@Autowired
 	private NotificationRepository notificationRepository;
-
-	/**
-	 * The {@link TransactionTemplate}.
-	 */
-	@Autowired
-	private TransactionTemplate transactionTemplate;
 
 	/**
 	 * The app's {@link JsonMapper}.
@@ -205,8 +198,9 @@ class PushSenderIntegrationTest {
 
 	/**
 	 * Tests that a row whose user has turned push off, or has no subscription left,
-	 * ends {@code FAILED} without a send, and so does a stored endpoint off the
-	 * allowlist, which the sender never contacts.
+	 * ends {@code FAILED} without a send, and so do a stored endpoint off the
+	 * allowlist, which the sender never contacts, and a row whose payload can't be
+	 * read, which doesn't hold up the rows behind it.
 	 */
 	@Test
 	void testRowsThatCantBeSentFail() {
@@ -223,13 +217,24 @@ class PushSenderIntegrationTest {
 		var browser = new TestBrowser();
 		pushRepository.upsert(smuggled, internal, browser.p256dh(), browser.auth());
 		var smuggledRow = friendAccepted(smuggled);
+		var unreadable = user(true);
+		subscribe(unreadable, "https://fcm.googleapis.com/fcm/send/", new TestBrowser());
+		var unreadableRow = jdbcTemplate.queryForObject(
+				"INSERT INTO notification (user_id, type, event_id, payload, push_status) "
+						+ "VALUES (?, 'EVENT_CHANGED', ?, '{\"changes\": 5}', 'PENDING') RETURNING id",
+				Long.class, unreadable, event(unreadable).id());
+		var fine = user(true);
+		var fineEndpoint = subscribe(fine, "https://fcm.googleapis.com/fcm/send/", new TestBrowser());
+		var fineRow = friendAccepted(fine);
 
 		sender().run();
 
 		assertThat(stub.receivedBy(offEndpoint)).isEmpty();
 		assertThat(stub.receivedBy(internal)).isEmpty();
-		for (var row : List.of(offRow, unsubscribedRow, smuggledRow))
+		for (var row : List.of(offRow, unsubscribedRow, smuggledRow, unreadableRow))
 			assertThat(pushStatus(row)).isEqualTo("FAILED");
+		assertThat(stub.receivedBy(fineEndpoint)).hasSize(1);
+		assertThat(pushStatus(fineRow)).isEqualTo("SENT");
 		assertThat(endpoints(off)).containsExactly(offEndpoint);
 	}
 
@@ -280,6 +285,36 @@ class PushSenderIntegrationTest {
 		sender.run();
 		assertThat(stub.receivedBy(limitedEndpoint)).hasSize(2);
 		assertThat(pushStatus(limitedRow)).isEqualTo("SENT");
+	}
+
+	/**
+	 * Tests that more than a batch of rows held back by a paused push service don't
+	 * stall the rows behind them: one run walks past them, and they wait as
+	 * {@code PENDING} without another request.
+	 */
+	@Test
+	void testRowsHeldBackDontStallTheQueue() {
+		var limited = user(true);
+		var limitedEndpoint = subscribe(limited, "https://web.push.apple.com/", new TestBrowser());
+		stub.answer(limitedEndpoint, 429, "3600");
+		var held = new ArrayList<Long>();
+		for (var i = 0; i < PushSender.BATCH_SIZE + 5; i++)
+			held.add(friendAccepted(limited));
+		var other = user(true);
+		var otherEndpoint = subscribe(other, "https://updates.push.services.mozilla.com/wpush/v2/", new TestBrowser());
+		var otherRow = friendAccepted(other);
+		var sender = sender();
+
+		sender.run();
+		assertThat(pushStatus(otherRow)).isEqualTo("SENT");
+		assertThat(stub.receivedBy(otherEndpoint)).hasSize(1);
+		for (var row : held)
+			assertThat(pushStatus(row)).isEqualTo("PENDING");
+		var requests = stub.receivedBy(limitedEndpoint).size();
+		assertThat(requests).isPositive().isLessThanOrEqualTo(PushSender.BATCH_SIZE);
+
+		sender.run();
+		assertThat(stub.receivedBy(limitedEndpoint)).hasSize(requests);
 	}
 
 	/**
@@ -335,8 +370,7 @@ class PushSenderIntegrationTest {
 		var endpoint = subscribe(user, "https://fcm.googleapis.com/fcm/send/", new TestBrowser());
 		var row = friendAccepted(user);
 
-		new PushSender(pushRepository, new VapidKeys("", ""), transactionTemplate, jsonMapper, ORIGIN, stub,
-				Clock.systemUTC()).run();
+		new PushSender(pushRepository, new VapidKeys("", ""), jsonMapper, ORIGIN, stub, Clock.systemUTC()).run();
 
 		assertThat(stub.receivedBy(endpoint)).isEmpty();
 		assertThat(pushStatus(row)).isEqualTo("PENDING");
@@ -358,8 +392,7 @@ class PushSenderIntegrationTest {
 	 * @return the sender
 	 */
 	private PushSender sender(Clock clock) {
-		return new PushSender(pushRepository, new VapidKeys(vapid[0], vapid[1]), transactionTemplate, jsonMapper,
-				ORIGIN, stub, clock);
+		return new PushSender(pushRepository, new VapidKeys(vapid[0], vapid[1]), jsonMapper, ORIGIN, stub, clock);
 	}
 
 	/**

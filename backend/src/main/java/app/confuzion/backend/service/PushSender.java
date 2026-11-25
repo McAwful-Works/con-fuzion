@@ -49,7 +49,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.zerodeplibs.webpush.PushSubscription;
@@ -67,15 +66,19 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Sends {@code PENDING} notifications as Web Push (RFC 8030, 8291 and 8292) to
  * every subscription their recipient has (plan B8, D-014). Every task runs it:
- * a batch is claimed with {@code FOR UPDATE SKIP LOCKED} and held until it's
- * marked, so two senders never push the same row. Sends run in parallel on
- * virtual threads, each bounded by a connect and a request timeout.
+ * a batch is claimed with {@code SKIP LOCKED} and marked {@code SENT} in one
+ * statement, so two senders never push the same row, and no row lock is held
+ * while the pushes go out. Sends run in parallel on virtual threads, each
+ * bounded by a connect and a request timeout.
  * <p>
- * A row ends {@code SENT} when at least one browser took it, and {@code FAILED}
- * when none did or the user has push off or no subscription left. A
- * subscription the push service answers 404 or 410 for is deleted. A 429 pauses
- * sends to that push service for its {@code Retry-After}, and a row that only
- * the pause held back stays {@code PENDING} for a later run.
+ * A row stays {@code SENT} when at least one browser took it, and ends
+ * {@code FAILED} when none did, the user has push off or no subscription left,
+ * or the row can't be read. A subscription the push service answers 404 or 410
+ * for is deleted. A 429 pauses sends to that push service for its
+ * {@code Retry-After}, and a row that only the pause held back goes back to
+ * {@code PENDING}. A run walks the whole queue once, so rows held back at its
+ * head never stall the rest. Delivery is at most once: a task that stops
+ * mid-batch leaves those rows {@code SENT}, and the inbox still has them.
  * <p>
  * The sender POSTs only to an https endpoint on an allowed push service host,
  * checked again here before each send, and never follows a redirect, so a
@@ -146,12 +149,6 @@ public class PushSender {
 	private final VapidKeys vapidKeys;
 
 	/**
-	 * The {@link TransactionTemplate}: a batch is claimed, sent and marked in one
-	 * transaction.
-	 */
-	private final TransactionTemplate transactionTemplate;
-
-	/**
 	 * The {@link JsonMapper}, to write push messages.
 	 */
 	private final JsonMapper jsonMapper;
@@ -180,35 +177,32 @@ public class PushSender {
 	 * Creates the sender, with an {@link HttpClient} that never follows redirects
 	 * and gives up connecting after {@link #CONNECT_TIMEOUT}.
 	 *
-	 * @param pushRepository      the {@link PushRepository}
-	 * @param vapidKeys           the {@link VapidKeys}
-	 * @param transactionTemplate the {@link TransactionTemplate}
-	 * @param jsonMapper          the {@link JsonMapper}
-	 * @param origin              the app's public origin, the VAPID subject
+	 * @param pushRepository the {@link PushRepository}
+	 * @param vapidKeys      the {@link VapidKeys}
+	 * @param jsonMapper     the {@link JsonMapper}
+	 * @param origin         the app's public origin, the VAPID subject
 	 */
 	@Autowired
-	public PushSender(PushRepository pushRepository, VapidKeys vapidKeys, TransactionTemplate transactionTemplate,
-			JsonMapper jsonMapper, @Value("${con-fuzion.app.origin}") String origin) {
-		this(pushRepository, vapidKeys, transactionTemplate, jsonMapper, origin, httpClient(), Clock.systemUTC());
+	public PushSender(PushRepository pushRepository, VapidKeys vapidKeys, JsonMapper jsonMapper,
+			@Value("${con-fuzion.app.origin}") String origin) {
+		this(pushRepository, vapidKeys, jsonMapper, origin, httpClient(), Clock.systemUTC());
 	}
 
 	/**
 	 * Creates the sender with a given {@link HttpClient} and {@link Clock}, for
 	 * tests.
 	 *
-	 * @param pushRepository      the {@link PushRepository}
-	 * @param vapidKeys           the {@link VapidKeys}
-	 * @param transactionTemplate the {@link TransactionTemplate}
-	 * @param jsonMapper          the {@link JsonMapper}
-	 * @param origin              the app's public origin, the VAPID subject
-	 * @param http                the {@link HttpClient}
-	 * @param clock               the {@link Clock}
+	 * @param pushRepository the {@link PushRepository}
+	 * @param vapidKeys      the {@link VapidKeys}
+	 * @param jsonMapper     the {@link JsonMapper}
+	 * @param origin         the app's public origin, the VAPID subject
+	 * @param http           the {@link HttpClient}
+	 * @param clock          the {@link Clock}
 	 */
-	PushSender(PushRepository pushRepository, VapidKeys vapidKeys, TransactionTemplate transactionTemplate,
-			JsonMapper jsonMapper, String origin, HttpClient http, Clock clock) {
+	PushSender(PushRepository pushRepository, VapidKeys vapidKeys, JsonMapper jsonMapper, String origin,
+			HttpClient http, Clock clock) {
 		this.pushRepository = pushRepository;
 		this.vapidKeys = vapidKeys;
-		this.transactionTemplate = transactionTemplate;
 		this.jsonMapper = jsonMapper;
 		this.subject = origin;
 		this.http = http;
@@ -227,8 +221,8 @@ public class PushSender {
 	}
 
 	/**
-	 * Sends what's pending, a batch at a time, until a batch comes back short or
-	 * finishes nothing. It runs five seconds after the last run ended, or as
+	 * Sends what's pending, a batch at a time, walking the queue once from the
+	 * oldest row. It runs five seconds after the last run ended, or as
 	 * {@code con-fuzion.push.send-interval} (an ISO-8601 duration) says. With no
 	 * VAPID keys, push is off and it does nothing.
 	 */
@@ -237,41 +231,50 @@ public class PushSender {
 		var keyPair = vapidKeys.keyPair();
 		if (keyPair.isEmpty())
 			return;
-		Batch batch;
+		var afterId = 0L;
+		List<Pending> rows;
 		do {
-			batch = transactionTemplate.execute(status -> sendBatch(keyPair.get()));
-		} while (batch != null && batch.claimed() == BATCH_SIZE && batch.finished() > 0);
+			rows = pushRepository.claimPending(afterId, BATCH_SIZE);
+			if (rows.isEmpty())
+				return;
+			sendBatch(keyPair.get(), rows);
+			afterId = rows.getLast().id();
+		} while (rows.size() == BATCH_SIZE);
 	}
 
 	/**
-	 * Claims a batch, sends it and marks each row.
+	 * Sends a claimed batch, then marks the rows that weren't sent.
 	 *
 	 * @param keyPair the VAPID key pair
-	 * @return how many rows were claimed and how many were marked
+	 * @param rows    the claimed rows, already {@code SENT}
 	 */
-	private Batch sendBatch(VAPIDKeyPair keyPair) {
-		var rows = pushRepository.claimPending(BATCH_SIZE);
-		if (rows.isEmpty())
-			return new Batch(0, 0);
+	private void sendBatch(VAPIDKeyPair keyPair, List<Pending> rows) {
 		var userIds = rows.stream().filter(Pending::pushEnabled).map(Pending::userId).collect(Collectors.toSet());
 		var subscriptions = pushRepository.findSubscriptions(userIds).stream()
 				.collect(Collectors.groupingBy(Subscription::userId));
 
 		var sends = new ArrayList<List<Send>>();
+		var failed = new ArrayList<Long>();
 		try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
 			for (var row : rows) {
 				var message = message(row);
 				var mine = row.pushEnabled() ? subscriptions.getOrDefault(row.userId(), List.of())
 						: List.<Subscription>of();
+				if (message == null || mine.isEmpty()) {
+					failed.add(row.id());
+					sends.add(List.of());
+					continue;
+				}
 				sends.add(mine.stream().map(subscription -> new Send(subscription,
 						executor.submit(() -> send(keyPair, subscription, message)))).toList());
 			}
 		}
 
-		var sent = new ArrayList<Long>();
-		var failed = new ArrayList<Long>();
+		var heldBack = new ArrayList<Long>();
 		var gone = new ArrayList<Long>();
 		for (var i = 0; i < rows.size(); i++) {
+			if (sends.get(i).isEmpty())
+				continue;
 			var outcomes = new ArrayList<Outcome>();
 			for (var send : sends.get(i)) {
 				outcomes.add(send.outcome());
@@ -279,16 +282,14 @@ public class PushSender {
 					gone.add(send.subscription().id());
 			}
 			if (outcomes.contains(Outcome.ACCEPTED))
-				sent.add(rows.get(i).id());
-			else if (!outcomes.contains(Outcome.DEFERRED))
-				failed.add(rows.get(i).id());
+				continue;
+			(outcomes.contains(Outcome.DEFERRED) ? heldBack : failed).add(rows.get(i).id());
 		}
-		pushRepository.markPushStatus(sent, "SENT");
 		pushRepository.markPushStatus(failed, "FAILED");
+		pushRepository.markPushStatus(heldBack, "PENDING");
 		pushRepository.deleteByIds(gone);
-		LOGGER.info("Push batch: {} sent, {} failed, {} held back, {} dead subscriptions deleted", sent.size(),
-				failed.size(), rows.size() - sent.size() - failed.size(), gone.size());
-		return new Batch(rows.size(), sent.size() + failed.size());
+		LOGGER.info("Push batch: {} sent, {} failed, {} held back, {} dead subscriptions deleted",
+				rows.size() - failed.size() - heldBack.size(), failed.size(), heldBack.size(), gone.size());
 	}
 
 	/**
@@ -344,7 +345,7 @@ public class PushSender {
 			}
 			LOGGER.warn("Push to subscription {} got HTTP {}", subscription.id(), status);
 			return Outcome.FAILED;
-		} catch (IOException e) {
+		} catch (IOException | RuntimeException e) {
 			LOGGER.warn("Push to subscription {} failed ({})", subscription.id(), e.getClass().getSimpleName());
 			return Outcome.FAILED;
 		} catch (InterruptedException e) {
@@ -358,10 +359,21 @@ public class PushSender {
 	 * and the lock-screen text (D-014 rule 8), well under the 4 KB push limit.
 	 *
 	 * @param row the notification
-	 * @return the UTF-8 JSON
+	 * @return the UTF-8 JSON, or {@code null} when the row can't be read or written
 	 */
 	private byte[] message(Pending row) {
-		return jsonMapper.writeValueAsBytes(new Message(row.type(), row.eventId(), text(row.type(), row.payload())));
+		if (row.type() == null) {
+			LOGGER.warn("Notification {} can't be read, so it wasn't pushed", row.id());
+			return null;
+		}
+		try {
+			return jsonMapper
+					.writeValueAsBytes(new Message(row.type(), row.eventId(), text(row.type(), row.payload())));
+		} catch (RuntimeException e) {
+			// Only the type: a message could quote the payload.
+			LOGGER.warn("Notification {} couldn't be written as a push ({})", row.id(), e.getClass().getSimpleName());
+			return null;
+		}
 	}
 
 	/**
@@ -377,7 +389,8 @@ public class PushSender {
 		return switch (type) {
 		case SPOT_OFFERED -> "A spot opened up for you at " + title + ". Accept it before the offer runs out.";
 		case SPOT_CONFIRMED -> "You're confirmed for " + title + ".";
-		case EVENT_CHANGED -> title + " has a new " + changes(payload.changes()) + ".";
+		case EVENT_CHANGED -> payload.changes() == null || payload.changes().isEmpty() ? title + " was updated."
+				: title + " has a new " + changes(payload.changes()) + ".";
 		case EVENT_CANCELLED -> title + " was cancelled.";
 		case EVENT_REMINDER -> title + " starts in about an hour.";
 		case FRIEND_ACCEPTED -> "Someone accepted your friend invite.";
@@ -494,16 +507,6 @@ public class PushSender {
 		Outcome outcome() {
 			return future.state() == Future.State.SUCCESS ? future.resultNow() : Outcome.FAILED;
 		}
-	}
-
-	/**
-	 * What a batch did.
-	 *
-	 * @param claimed  how many rows it claimed
-	 * @param finished how many it marked {@code SENT} or {@code FAILED}
-	 * @author mcawful
-	 */
-	private record Batch(int claimed, int finished) {
 	}
 
 	/**
