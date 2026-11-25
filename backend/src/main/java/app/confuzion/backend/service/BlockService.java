@@ -24,14 +24,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import app.confuzion.backend.exception.InvalidInputException;
+import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.PersonListResponse;
+import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.SocialRepository;
 
 /**
  * Blocks. A block is a full mutual cutoff, whichever of the two made it
- * (D-011): blocking ends the friendship, circle memberships and individual
- * event audience entries both ways, and from then on the pickable set, invite
- * preview and invite accept all exclude the pair in both directions.
+ * (D-011): blocking ends the friendship, circle memberships, individual event
+ * audience entries and RSVPs on each other's events (D-013 rule 11) both ways,
+ * and from then on the pickable set, invite preview and invite accept all
+ * exclude the pair in both directions.
  *
  * @author mcawful
  */
@@ -43,12 +46,19 @@ public class BlockService {
 	private final SocialRepository socialRepository;
 
 	/**
+	 * The {@link RsvpRepository}.
+	 */
+	private final RsvpRepository rsvpRepository;
+
+	/**
 	 * Creates the service.
 	 *
 	 * @param socialRepository the {@link SocialRepository}
+	 * @param rsvpRepository   the {@link RsvpRepository}
 	 */
-	public BlockService(SocialRepository socialRepository) {
+	public BlockService(SocialRepository socialRepository, RsvpRepository rsvpRepository) {
 		this.socialRepository = socialRepository;
+		this.rsvpRepository = rsvpRepository;
 	}
 
 	/**
@@ -68,6 +78,11 @@ public class BlockService {
 	 * the block exists, preview and accept refuse every invite between the pair,
 	 * both ways, so no invite row changes: the blocker's links to other people keep
 	 * working (D-011).
+	 * <p>
+	 * Each person's active RSVP on the other's events ends as {@code LEFT}, and a
+	 * freed spot goes to the next person in line, as for leaving. The event rows
+	 * are locked right after the pair, before any other row is touched, so this
+	 * can't deadlock with a join or an edit of those events (D-013).
 	 *
 	 * @param me     the blocker's ID
 	 * @param userId the user to block
@@ -79,10 +94,16 @@ public class BlockService {
 			throw new InvalidInputException();
 		if (socialRepository.lockUsers(me, userId) < 2)
 			return;
+		var events = rsvpRepository.lockForBlock(me, userId);
 		socialRepository.insertBlock(me, userId);
 		socialRepository.deleteFriendship(me, userId);
 		socialRepository.deleteFromEachOthersCircles(me, userId);
 		socialRepository.deleteFromEachOthersEvents(me, userId);
+		for (var event : events) {
+			var attendee = event.hostId().equals(me) ? userId : me;
+			if (rsvpRepository.end(event.id(), attendee, "LEFT").filter(MyStatus.CONFIRMED::equals).isPresent())
+				rsvpRepository.freeSpot(event.id());
+		}
 	}
 
 	/**

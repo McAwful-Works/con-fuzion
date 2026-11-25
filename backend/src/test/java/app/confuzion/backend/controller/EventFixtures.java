@@ -161,6 +161,51 @@ record EventFixtures(JdbcTemplate jdbcTemplate, SocialFixtures social) {
 	}
 
 	/**
+	 * Inserts a published event as creating it does: with its host's confirmed
+	 * RSVP, so one spot is taken (D-013).
+	 *
+	 * @param hostId        the host
+	 * @param capacity      the headcount, or {@code null} for unlimited
+	 * @param startsAt      a SQL expression for the start
+	 * @param signupOpensAt a SQL expression for when sign-up opens, or
+	 *                      {@code "NULL"}
+	 * @return the event's IDs
+	 */
+	SeededEvent rsvpEvent(UUID hostId, Integer capacity, String startsAt, String signupOpensAt) {
+		var event = jdbcTemplate.queryForObject(
+				"INSERT INTO event (host_id, title, location_text, starts_at, time_zone, capacity, signup_opens_at, "
+						+ "location_visibility) VALUES (?, 'Seeded', 'Hall A', " + startsAt + ", 'UTC', ?, "
+						+ signupOpensAt + ", 'CONFIRMED') RETURNING id, public_id",
+				(rs, row) -> new SeededEvent(rs.getLong(1), rs.getObject(2, UUID.class)), hostId, capacity);
+		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status) VALUES (?, ?, 'CONFIRMED')", event.id(),
+				hostId);
+		jdbcTemplate.update("UPDATE event SET confirmed_count = 1 WHERE id = ?", event.id());
+		return event;
+	}
+
+	/**
+	 * Returns a user's latest RSVP status on an event.
+	 *
+	 * @param eventId the event's internal ID
+	 * @param userId  the user
+	 * @return the status, or {@code null} when they never joined
+	 */
+	String rsvpStatus(long eventId, UUID userId) {
+		return jdbcTemplate.query("SELECT status FROM rsvp WHERE event_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1",
+				rs -> rs.next() ? rs.getString(1) : null, eventId, userId);
+	}
+
+	/**
+	 * Returns an event's confirmed count.
+	 *
+	 * @param eventId the event's internal ID
+	 * @return {@code confirmed_count}
+	 */
+	int confirmedCount(long eventId) {
+		return jdbcTemplate.queryForObject("SELECT confirmed_count FROM event WHERE id = ?", Integer.class, eventId);
+	}
+
+	/**
 	 * Cancels an event.
 	 *
 	 * @param eventId the event's internal ID

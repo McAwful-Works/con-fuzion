@@ -41,6 +41,8 @@ import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import app.confuzion.backend.exception.ConflictException;
+import app.confuzion.backend.exception.ConflictException.Conflict;
 import app.confuzion.backend.exception.EventNotEditableException;
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.exception.LimitExceededException;
@@ -63,6 +65,7 @@ import app.confuzion.backend.repository.AppUserRepository;
 import app.confuzion.backend.repository.EventAudienceRepository;
 import app.confuzion.backend.repository.EventAudienceRepository.LabelledEntry;
 import app.confuzion.backend.repository.EventRepository;
+import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.SocialRepository;
 import app.confuzion.backend.repository.UserGuildRepository;
 
@@ -91,6 +94,11 @@ public class EventService {
 	 * The scope that lists the caller's own events.
 	 */
 	private static final String HOSTING = "hosting";
+
+	/**
+	 * The scope that lists My schedule.
+	 */
+	private static final String ATTENDING = "attending";
 
 	/**
 	 * Separates a cursor's fields before encoding.
@@ -123,6 +131,11 @@ public class EventService {
 	private final SocialRepository socialRepository;
 
 	/**
+	 * The {@link RsvpRepository}, for where the viewer stands and capacity edits.
+	 */
+	private final RsvpRepository rsvpRepository;
+
+	/**
 	 * Creates the service.
 	 *
 	 * @param eventRepository     the {@link EventRepository}
@@ -130,15 +143,17 @@ public class EventService {
 	 * @param appUserRepository   the {@link AppUserRepository}
 	 * @param userGuildRepository the {@link UserGuildRepository}
 	 * @param socialRepository    the {@link SocialRepository}
+	 * @param rsvpRepository      the {@link RsvpRepository}
 	 */
 	public EventService(EventRepository eventRepository, EventAudienceRepository audienceRepository,
 			AppUserRepository appUserRepository, UserGuildRepository userGuildRepository,
-			SocialRepository socialRepository) {
+			SocialRepository socialRepository, RsvpRepository rsvpRepository) {
 		this.eventRepository = eventRepository;
 		this.audienceRepository = audienceRepository;
 		this.appUserRepository = appUserRepository;
 		this.userGuildRepository = userGuildRepository;
 		this.socialRepository = socialRepository;
+		this.rsvpRepository = rsvpRepository;
 	}
 
 	/**
@@ -189,11 +204,12 @@ public class EventService {
 	}
 
 	/**
-	 * Returns a page of upcoming events: the caller's feed, or the events they
-	 * host.
+	 * Returns a page of upcoming events: the caller's feed, the events they host,
+	 * or My schedule.
 	 *
 	 * @param viewer the signed-in user's ID
-	 * @param scope  {@code feed} or {@code hosting}, already validated
+	 * @param scope  {@code feed}, {@code hosting} or {@code attending}, already
+	 *               validated
 	 * @param cursor the previous page's cursor, or {@code null} for the first page
 	 * @param limit  the most events to return, already validated
 	 * @return the page
@@ -203,9 +219,11 @@ public class EventService {
 	@Transactional(readOnly = true)
 	public EventPageResponse getEvents(UUID viewer, String scope, String cursor, int limit) {
 		var after = cursor == null ? Cursor.FIRST : Cursor.decode(scope, cursor);
-		var events = HOSTING.equals(scope)
-				? eventRepository.findHosting(viewer, after.startsAt(), after.id(), limit + 1)
-				: eventRepository.findFeed(viewer, after.startsAt(), after.id(), limit + 1);
+		var events = switch (scope) {
+		case HOSTING -> eventRepository.findHosting(viewer, after.startsAt(), after.id(), limit + 1);
+		case ATTENDING -> eventRepository.findAttending(viewer, after.startsAt(), after.id(), limit + 1);
+		default -> eventRepository.findFeed(viewer, after.startsAt(), after.id(), limit + 1);
+		};
 		if (events.size() <= limit)
 			return new EventPageResponse(toResponses(viewer, events), null);
 		var page = events.subList(0, limit);
@@ -217,7 +235,9 @@ public class EventService {
 	/**
 	 * Replaces every editable field of an event the caller hosts, its audience
 	 * included. Entries already on the event are kept without a re-check; only new
-	 * ones must be usable. The event row stays locked until the transaction ends.
+	 * ones must be usable. The event row stays locked until the transaction ends,
+	 * so the capacity check can't race a join (D-013). Once saved, waitlisted
+	 * people fill any free spots in queue order, if the event hasn't started.
 	 *
 	 * @param hostId  the signed-in user's ID
 	 * @param eventId the event's public ID
@@ -227,6 +247,8 @@ public class EventService {
 	 *                                   audience entry can't be used; nothing is
 	 *                                   saved
 	 * @throws EventNotEditableException when the event is cancelled or has ended
+	 * @throws ConflictException         when the capacity is below the number
+	 *                                   already confirmed; nothing is saved
 	 * @throws InvalidInputException     when the request moves the start into the
 	 *                                   past
 	 */
@@ -238,6 +260,8 @@ public class EventService {
 			throw new EventNotEditableException();
 		if (!micros(request.startsAt()).equals(event.getStartsAt()) && !request.startsAt().isAfter(now))
 			throw new InvalidInputException();
+		if (request.capacity() != null && request.capacity() < event.getConfirmedCount())
+			throw new ConflictException(Conflict.CAPACITY_BELOW_CONFIRMED);
 
 		var current = audienceRepository.findByEventIdOrderById(event.getId());
 		var currentRefs = current.stream().map(EventAudience::ref).collect(toSet());
@@ -247,6 +271,8 @@ public class EventService {
 				.map(ref -> new EventAudience(event.getId(), ref)).toList());
 		apply(event, request);
 		eventRepository.flush();
+		rsvpRepository.fillFreeSpots(event.getId(),
+				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
 		return toResponses(hostId, List.of(event)).getFirst();
 	}
 
@@ -346,8 +372,8 @@ public class EventService {
 	}
 
 	/**
-	 * Maps events to what the viewer may see, loading hosts and (for the viewer's
-	 * own events) audiences in one query each.
+	 * Maps events to what the viewer may see, loading hosts, where the viewer
+	 * stands and (for the viewer's own events) audiences in one query each.
 	 *
 	 * @param viewer the viewer's user ID
 	 * @param events the events, which the viewer may see
@@ -360,34 +386,35 @@ public class EventService {
 		var audiences = ownIds.isEmpty() ? Map.<Long, List<AudienceEntry>>of()
 				: audienceRepository.findLabelled(ownIds).stream().collect(
 						groupingBy(LabelledEntry::getEventId, mapping(EventService::toAudienceEntry, toList())));
-		return events.stream().map(event -> toResponse(viewer, event, hosts.get(event.getHostId()), audiences))
-				.toList();
+		var statuses = rsvpRepository.findStatuses(viewer, events.stream().map(Event::getId).toList());
+		return events.stream().map(event -> toResponse(viewer, event, hosts.get(event.getHostId()),
+				statuses.getOrDefault(event.getId(), MyStatus.NONE), audiences)).toList();
 	}
 
 	/**
 	 * Maps one event to what the viewer may see. Only the host gets the audience,
 	 * and a {@link LocationVisibility#CONFIRMED} location is withheld from everyone
-	 * else (until M3 adds confirmed attendees).
+	 * but the host and confirmed attendees (D-013).
 	 *
 	 * @param viewer    the viewer's user ID
 	 * @param event     the {@link Event}
 	 * @param host      the host
+	 * @param myStatus  where the viewer stands
 	 * @param audiences the audiences of the viewer's own events, by event ID
 	 * @return the {@link EventResponse}
 	 */
-	private static EventResponse toResponse(UUID viewer, Event event, AppUser host,
+	private static EventResponse toResponse(UUID viewer, Event event, AppUser host, MyStatus myStatus,
 			Map<Long, List<AudienceEntry>> audiences) {
 		var isHost = event.getHostId().equals(viewer);
-		var locationHidden = !isHost && event.getLocationVisibility() == LocationVisibility.CONFIRMED;
+		var locationHidden = !isHost && myStatus != MyStatus.CONFIRMED
+				&& event.getLocationVisibility() == LocationVisibility.CONFIRMED;
 		return new EventResponse(event.getPublicId(),
 				new PersonResponse(host.getId(),
 						host.getGlobalName() != null ? host.getGlobalName() : host.getUsername(),
 						UserService.avatarUrl(host.getDiscordId(), host.getAvatarHash())),
 				event.getTitle(), event.getDescription(), locationHidden ? null : event.getLocationText(),
 				locationHidden, event.getLocationVisibility(), event.getTag(), event.getStartsAt(), event.getEndsAt(),
-				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getStatus(), isHost,
-				// Until joining is built (#54), the host's RSVP is the only one there is.
-				isHost ? MyStatus.CONFIRMED : MyStatus.NONE,
+				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getStatus(), isHost, myStatus,
 				isHost ? audiences.getOrDefault(event.getId(), List.of()) : null);
 	}
 

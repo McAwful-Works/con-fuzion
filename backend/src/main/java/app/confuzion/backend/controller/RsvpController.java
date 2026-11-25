@@ -18,10 +18,17 @@
  */
 package app.confuzion.backend.controller;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
+import java.util.Objects;
 import java.util.UUID;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,12 +37,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.AttendeesResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
 import app.confuzion.backend.model.record.RsvpResponse;
 import app.confuzion.backend.model.record.SpotsResponse;
+import app.confuzion.backend.service.RsvpService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -47,8 +55,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * The {@link RestController} for joining events, the waitlist, attendee lists
- * and spot counts (D-013). Every operation is a contract stub that answers 501
- * until #54 implements it. An event the caller can't see is a 404 (D-012), and
+ * and spot counts (D-013). An event the caller can't see is a 404 (D-012), and
  * the user ID always comes from the session, never from the request.
  *
  * @author mcawful
@@ -68,6 +75,26 @@ public class RsvpController {
 	 */
 	private static final String HOST_CANNOT_LEAVE = "errorType HOST_CANNOT_LEAVE: the host always holds a spot. They "
 			+ "cancel the event instead.";
+
+	/**
+	 * {@code /spots} may be kept only by the caller's own browser, which must
+	 * revalidate it every time (D-013 rule 16).
+	 */
+	private static final CacheControl SPOTS_CACHE_CONTROL = CacheControl.noCache().cachePrivate();
+
+	/**
+	 * The {@link RsvpService}.
+	 */
+	private final RsvpService rsvpService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param rsvpService the {@link RsvpService}
+	 */
+	public RsvpController(RsvpService rsvpService) {
+		this.rsvpService = rsvpService;
+	}
 
 	/**
 	 * Joins an event: a spot if one is free, otherwise the back of the waitlist.
@@ -93,7 +120,7 @@ public class RsvpController {
 			+ "about one attempt per second per user, so wait before retrying.")
 	public ResponseRecord<RsvpResponse> join(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(rsvpService.join(HttpUtil.userId(authentication), eventId));
 	}
 
 	/**
@@ -113,7 +140,7 @@ public class RsvpController {
 	@ApiResponse(responseCode = "409", description = HOST_CANNOT_LEAVE)
 	public void leave(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		rsvpService.leave(HttpUtil.userId(authentication), eventId);
 	}
 
 	/**
@@ -132,7 +159,7 @@ public class RsvpController {
 			+ "event.")
 	public ResponseRecord<AttendeesResponse> getAttendees(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(rsvpService.getAttendees(HttpUtil.userId(authentication), eventId));
 	}
 
 	/**
@@ -154,15 +181,17 @@ public class RsvpController {
 	public void removeAttendee(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId,
 			@Parameter(description = "The person's user ID") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		rsvpService.remove(HttpUtil.userId(authentication), eventId, userId);
 	}
 
 	/**
 	 * Returns an event's spot counts and the caller's own place, for polling.
+	 * Spring answers a matching {@code If-None-Match} with a bodiless 304 that
+	 * keeps these headers.
 	 *
 	 * @param authentication the session's {@link Authentication}
 	 * @param eventId        the event's public ID
-	 * @return the {@link SpotsResponse} envelope
+	 * @return the {@link SpotsResponse} envelope, with its {@code ETag}
 	 */
 	@GetMapping("/spots")
 	@Operation(summary = "Get spot counts", description = "A small response for polling: about every 3 seconds in "
@@ -176,8 +205,30 @@ public class RsvpController {
 			+ "tag for this response, which is specific to the caller. Send it back in If-None-Match.", schema = @Schema(type = "string")))
 	@ApiResponse(responseCode = "304", description = "Not modified: If-None-Match matches. No body.", content = @Content)
 	@ApiResponse(responseCode = "404", description = NOT_VISIBLE)
-	public ResponseRecord<SpotsResponse> getSpots(@Parameter(hidden = true) Authentication authentication,
+	public ResponseEntity<ResponseRecord<SpotsResponse>> getSpots(
+			@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		var spots = rsvpService.getSpots(HttpUtil.userId(authentication), eventId);
+		return ResponseEntity.ok().eTag(etag(spots)).cacheControl(SPOTS_CACHE_CONTROL)
+				.body(new ResponseRecord<>(spots));
+	}
+
+	/**
+	 * Returns a tag for a {@code /spots} body: a hash of every field, so it changes
+	 * whenever anything the caller sees does, and is the same on every task.
+	 *
+	 * @param spots the {@link SpotsResponse}
+	 * @return the tag, without quotes
+	 */
+	static String etag(SpotsResponse spots) {
+		var fields = String.join(",", Objects.toString(spots.capacity()), Integer.toString(spots.confirmed()),
+				Integer.toString(spots.waitlisted()), Objects.toString(spots.spotsLeft()), spots.myStatus().name(),
+				Objects.toString(spots.myPosition()));
+		try {
+			var digest = MessageDigest.getInstance("SHA-256").digest(fields.getBytes(StandardCharsets.US_ASCII));
+			return Base64.getUrlEncoder().withoutPadding().encodeToString(digest).substring(0, 22);
+		} catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException(e);
+		}
 	}
 }

@@ -19,55 +19,120 @@
 package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 
+import app.confuzion.backend.model.record.AttendeesResponse;
+import app.confuzion.backend.model.record.MyStatus;
+import app.confuzion.backend.model.record.RsvpResponse;
+import app.confuzion.backend.model.record.SpotsResponse;
+import app.confuzion.backend.service.RsvpService;
+
 /**
- * Unit tests for the {@link RsvpController} contract stubs: every operation
- * answers 501 in the error envelope, and an ID that isn't a UUID is a 400.
+ * Unit tests for the {@link RsvpController}: each operation maps to the service
+ * with the session's user ID, an ID that isn't a UUID is a 400 that never
+ * reaches the service, and the {@code /spots} tag follows its body.
  *
  * @author mcawful
  */
 class RsvpControllerTest {
 	/**
+	 * The signed-in user's ID.
+	 */
+	private static final UUID USER_ID = UUID.randomUUID();
+
+	/**
+	 * The event's public ID.
+	 */
+	private static final UUID EVENT_ID = UUID.randomUUID();
+
+	/**
 	 * An event's path.
 	 */
-	private static final String EVENT = "/api/events/" + UUID.randomUUID();
+	private static final String EVENT = "/api/events/" + EVENT_ID;
+
+	/**
+	 * The signed-in user.
+	 */
+	private static final Authentication AUTHENTICATION = UsernamePasswordAuthenticationToken
+			.authenticated(USER_ID.toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+	/**
+	 * A waitlisted caller's spot counts.
+	 */
+	private static final SpotsResponse SPOTS = new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 2);
+
+	/**
+	 * The mocked {@link RsvpService}.
+	 */
+	private final RsvpService rsvpService = mock(RsvpService.class);
 
 	/**
 	 * The {@link MockMvc}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new RsvpController());
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new RsvpController(rsvpService));
 
 	/**
-	 * Returns one request per operation.
-	 *
-	 * @return the requests
+	 * Tests that each operation calls the service with the session's user and
+	 * answers in the envelope.
 	 */
-	static Stream<RequestBuilder> operations() {
-		return Stream.of(post(EVENT + "/rsvp"), delete(EVENT + "/rsvp"), get(EVENT + "/attendees"),
-				delete(EVENT + "/rsvps/" + UUID.randomUUID()), get(EVENT + "/spots"));
+	@Test
+	void testOperationsMapToTheService() throws Exception {
+		var other = UUID.randomUUID();
+		when(rsvpService.join(USER_ID, EVENT_ID)).thenReturn(new RsvpResponse(RsvpResponse.Status.WAITLISTED, 4));
+		when(rsvpService.getAttendees(USER_ID, EVENT_ID)).thenReturn(new AttendeesResponse(List.of(), null));
+		when(rsvpService.getSpots(USER_ID, EVENT_ID)).thenReturn(SPOTS);
+
+		mockMvc.perform(post(EVENT + "/rsvp").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("RSVP"))
+				.andExpect(jsonPath("$.body.status").value("WAITLISTED"))
+				.andExpect(jsonPath("$.body.position").value(4));
+		mockMvc.perform(delete(EVENT + "/rsvp").principal(AUTHENTICATION)).andExpect(status().isNoContent());
+		mockMvc.perform(get(EVENT + "/attendees").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("ATTENDEES"));
+		mockMvc.perform(delete(EVENT + "/rsvps/" + other).principal(AUTHENTICATION)).andExpect(status().isNoContent());
+		mockMvc.perform(get(EVENT + "/spots").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("SPOTS")).andExpect(jsonPath("$.body.myPosition").value(2));
+
+		verify(rsvpService).leave(USER_ID, EVENT_ID);
+		verify(rsvpService).remove(USER_ID, EVENT_ID, other);
 	}
 
 	/**
-	 * Tests that every operation is a 501 until #54 implements it.
-	 *
-	 * @param request the request
+	 * Tests that the {@code /spots} tag is stable for the same body and changes
+	 * with anything in it, the caller's own position included.
 	 */
-	@ParameterizedTest
-	@MethodSource("operations")
-	void testStubsAreNotImplemented(RequestBuilder request) throws Exception {
-		assertError(mockMvc, request, HttpStatus.NOT_IMPLEMENTED);
+	@Test
+	void testEtagFollowsTheBody() {
+		var tag = RsvpController.etag(SPOTS);
+		assertThat(tag).matches("[A-Za-z0-9_-]{22}")
+				.isEqualTo(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 2)));
+		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 3, 0, MyStatus.WAITLISTED, 1))).isNotEqualTo(tag);
+		assertThat(RsvpController.etag(new SpotsResponse(11, 11, 4, 0, MyStatus.WAITLISTED, 2))).isNotEqualTo(tag);
+		assertThat(RsvpController.etag(new SpotsResponse(null, 11, 0, null, MyStatus.CONFIRMED, null)))
+				.isNotEqualTo(RsvpController.etag(new SpotsResponse(null, 11, 0, null, MyStatus.NONE, null)));
 	}
 
 	/**
@@ -82,7 +147,7 @@ class RsvpControllerTest {
 	}
 
 	/**
-	 * Tests that an ID that isn't a UUID is a 400.
+	 * Tests that an ID that isn't a UUID is a 400 that never reaches the service.
 	 *
 	 * @param request the request
 	 */
@@ -90,5 +155,6 @@ class RsvpControllerTest {
 	@MethodSource("badIds")
 	void testRejectsBadIds(RequestBuilder request) throws Exception {
 		assertError(mockMvc, request, HttpStatus.BAD_REQUEST);
+		verifyNoInteractions(rsvpService);
 	}
 }
