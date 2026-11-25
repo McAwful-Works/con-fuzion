@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import app.confuzion.backend.exception.InvalidInputException;
 import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.PersonListResponse;
+import app.confuzion.backend.repository.NotificationRepository;
 import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.SocialRepository;
 
@@ -51,14 +52,22 @@ public class BlockService {
 	private final RsvpRepository rsvpRepository;
 
 	/**
+	 * The {@link NotificationRepository}.
+	 */
+	private final NotificationRepository notificationRepository;
+
+	/**
 	 * Creates the service.
 	 *
-	 * @param socialRepository the {@link SocialRepository}
-	 * @param rsvpRepository   the {@link RsvpRepository}
+	 * @param socialRepository       the {@link SocialRepository}
+	 * @param rsvpRepository         the {@link RsvpRepository}
+	 * @param notificationRepository the {@link NotificationRepository}
 	 */
-	public BlockService(SocialRepository socialRepository, RsvpRepository rsvpRepository) {
+	public BlockService(SocialRepository socialRepository, RsvpRepository rsvpRepository,
+			NotificationRepository notificationRepository) {
 		this.socialRepository = socialRepository;
 		this.rsvpRepository = rsvpRepository;
+		this.notificationRepository = notificationRepository;
 	}
 
 	/**
@@ -84,6 +93,10 @@ public class BlockService {
 	 * are locked right after the pair, before any other row is touched, so this
 	 * can't deadlock with a join or an edit of those events (D-013).
 	 *
+	 * <p>
+	 * Each person's notifications about the other's events, and their
+	 * {@code FRIEND_ACCEPTED} for the other, are deleted (D-014).
+	 *
 	 * @param me     the blocker's ID
 	 * @param userId the user to block
 	 * @throws InvalidInputException when the user is the caller
@@ -96,6 +109,8 @@ public class BlockService {
 			return;
 		var events = rsvpRepository.lockForBlock(me, userId);
 		socialRepository.insertBlock(me, userId);
+		notificationRepository.deleteAbout(me, userId);
+		notificationRepository.deleteAbout(userId, me);
 		socialRepository.deleteFriendship(me, userId);
 		socialRepository.deleteFromEachOthersCircles(me, userId);
 		socialRepository.deleteFromEachOthersEvents(me, userId);

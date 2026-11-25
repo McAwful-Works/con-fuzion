@@ -27,11 +27,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.NotificationPageResponse;
 import app.confuzion.backend.model.record.NotificationReadRequest;
 import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.service.NotificationService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -53,6 +54,20 @@ import jakarta.validation.constraints.Size;
 @Tag(name = "notifications", description = "The signed-in user's inbox")
 public class NotificationController {
 	/**
+	 * The {@link NotificationService}.
+	 */
+	private final NotificationService notificationService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param notificationService the {@link NotificationService}
+	 */
+	public NotificationController(NotificationService notificationService) {
+		this.notificationService = notificationService;
+	}
+
+	/**
 	 * Returns a page of the caller's inbox, newest first.
 	 *
 	 * @param authentication the session's {@link Authentication}
@@ -71,7 +86,7 @@ public class NotificationController {
 			@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The previous page's nextCursor. Opaque.") @RequestParam(required = false) @Size(max = 200) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String cursor,
 			@Parameter(description = "Notifications per page, 1 to 50") @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(notificationService.getInbox(HttpUtil.userId(authentication), cursor, limit));
 	}
 
 	/**
@@ -89,6 +104,6 @@ public class NotificationController {
 	@ApiResponse(responseCode = "204", description = "Marked, or nothing to mark.")
 	public void markRead(@Parameter(hidden = true) Authentication authentication,
 			@Valid @RequestBody NotificationReadRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		notificationService.markRead(HttpUtil.userId(authentication), request.upTo());
 	}
 }
