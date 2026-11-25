@@ -63,7 +63,8 @@ import app.confuzion.backend.service.RsvpService;
  * @author mcawful
  */
 @Tag("integration")
-@SpringBootTest(properties = "con-fuzion.rate-limiter.token.capacity=10000")
+@SpringBootTest(properties = { "con-fuzion.rate-limiter.token.capacity=10000",
+		"con-fuzion.rate-limiter.join.capacity=10000" })
 @Import(TestcontainersConfiguration.class)
 class RsvpConcurrencyIntegrationTest {
 	/**
@@ -160,6 +161,7 @@ class RsvpConcurrencyIntegrationTest {
 		eventService.updateEvent(host, event.publicId(), request(13));
 		assertThat(statuses(event, queue.subList(13, 16))).containsExactly("CONFIRMED", "CONFIRMED", "WAITLISTED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(13);
+		assertThat(rsvpService.getSpots(queue.get(15).userId(), event.publicId()).myPosition()).isEqualTo(1);
 
 		assertThatThrownBy(() -> eventService.updateEvent(host, event.publicId(), request(12))).isInstanceOfSatisfying(
 				ConflictException.class, e -> assertThat(e.getConflict()).isEqualTo(Conflict.CAPACITY_BELOW_CONFIRMED));

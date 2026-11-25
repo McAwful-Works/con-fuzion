@@ -246,6 +246,22 @@ public class RsvpRepository {
 	}
 
 	/**
+	 * Returns an event's shared spot counts.
+	 *
+	 * @param eventId the event's internal ID
+	 * @return the {@link Counts}
+	 */
+	public Counts findCounts(long eventId) {
+		return jdbc.sql("""
+				SELECT e.capacity, e.confirmed_count,
+					(SELECT count(*) FROM rsvp w WHERE w.event_id = e.id AND w.status = 'WAITLISTED') AS waitlisted
+				FROM event e WHERE e.id = :eventId""").param("eventId", eventId)
+				.query((rs, row) -> new Counts(rs.getObject("capacity", Integer.class), rs.getInt("confirmed_count"),
+						rs.getInt("waitlisted")))
+				.single();
+	}
+
+	/**
 	 * Returns the people with one status on an event, in queue order, leaving out
 	 * anyone in a block with the viewer either way.
 	 *
@@ -300,5 +316,16 @@ public class RsvpRepository {
 	 * @author mcawful
 	 */
 	public record Mine(MyStatus status, Integer position) {
+	}
+
+	/**
+	 * An event's spot counts, the same for everyone who can see it.
+	 *
+	 * @param capacity   the headcount, or {@code null} for unlimited
+	 * @param confirmed  how many people hold a spot, the host included
+	 * @param waitlisted how many people are waitlisted
+	 * @author mcawful
+	 */
+	public record Counts(Integer capacity, int confirmed, int waitlisted) {
 	}
 }
