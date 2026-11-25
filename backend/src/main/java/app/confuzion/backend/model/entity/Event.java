@@ -117,6 +117,14 @@ public class Event {
 	private Integer capacity;
 
 	/**
+	 * How many people hold a spot, the host included. Only the RSVP writes in
+	 * {@code RsvpRepository} change it, under the event row lock (D-013), so the
+	 * entity never writes it.
+	 */
+	@Column(name = "confirmed_count", insertable = false, updatable = false)
+	private int confirmedCount;
+
+	/**
 	 * When sign-up opens, or {@code null} for at once.
 	 */
 	@Column(name = "signup_opens_at")
