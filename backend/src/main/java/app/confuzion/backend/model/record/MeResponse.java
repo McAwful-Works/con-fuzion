@@ -39,9 +39,14 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * @param timeZone    the user's IANA time zone ID, or {@code null} until they
  *                    pick one
  * @param pushEnabled whether the user wants push notifications
- * @param roles       the user's roles, which always include {@link Role#USER}
+ * @param roles       the roles in effect for this session, which always include
+ *                    {@link Role#USER}. A granted role is in effect only while
+ *                    Discord reported MFA on at sign-in (D-015)
  * @param mfaEnabled  whether the user's Discord account has MFA on, which
  *                    moderator and admin powers require
+ * @param mfaRequired whether the user holds a granted role that isn't in effect
+ *                    because MFA is off, so the client shows the "turn on
+ *                    Discord 2FA" note
  * @author mcawful
  */
 public record MeResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID id,
@@ -50,8 +55,10 @@ public record MeResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID id,
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "https://cdn.discordapp.com/embed/avatars/0.png") String avatarUrl,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "America/Chicago") String timeZone,
 		@Schema(requiredMode = RequiredMode.REQUIRED) boolean pushEnabled,
-		@Schema(requiredMode = RequiredMode.REQUIRED) List<Role> roles,
-		@Schema(requiredMode = RequiredMode.REQUIRED) boolean mfaEnabled) implements ResponseBodyObject {
+		@Schema(requiredMode = RequiredMode.REQUIRED, description = "The roles in effect for this session. Always includes USER. MODERATOR and ADMIN apply only while Discord reported MFA on at sign-in (D-015).") List<Role> roles,
+		@Schema(requiredMode = RequiredMode.REQUIRED) boolean mfaEnabled,
+		@Schema(requiredMode = RequiredMode.REQUIRED, description = "True when the user holds MODERATOR or ADMIN but it isn't in effect because their Discord account has MFA off. Show the \"turn on Discord 2FA\" note; it takes effect at the next sign-in after they turn it on.") boolean mfaRequired)
+		implements ResponseBodyObject {
 	/**
 	 * A user role. Everyone has {@code USER}; an admin grants the others (plan
 	 * B12).

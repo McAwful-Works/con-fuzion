@@ -150,6 +150,14 @@ public class Event {
 	private Status status;
 
 	/**
+	 * The moderator's reason while the event is hidden (D-015), or {@code null}
+	 * when it isn't. Read-only here: only the moderation path writes it, with
+	 * native SQL, so a host's edit can never write back a stale value.
+	 */
+	@Column(name = "moderation_reason", insertable = false, updatable = false)
+	private String moderationReason;
+
+	/**
 	 * When the event was last changed.
 	 */
 	@Column(name = "updated_at", nullable = false)

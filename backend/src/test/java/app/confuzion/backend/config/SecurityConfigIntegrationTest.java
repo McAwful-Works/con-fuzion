@@ -48,6 +48,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -56,6 +61,7 @@ import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.DiscordStub;
 import app.confuzion.backend.TestcontainersConfiguration;
+import app.confuzion.backend.service.DiscordOAuth2UserService;
 
 /**
  * Drives the real sign-in flow over HTTP against a {@link DiscordStub}: the
@@ -135,7 +141,46 @@ class SecurityConfigIntegrationTest {
 							+ "A".repeat(86) + "\",\"auth\":\"" + "a".repeat(22) + "\"}}",
 					204),
 			new Endpoint("DELETE", "/api/push/subscriptions",
-					"{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}", 204));
+					"{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}", 204),
+			// Reports (D-015): a 501 stub until #85.
+			new Endpoint("POST", "/api/reports", "{\"targetType\":\"USER\",\"targetId\":"
+					+ "\"5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20\",\"reason\":\"SPAM\"}", 501));
+
+	/**
+	 * One valid request per {@code /api/admin} operation (D-015), with the role it
+	 * needs: {@code MODERATOR} for the moderator routes (which ADMIN also passes)
+	 * and {@code ADMIN} for the rest. All are 501 stubs until #84 to #86.
+	 */
+	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
+			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR"),
+			new AdminEndpoint("GET", "/api/admin/reports/7", null, "MODERATOR"),
+			new AdminEndpoint("POST", "/api/admin/reports/7/resolve", "{\"resolution\":\"DISMISSED\"}", "MODERATOR"),
+			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/hide",
+					"{\"reason\":\"Unsafe\"}", "MODERATOR"),
+			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/unhide", null,
+					"MODERATOR"),
+			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/cancel",
+					"{\"reason\":\"Unsafe\"}", "MODERATOR"),
+			new AdminEndpoint("GET", "/api/admin/users?q=con", null, "MODERATOR"),
+			new AdminEndpoint("POST", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/suspend",
+					"{\"until\":\"" + Instant.now().plus(Duration.ofDays(7)) + "\",\"reason\":\"Spam\"}", "MODERATOR"),
+			new AdminEndpoint("POST", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/unsuspend", null,
+					"MODERATOR"),
+			new AdminEndpoint("POST", "/api/admin/bans", "{\"discordId\":\"80351110224678912\",\"reason\":\"Spam\"}",
+					"ADMIN"),
+			new AdminEndpoint("DELETE", "/api/admin/bans/80351110224678912", null, "ADMIN"),
+			new AdminEndpoint("GET", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles", null, "ADMIN"),
+			new AdminEndpoint("PUT", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles",
+					"{\"roles\":[\"MODERATOR\"]}", "ADMIN"),
+			new AdminEndpoint("DELETE", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles", null, "ADMIN"),
+			new AdminEndpoint("GET", "/api/admin/audit", null, "ADMIN"),
+			// Not routes: denied to everyone signed in, whatever their role.
+			new AdminEndpoint("GET", "/api/admin", null, null),
+			new AdminEndpoint("GET", "/api/admin/unknown", null, null),
+			new AdminEndpoint("GET", "/api/admin/reports/", null, null),
+			new AdminEndpoint("POST", "/api/admin/reports", "{}", null),
+			new AdminEndpoint("DELETE", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/suspend", null, null),
+			new AdminEndpoint("GET", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20", null, null));
 
 	/**
 	 * The stub Discord.
@@ -523,6 +568,58 @@ class SecurityConfigIntegrationTest {
 	/**
 	 * Tests that a bootstrap admin gets ADMIN only with Discord MFA on.
 	 */
+	/**
+	 * Tests the {@code /api/admin} rule (D-015) for every admin operation: signed
+	 * out is a 401, signed in without the role a 403, and with it the operation
+	 * runs (a 501 stub). ADMIN passes every moderator route, a moderator gets a 403
+	 * from the ADMIN-only ones, and anything else under {@code /api/admin} is a 403
+	 * even for an admin. A bootstrap admin without MFA has no admin access.
+	 */
+	@Test
+	void adminRoutesNeedTheirRole() throws Exception {
+		DISCORD.reset("100000000000000110", "plain_user", true);
+		var user = login().session();
+		DISCORD.reset("100000000000000111", "moderator", true);
+		var moderator = login().session();
+		grant(moderator, "ROLE_USER", "ROLE_MODERATOR");
+		DISCORD.reset(ADMIN_ID, "admin", true);
+		var admin = login().session();
+		DISCORD.reset(ADMIN_ID, "admin", false);
+		var adminWithoutMfa = login().session();
+		var anonymousCsrf = cookie(send("GET", "/api/me", null, null), "XSRF-TOKEN");
+
+		for (var endpoint : ADMIN_ENDPOINTS) {
+			var what = endpoint.method() + " " + endpoint.path();
+			assertError(send(endpoint.method(), endpoint.path(), null, endpoint.body(), "Cookie",
+					"XSRF-TOKEN=" + anonymousCsrf, "X-XSRF-TOKEN", anonymousCsrf), 401, "UNAUTHORIZED");
+			for (var session : List.of(user, adminWithoutMfa))
+				assertThat(sendWithCsrf(endpoint.method(), endpoint.path(), session, endpoint.body()).statusCode())
+						.as(what).isEqualTo(403);
+			assertThat(sendWithCsrf(endpoint.method(), endpoint.path(), moderator, endpoint.body()).statusCode())
+					.as(what).isEqualTo("MODERATOR".equals(endpoint.role()) ? 501 : 403);
+			var asAdmin = sendWithCsrf(endpoint.method(), endpoint.path(), admin, endpoint.body());
+			if (endpoint.role() == null)
+				assertError(asAdmin, 403, "FORBIDDEN");
+			else
+				assertError(asAdmin, 501, "NOT_IMPLEMENTED");
+			if (!endpoint.method().equals("GET"))
+				assertError(send(endpoint.method(), endpoint.path(), admin, endpoint.body()), 403, "FORBIDDEN");
+		}
+		assertError(sendWithCsrf("GET", "/api/admin/audit", user, null), 403, "FORBIDDEN");
+	}
+
+	/**
+	 * Tests that {@code /api/me} reports no 2FA note for users who need none
+	 * (D-015). #84 sets it for a granted role without MFA.
+	 */
+	@Test
+	void meReportsMfaRequired() throws Exception {
+		DISCORD.reset("100000000000000120", "no_role", false);
+		var me = send("GET", "/api/me", login().session(), null);
+
+		assertThat(JsonPath.<Boolean>read(me.body(), "$.body.mfaRequired")).isFalse();
+	}
+
 	@Test
 	void bootstrapAdminNeedsMfa() throws Exception {
 		DISCORD.reset(ADMIN_ID, "admin", false);
@@ -609,6 +706,27 @@ class SecurityConfigIntegrationTest {
 	 * @param needles the strings
 	 * @return {@code true} when one is found
 	 */
+	/**
+	 * Replaces a session's authorities, as #84 will grant them from
+	 * {@code user_role}, so the admin rule can be tested for a moderator before
+	 * roles are stored.
+	 *
+	 * @param session     the {@code SESSION} cookie value
+	 * @param authorities the new authorities
+	 */
+	private void grant(String session, String... authorities) {
+		var stored = sessionRepository.findById(sessionId(session));
+		SecurityContext context = stored.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+		var token = (OAuth2AuthenticationToken) context.getAuthentication();
+		var granted = AuthorityUtils.createAuthorityList(authorities);
+		var principal = new DefaultOAuth2User(granted, token.getPrincipal().getAttributes(),
+				DiscordOAuth2UserService.USER_ID_ATTRIBUTE);
+		context.setAuthentication(
+				new OAuth2AuthenticationToken(principal, granted, token.getAuthorizedClientRegistrationId()));
+		stored.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+		sessionRepository.save(stored);
+	}
+
 	private boolean sessionStoreContainsAny(List<String> needles) {
 		try (var connection = redisConnectionFactory.getConnection()) {
 			var values = new java.util.ArrayList<byte[]>();
@@ -723,6 +841,19 @@ class SecurityConfigIntegrationTest {
 	 * @author mcawful
 	 */
 	private record Endpoint(String method, String path, String body, int status) {
+	}
+
+	/**
+	 * An {@code /api/admin} request and the role it needs.
+	 *
+	 * @param method the HTTP method
+	 * @param path   the path, with any query
+	 * @param body   the JSON body, or {@code null}
+	 * @param role   {@code MODERATOR}, {@code ADMIN}, or {@code null} for a path
+	 *               that is denied to everyone
+	 * @author mcawful
+	 */
+	private record AdminEndpoint(String method, String path, String body, String role) {
 	}
 
 	/**

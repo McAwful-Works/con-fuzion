@@ -110,6 +110,31 @@ public enum ResponseType {
 	PUSH_KEY,
 
 	/**
+	 * Indicates a {@link ReportResponse} body.
+	 */
+	REPORT,
+
+	/**
+	 * Indicates a {@link ReportPageResponse} body.
+	 */
+	REPORT_PAGE,
+
+	/**
+	 * Indicates an {@link AdminUserListResponse} body.
+	 */
+	ADMIN_USER_LIST,
+
+	/**
+	 * Indicates a {@link RolesResponse} body.
+	 */
+	ROLES,
+
+	/**
+	 * Indicates an {@link AuditPageResponse} body.
+	 */
+	AUDIT_PAGE,
+
+	/**
 	 * Indicates the response body is unknown.
 	 */
 	UNKNOWN

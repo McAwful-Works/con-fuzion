@@ -58,7 +58,12 @@ public record ResponseRecord<T extends ResponseBodyObject>(
 			Map.entry(AttendeesResponse.class, ResponseType.ATTENDEES),
 			Map.entry(SpotsResponse.class, ResponseType.SPOTS),
 			Map.entry(NotificationPageResponse.class, ResponseType.NOTIFICATION_PAGE),
-			Map.entry(PushKeyResponse.class, ResponseType.PUSH_KEY));
+			Map.entry(PushKeyResponse.class, ResponseType.PUSH_KEY),
+			Map.entry(ReportResponse.class, ResponseType.REPORT),
+			Map.entry(ReportPageResponse.class, ResponseType.REPORT_PAGE),
+			Map.entry(AdminUserListResponse.class, ResponseType.ADMIN_USER_LIST),
+			Map.entry(RolesResponse.class, ResponseType.ROLES),
+			Map.entry(AuditPageResponse.class, ResponseType.AUDIT_PAGE));
 
 	/**
 	 * Constructor to create a {@link ResponseRecord} from the provided

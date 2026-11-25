@@ -44,7 +44,7 @@ class EventResponseTest {
 		var host = new PersonResponse(UUID.randomUUID(), "Con Goer", "https://cdn.discordapp.com/embed/avatars/0.png");
 		var event = new EventResponse(UUID.randomUUID(), host, "Cosplay photo walk", null, null, true,
 				EventResponse.LocationVisibility.CONFIRMED, null, Instant.parse("2026-12-01T18:00:00Z"), null,
-				"America/Chicago", null, 20, 30, EventResponse.Status.PUBLISHED, false, MyStatus.NONE, null);
+				"America/Chicago", null, 20, 30, EventResponse.Status.PUBLISHED, false, MyStatus.NONE, null, null);
 
 		JsonNode json = JsonMapper.builder().build().valueToTree(event);
 

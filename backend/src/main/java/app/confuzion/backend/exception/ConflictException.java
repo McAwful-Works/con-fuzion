@@ -21,9 +21,10 @@ package app.confuzion.backend.exception;
 import java.io.Serial;
 
 /**
- * Thrown when a request conflicts with an event's or an RSVP's current state in
- * a way the client should be able to tell apart, such as joining before sign-up
- * opens. The {@code GlobalControllerExceptionHandler} answers 409 with the
+ * Thrown when a request conflicts with the current state of an event, an RSVP,
+ * a report or a user's roles in a way the client should be able to tell apart,
+ * such as joining before sign-up opens. The
+ * {@code GlobalControllerExceptionHandler} answers 409 with the
  * {@link Conflict} as the errorType (D-013), as {@link LimitExceededException}
  * does for a 429 cap. The message is never sent to the client.
  *
@@ -102,6 +103,23 @@ public class ConflictException extends RuntimeException {
 		 * An accept without an open offer: none was made, the caller declined it, or
 		 * the event was cancelled (D-014).
 		 */
-		NO_OFFER
+		NO_OFFER,
+
+		/**
+		 * Resolving a report that a moderator has already resolved (D-015).
+		 */
+		REPORT_RESOLVED,
+
+		/**
+		 * Suspending or banning someone whose granted role protects them: a moderator
+		 * can't suspend anyone with a role, and nobody can suspend or ban an ADMIN
+		 * (D-015).
+		 */
+		TARGET_HAS_ROLE,
+
+		/**
+		 * A role change that would leave no user holding ADMIN (D-015).
+		 */
+		LAST_ADMIN
 	}
 }

@@ -76,7 +76,7 @@ class NotificationRepositoryIntegrationTest {
 		var expiresAt = Instant.now().plus(Duration.ofMinutes(30)).truncatedTo(ChronoUnit.MILLIS);
 
 		var id = notificationRepository.insert(userId, Type.SPOT_OFFERED, eventId,
-				new NotificationPayload("Photo walk", expiresAt, null, null, null));
+				new NotificationPayload("Photo walk", expiresAt, null, null, null, null, null, null));
 
 		assertThat(jdbcTemplate.queryForMap("SELECT user_id, type, event_id, payload::text AS payload, "
 				+ "read_at IS NULL AS unread, push_status, created_at IS NOT NULL AS has_created_at "
@@ -99,7 +99,7 @@ class NotificationRepositoryIntegrationTest {
 		subscribe(off, "https://fcm.googleapis.com/fcm/send/off");
 		subscribe(on, "https://fcm.googleapis.com/fcm/send/on");
 		var eventId = insertEvent(on);
-		var payload = new NotificationPayload("Photo walk", null, null, null, null);
+		var payload = new NotificationPayload("Photo walk", null, null, null, null, null, null, null);
 
 		var ids = List.of(notificationRepository.insert(off, Type.EVENT_CANCELLED, eventId, payload),
 				notificationRepository.insert(noSubscription, Type.EVENT_CANCELLED, eventId, payload),
@@ -118,7 +118,7 @@ class NotificationRepositoryIntegrationTest {
 		var friend = insertUser(81384788765712385L, false);
 
 		var id = notificationRepository.insert(inviter, Type.FRIEND_ACCEPTED, null,
-				new NotificationPayload(null, null, null, null, friend));
+				new NotificationPayload(null, null, null, null, friend, null, null, null));
 
 		assertThat(jdbcTemplate.queryForMap("SELECT event_id, payload::text AS payload FROM notification WHERE id = ?",
 				id)).containsEntry("event_id", null).containsEntry("payload", "{\"friendId\": \"" + friend + "\"}");
@@ -134,11 +134,11 @@ class NotificationRepositoryIntegrationTest {
 		var eventId = insertEvent(userId);
 		var startsAt = Instant.parse("2027-01-02T15:00:00Z");
 		var payload = new NotificationPayload("Photo walk", null, startsAt, List.of(Change.START, Change.LOCATION),
-				null);
+				null, null, null, null);
 
 		var first = notificationRepository.insert(userId, Type.EVENT_CHANGED, eventId, payload);
 		var second = notificationRepository.insert(userId, Type.EVENT_REMINDER, eventId,
-				new NotificationPayload("Photo walk", null, startsAt, null, null));
+				new NotificationPayload("Photo walk", null, startsAt, null, null, null, null, null));
 
 		assertThat(second).isGreaterThan(first);
 		assertThat(

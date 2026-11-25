@@ -171,7 +171,7 @@ public class FriendService {
 			throw new NoSuchElementException();
 		socialRepository.insertFriendship(me, inviter);
 		notificationRepository.insert(inviter, Type.FRIEND_ACCEPTED, null,
-				new NotificationPayload(null, null, null, null, me));
+				new NotificationPayload(null, null, null, null, me, null, null, null));
 		return socialRepository.findPerson(inviter).orElseThrow();
 	}
 

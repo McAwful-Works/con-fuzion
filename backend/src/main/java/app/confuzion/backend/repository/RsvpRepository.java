@@ -386,10 +386,11 @@ public class RsvpRepository {
 		for (var person : promoted)
 			if (person.offerExpiresAt() != null)
 				notificationRepository.insert(person.userId(), NotificationResponse.Type.SPOT_OFFERED, eventId,
-						new NotificationPayload(person.eventTitle(), person.offerExpiresAt(), null, null, null));
+						new NotificationPayload(person.eventTitle(), person.offerExpiresAt(), null, null, null, null,
+								null, null));
 			else
 				notificationRepository.insert(person.userId(), NotificationResponse.Type.SPOT_CONFIRMED, eventId,
-						new NotificationPayload(person.eventTitle(), null, null, null, null));
+						new NotificationPayload(person.eventTitle(), null, null, null, null, null, null, null));
 	}
 
 	/**

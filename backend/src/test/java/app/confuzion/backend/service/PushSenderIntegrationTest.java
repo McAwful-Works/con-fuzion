@@ -147,7 +147,7 @@ class PushSenderIntegrationTest {
 		var firefoxEndpoint = subscribe(user, "https://updates.push.services.mozilla.com/wpush/v2/", firefox);
 		var event = event(user);
 		var id = notificationRepository.insert(user, Type.SPOT_CONFIRMED, event.id(),
-				new NotificationPayload("Cosplay photo walk", null, null, null, null));
+				new NotificationPayload("Cosplay photo walk", null, null, null, null, null, null, null));
 
 		sender().run();
 
@@ -456,7 +456,7 @@ class PushSenderIntegrationTest {
 		var count = PushSender.BATCH_SIZE * 2 + 10;
 		for (var i = 0; i < count; i++)
 			rows.add(notificationRepository.insert(user, Type.EVENT_CANCELLED, event.id(),
-					new NotificationPayload("Walk " + i, null, null, null, null)));
+					new NotificationPayload("Walk " + i, null, null, null, null, null, null, null)));
 		stub.delay(Duration.ofMillis(20));
 		var first = sender();
 		var second = sender();
@@ -569,7 +569,7 @@ class PushSenderIntegrationTest {
 	 */
 	private long friendAccepted(UUID userId) {
 		return notificationRepository.insert(userId, Type.FRIEND_ACCEPTED, null,
-				new NotificationPayload(null, null, null, null, UUID.randomUUID()));
+				new NotificationPayload(null, null, null, null, UUID.randomUUID(), null, null, null));
 	}
 
 	/**
