@@ -48,7 +48,7 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  */
 public record ReportResponse(@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "1") long id,
 		@Schema(requiredMode = RequiredMode.REQUIRED) TargetType targetType,
-		@Schema(requiredMode = RequiredMode.REQUIRED, description = "The event's public ID (moderators can open it with GET /api/events/{eventId}, hidden or not), or the user's ID.") UUID targetId,
+		@Schema(requiredMode = RequiredMode.REQUIRED, description = "The event's public ID (moderators can open a reported event with GET /api/events/{eventId}, hidden or not), or the user's ID.") UUID targetId,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "Cosplay photo walk", description = "The event's title or the user's display name. Null once the event was purged or the account deleted: the report outlives its target.") String targetLabel,
 		@Schema(requiredMode = RequiredMode.REQUIRED) Reason reason,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, maxLength = 1000, description = "The reporter's note, as plain text.") String note,

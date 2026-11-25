@@ -89,7 +89,7 @@ class AuditLogRepositoryIntegrationTest {
 
 	/**
 	 * Tests that a system row has no actor, that enum and list details are stored
-	 * by name, and that IDs increase.
+	 * by name, that no details at all are an empty object, and that IDs increase.
 	 */
 	@Test
 	void insertStoresASystemRowAndEnumDetails() {
@@ -101,14 +101,17 @@ class AuditLogRepositoryIntegrationTest {
 				new AuditDetails(null, null, Resolution.DISMISSED, null, null, null, null));
 		var fourth = auditLogRepository.insert(null, Action.EVENT_UNHIDDEN, TargetType.EVENT,
 				UUID.randomUUID().toString(), new AuditDetails(null, null, null, null, null, null, null));
+		var fifth = auditLogRepository.insert(UUID.randomUUID(), Action.ACCOUNT_UNBANNED, TargetType.DISCORD_ACCOUNT,
+				"81384788765712384", null);
 
-		assertThat(List.of(first, second, third, fourth)).isSorted().doesNotHaveDuplicates();
+		assertThat(List.of(first, second, third, fourth, fifth)).isSorted().doesNotHaveDuplicates();
 		assertThat(jdbcTemplate.queryForObject("SELECT actor_id FROM audit_log WHERE id = ?", UUID.class, first))
 				.isNull();
 		assertThat(details(first)).isEqualTo("{\"roles\": [\"ADMIN\"]}");
 		assertThat(details(second)).isEqualTo("{\"cause\": \"ROLES_CHANGED\", \"sessions\": 2}");
 		assertThat(details(third)).isEqualTo("{\"resolution\": \"DISMISSED\"}");
 		assertThat(details(fourth)).isEqualTo("{}");
+		assertThat(details(fifth)).isEqualTo("{}");
 	}
 
 	/**

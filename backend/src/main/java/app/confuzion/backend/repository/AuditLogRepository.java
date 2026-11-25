@@ -71,7 +71,8 @@ public class AuditLogRepository {
 	 * @param targetType what it happened to
 	 * @param targetId   the target's ID: a user ID or event public ID, a report ID
 	 *                   or a Discord ID, as text
-	 * @param details    the action's own fields, with only those set (D-015)
+	 * @param details    the action's own fields, with only those set (D-015), or
+	 *                   {@code null} for an action that has none
 	 * @return the new row's ID
 	 */
 	public long insert(UUID actorId, Action action, TargetType targetType, String targetId, AuditDetails details) {
@@ -80,6 +81,7 @@ public class AuditLogRepository {
 				VALUES (:actorId, :action, :targetType, :targetId, CAST(:details AS jsonb))
 				RETURNING id""").param("actorId", actorId).param("action", action.name())
 				.param("targetType", targetType.name()).param("targetId", targetId)
-				.param("details", jsonMapper.writeValueAsString(details)).query(Long.class).single();
+				.param("details", details == null ? "{}" : jsonMapper.writeValueAsString(details)).query(Long.class)
+				.single();
 	}
 }

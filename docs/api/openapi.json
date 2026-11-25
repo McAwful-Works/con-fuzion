@@ -6100,7 +6100,7 @@
           "targetId" : {
             "type" : "string",
             "format" : "uuid",
-            "description" : "The event's public ID (moderators can open it with GET /api/events/{eventId}, hidden or not), or the user's ID."
+            "description" : "The event's public ID (moderators can open a reported event with GET /api/events/{eventId}, hidden or not), or the user's ID."
           },
           "targetLabel" : {
             "type" : [ "string", "null" ],

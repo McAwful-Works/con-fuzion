@@ -69,7 +69,8 @@ tests make throwaway pairs at run time, so no key or key-shaped fixture is ever 
 ## Data minimization & retention
 - OAuth scopes are `identify guilds` only. No email. Discord tokens aren't stored after the login sync.
 - Ended events and their RSVPs are purged after 90 days. Account deletion removes the user and their RSVPs and
-  cancels their hosted events. The ban record (Discord ID) is kept.
+  cancels their hosted events. The ban record (Discord ID) is kept, and so are reports and the audit log, which hold
+  IDs with no foreign keys plus moderators' and reporters' free text, with no retention limit in the MVP (D-015).
 
 ## Per-PR security checklist
 - [ ] Every new endpoint requires authentication, unless it's explicitly public (only health and `/api/meta/support`).

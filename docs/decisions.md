@@ -466,8 +466,10 @@ Context · Decision · Consequences · Trigger to revisit
   - **Roles** are USER (implicit), MODERATOR and ADMIN. ADMIN also gets bans, role grants and the audit log.
     MODERATOR and ADMIN apply **only while Discord reports `mfa_enabled=true` at sign-in**; without it the account acts
     as a plain user and sees a "turn on Discord 2FA" note.
-  - **The bootstrap IDs** (`con-fuzion.admin.bootstrap-discord-ids`) get ADMIN on first sign-in, and the grant is
-    audit-logged. Taking an ID out of the config revokes nothing. **The last ADMIN can't be removed. A role change
+  - **The bootstrap IDs** (`con-fuzion.admin.bootstrap-discord-ids`) get ADMIN at sign-in, and the grant is
+    audit-logged. The owner settled "first sign-in" against plan B12 on 2026-11-25: **at every sign-in, a bootstrap ID
+    with no ADMIN row gets one**, so an existing account added to the config later works, and so does recovering from
+    the loss of the last admin. Taking an ID out of the config revokes nothing. **The last ADMIN can't be removed. A role change
     deletes that user's sessions.**
   - **Reports** cover events and users, with the reasons `HARASSMENT`, `UNSAFE`, `SPAM`, `INAPPROPRIATE` and `OTHER`,
     and a note of up to 1,000 characters. At most 10 per user per day. An open duplicate on the same target returns the
@@ -500,7 +502,9 @@ Context · Decision · Consequences · Trigger to revisit
   3. **Role changes.** `PUT /api/admin/users/{userId}/roles {roles}` sets exactly that set, and `DELETE` is the
      same as an empty set. Sending the current set is a 200 (204 for `DELETE`) that changes nothing: no session purge
      and no audit row. "The last ADMIN" counts every `user_role` ADMIN row, with or without MFA, so the only admin
-     can't remove themself either (409 `LAST_ADMIN`). A bootstrap grant is a `ROLES_CHANGED` row with no actor.
+     can't remove themself either (409 `LAST_ADMIN`). A bootstrap grant is a `ROLES_CHANGED` row with no actor. While
+     an ID is in the bootstrap config, removing its ADMIN lasts only until its next sign-in: take it out of the config
+     first.
   4. **Who can be suspended or banned.** A moderator can suspend only users with no granted role; an admin can also
      suspend moderators. Nobody can suspend or ban an account that holds ADMIN: remove the role first. Both are a 409
      `TARGET_HAS_ROLE`, which also covers trying it on yourself. A suspension ends in the future and at most 365 days
@@ -526,8 +530,10 @@ Context · Decision · Consequences · Trigger to revisit
      `reporterId`; the reported user never sees anything.
   8. **The queue** (`GET /api/admin/reports?status`) defaults to `OPEN`, oldest first, so it's worked in order;
      `ACTIONED` and `DISMISSED` are newest first. Like the inbox it pages with an opaque `cursor` and a `limit` of 1 to
-     50 (default 20). Moderators open an event target with `GET /api/events/{eventId}`, which shows any event to a
-     moderator, hidden or not, with its location (#85); the attendee list stays host and confirmed only.
+     50 (default 20). Moderators open an event target with `GET /api/events/{eventId}`. To a moderator it shows an
+     event they couldn't otherwise see, with its location, **only while that event is the target of a report (in any
+     status) or is hidden by moderators** (owner, 2026-11-25); any other event is the usual 404, so a moderator can't
+     walk event IDs to find where people will be. The attendee list stays host and confirmed only.
   9. **Resolving** closes one report as `ACTIONED` or `DISMISSED`, with an optional note (1,000 characters, moderators
      only), and sends its reporter, if they still exist, a `REPORT_REVIEWED` that says nothing about the outcome. A
      report already resolved is a 409 `REPORT_RESOLVED`. Moderators act on the target first (hide, cancel, suspend, or
@@ -595,15 +601,24 @@ Context · Decision · Consequences · Trigger to revisit
     `DiscordOAuth2UserService`, sets `MeResponse.mfaRequired` (now always `false` in `UserService`), and builds the
     roles and audit endpoints, the refused sign-in (rule 5) and the maintenance filter.
   - **#85** builds reporting, the queue, resolve, hide, unhide and the moderator cancel; adds
-    `NOT hidden_by_moderation` to `VISIBLE` with the host and moderator exceptions; holds back a hidden event's
+    `NOT hidden_by_moderation` to `VISIBLE` with the host exception, and the moderator exception of rule 8 for
+    reported or hidden events; holds back a hidden event's
     changes, reminders and offers (rule 10); and fans `REPORT_RECEIVED` out in one statement, like `insertForActiveRsvps`.
   - **#86** builds the search, suspensions and bans. A ban's cancels and `LEFT`s take the event row locks in D-013's
     lock order.
-  - **Every write path** writes its audit row through `AuditLogRepository.insert`, in its own transaction. Nothing
-    else writes `audit_log`, and M7's account deletion never touches it, the bans, or the reports' target IDs.
+  - **Role checks are serialized.** The `LAST_ADMIN` count and the change it guards run after
+    `SELECT … FROM user_role WHERE role = 'ADMIN' FOR UPDATE` in the same transaction, so two admins removing each
+    other at once can't leave none. A suspension or ban takes `SELECT … FROM user_role WHERE user_id = ? FOR UPDATE`
+    (or locks the `app_user` row) before its `TARGET_HAS_ROLE` check, and a role change locks the same rows, so a
+    grant can't slip in between.
+  - **Every write path** writes its audit row through `AuditLogRepository.insert`, in the same transaction as its
+    change, so a change that rolls back leaves no row. The one exception is `SIGN_IN_REFUSED`, which records no change:
+    it commits on its own before the sign-in is refused, since the refusal rolls the login back. Nothing else writes
+    `audit_log`, and M7's account deletion never touches it, the bans, or the reports' target IDs.
 - **Consequences:** moderators can act without seeing anything a user hasn't made public, and attendees are told only
   when an event is really off. The audit log can't be edited from the app, even by a bug, and outlives every account it
   names. Reports and audit rows keep the IDs of deleted accounts and purged events, which name nobody once those are
-  gone.
+  gone. Their free text (a report's note, a resolution note, a moderator's reason) is kept too, with no retention limit
+  in the MVP, and may name people or places.
 - **Revisit:** if the audit log or the report table gets slow without a retention limit (a measured p95), add one in a
   contract PR. If moderators need several reports on one target closed together, add a bulk resolve.
