@@ -1,7 +1,7 @@
 import { useMe } from '../../api/me';
 import { useHasSubscription, usePushKey } from '../../api/push';
 import { ErrorState } from '../../components/ErrorState';
-import { AddToHomeScreenSteps } from '../install/InstallHint';
+import { AddToHomeScreenSteps } from './AddToHomeScreenSteps';
 import { pushSupport, subscribeFromTap } from './browserPush';
 import { useTurnPushOff, useTurnPushOn } from './usePush';
 
