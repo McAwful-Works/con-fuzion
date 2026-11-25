@@ -30,13 +30,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.ModerationRequest;
 import app.confuzion.backend.model.record.ReportPageResponse;
 import app.confuzion.backend.model.record.ReportResponse;
 import app.confuzion.backend.model.record.ResolveReportRequest;
 import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.service.EventService;
+import app.confuzion.backend.service.ReportService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -50,7 +52,7 @@ import jakarta.validation.constraints.Size;
 /**
  * The {@link RestController} for the moderation queue and event moderation
  * (D-015). Every route needs MODERATOR or ADMIN in effect, which
- * {@code SecurityConfig} checks. Stubs until #85.
+ * {@code SecurityConfig} checks.
  *
  * @author mcawful
  */
@@ -58,6 +60,27 @@ import jakarta.validation.constraints.Size;
 @RequestMapping("/api/admin")
 @Tag(name = "moderation", description = "The report queue and event moderation (MODERATOR or ADMIN)")
 public class ModerationController {
+	/**
+	 * The {@link ReportService}.
+	 */
+	private final ReportService reportService;
+
+	/**
+	 * The {@link EventService}.
+	 */
+	private final EventService eventService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param reportService the {@link ReportService}
+	 * @param eventService  the {@link EventService}
+	 */
+	public ModerationController(ReportService reportService, EventService eventService) {
+		this.reportService = reportService;
+		this.eventService = eventService;
+	}
+
 	/**
 	 * Returns a page of reports in one status.
 	 *
@@ -77,7 +100,7 @@ public class ModerationController {
 			@Parameter(description = "Which reports to list") @RequestParam(defaultValue = "OPEN") ReportResponse.Status status,
 			@Parameter(description = "The previous page's nextCursor. Opaque.") @RequestParam(required = false) @Size(max = 200) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String cursor,
 			@Parameter(description = "Reports per page, 1 to 50") @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(reportService.getReports(HttpUtil.userId(authentication), status, cursor, limit));
 	}
 
 	/**
@@ -90,10 +113,11 @@ public class ModerationController {
 	@GetMapping("/reports/{reportId}")
 	@Operation(summary = "Get a report (MODERATOR or ADMIN)")
 	@ApiResponse(responseCode = "200", description = "OK")
-	@ApiResponse(responseCode = "404", description = "No such report.")
+	@ApiResponse(responseCode = "404", description = "No such report, or it's about the caller or an event they "
+			+ "host: the reported user never sees a report, whatever their role.")
 	public ResponseRecord<ReportResponse> getReport(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The report's ID") @PathVariable @Min(1) long reportId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(reportService.getReport(HttpUtil.userId(authentication), reportId));
 	}
 
 	/**
@@ -110,12 +134,13 @@ public class ModerationController {
 			+ "outcome. Act on the target first (hide or cancel the event, suspend the user, or ask an admin to ban), "
 			+ "then resolve. Audit-logged.")
 	@ApiResponse(responseCode = "200", description = "OK")
-	@ApiResponse(responseCode = "404", description = "No such report.")
+	@ApiResponse(responseCode = "404", description = "No such report, or it's about the caller or an event they "
+			+ "host: the reported user never sees a report, whatever their role.")
 	@ApiResponse(responseCode = "409", description = "The report is already resolved (errorType REPORT_RESOLVED).")
 	public ResponseRecord<ReportResponse> resolveReport(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The report's ID") @PathVariable @Min(1) long reportId,
 			@Valid @RequestBody ResolveReportRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(reportService.resolve(HttpUtil.userId(authentication), reportId, request));
 	}
 
 	/**
@@ -138,7 +163,7 @@ public class ModerationController {
 	public void hideEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId,
 			@Valid @RequestBody ModerationRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		eventService.hide(HttpUtil.userId(authentication), eventId, request.reason());
 	}
 
 	/**
@@ -156,7 +181,7 @@ public class ModerationController {
 	@ApiResponse(responseCode = "404", description = "No such event.")
 	public void unhideEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		eventService.unhide(HttpUtil.userId(authentication), eventId);
 	}
 
 	/**
@@ -177,6 +202,6 @@ public class ModerationController {
 	public void cancelEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId,
 			@Valid @RequestBody ModerationRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		eventService.cancelAsModerator(HttpUtil.userId(authentication), eventId, request.reason());
 	}
 }

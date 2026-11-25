@@ -142,9 +142,20 @@ class SecurityConfigIntegrationTest {
 					204),
 			new Endpoint("DELETE", "/api/push/subscriptions",
 					"{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}", 204),
-			// Reports (D-015): a 501 stub until #85.
+			// Reports (D-015): a user that doesn't exist is a 404.
 			new Endpoint("POST", "/api/reports", "{\"targetType\":\"USER\",\"targetId\":"
-					+ "\"5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20\",\"reason\":\"SPAM\"}", 501));
+					+ "\"5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20\",\"reason\":\"SPAM\"}", 404));
+
+	/**
+	 * What the built {@code /api/admin} routes answer a caller with the role, by
+	 * {@code "METHOD path"}: the queue lists, and the report and event don't exist.
+	 * The others are 501 stubs until #84 and #86.
+	 */
+	private static final Map<String, Integer> BUILT_ADMIN_ROUTES = Map.of("GET /api/admin/reports?status=OPEN", 200,
+			"GET /api/admin/reports/7", 404, "POST /api/admin/reports/7/resolve", 404,
+			"POST /api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/hide", 404,
+			"POST /api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/unhide", 404,
+			"POST /api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/cancel", 404);
 
 	/**
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
@@ -571,9 +582,10 @@ class SecurityConfigIntegrationTest {
 	/**
 	 * Tests the {@code /api/admin} rule (D-015) for every admin operation: signed
 	 * out is a 401, signed in without the role a 403, and with it the operation
-	 * runs (a 501 stub). ADMIN passes every moderator route, a moderator gets a 403
-	 * from the ADMIN-only ones, and anything else under {@code /api/admin} is a 403
-	 * even for an admin. A bootstrap admin without MFA has no admin access.
+	 * runs (a 501 stub, or a real status once built). ADMIN passes every moderator
+	 * route, a moderator gets a 403 from the ADMIN-only ones, and anything else
+	 * under {@code /api/admin} is a 403 even for an admin. A bootstrap admin
+	 * without MFA has no admin access.
 	 */
 	@Test
 	void adminRoutesNeedTheirRole() throws Exception {
@@ -590,18 +602,21 @@ class SecurityConfigIntegrationTest {
 
 		for (var endpoint : ADMIN_ENDPOINTS) {
 			var what = endpoint.method() + " " + endpoint.path();
+			var withRole = BUILT_ADMIN_ROUTES.getOrDefault(what, 501);
 			assertError(send(endpoint.method(), endpoint.path(), null, endpoint.body(), "Cookie",
 					"XSRF-TOKEN=" + anonymousCsrf, "X-XSRF-TOKEN", anonymousCsrf), 401, "UNAUTHORIZED");
 			for (var session : List.of(user, adminWithoutMfa))
 				assertThat(sendWithCsrf(endpoint.method(), endpoint.path(), session, endpoint.body()).statusCode())
 						.as(what).isEqualTo(403);
 			assertThat(sendWithCsrf(endpoint.method(), endpoint.path(), moderator, endpoint.body()).statusCode())
-					.as(what).isEqualTo("MODERATOR".equals(endpoint.role()) ? 501 : 403);
+					.as(what).isEqualTo("MODERATOR".equals(endpoint.role()) ? withRole : 403);
 			var asAdmin = sendWithCsrf(endpoint.method(), endpoint.path(), admin, endpoint.body());
 			if (endpoint.role() == null)
 				assertError(asAdmin, 403, "FORBIDDEN");
+			else if (withRole == 200)
+				assertThat(asAdmin.statusCode()).as(what).isEqualTo(200);
 			else
-				assertError(asAdmin, 501, "NOT_IMPLEMENTED");
+				assertError(asAdmin, withRole, withRole == 404 ? "NOT_FOUND" : "NOT_IMPLEMENTED");
 			if (!endpoint.method().equals("GET"))
 				assertError(send(endpoint.method(), endpoint.path(), admin, endpoint.body()), 403, "FORBIDDEN");
 		}

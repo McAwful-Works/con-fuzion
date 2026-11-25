@@ -20,7 +20,12 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,9 +40,12 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import app.confuzion.backend.model.record.ReportRequest;
+import app.confuzion.backend.service.ReportService;
+
 /**
- * Unit tests for {@link ReportController}'s contract stub: valid reports are
- * 501s until #85, and bad ones are 400s.
+ * Unit tests for {@link ReportController}: valid reports reach the service with
+ * the caller's ID and are 204s, and bad ones are 400s.
  *
  * @author mcawful
  */
@@ -45,8 +53,13 @@ class ReportControllerTest {
 	/**
 	 * The caller.
 	 */
+	private static final UUID USER_ID = UUID.randomUUID();
+
+	/**
+	 * The caller's {@link Authentication}.
+	 */
 	private static final Authentication AUTHENTICATION = UsernamePasswordAuthenticationToken
-			.authenticated(UUID.randomUUID().toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+			.authenticated(USER_ID.toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
 
 	/**
 	 * A target ID.
@@ -54,9 +67,14 @@ class ReportControllerTest {
 	private static final String TARGET = "3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60";
 
 	/**
+	 * The mocked {@link ReportService}.
+	 */
+	private final ReportService reportService = mock(ReportService.class);
+
+	/**
 	 * The {@link MockMvc} for the controller.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new ReportController());
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new ReportController(reportService));
 
 	/**
 	 * Returns valid reports: each target type, every reason, and a note of up to
@@ -72,14 +90,15 @@ class ReportControllerTest {
 	}
 
 	/**
-	 * Tests that a valid report is a 501 in the error envelope.
+	 * Tests that a valid report reaches the service as the caller and is a 204.
 	 *
 	 * @param request the request
 	 */
 	@ParameterizedTest
 	@MethodSource("validRequests")
-	void testValidRequestsAreNotImplementedYet(MockHttpServletRequestBuilder request) throws Exception {
-		assertError(mockMvc, request.principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
+	void testValidRequestsReachTheService(MockHttpServletRequestBuilder request) throws Exception {
+		mockMvc.perform(request.principal(AUTHENTICATION)).andExpect(status().isNoContent());
+		verify(reportService).report(eq(USER_ID), any(ReportRequest.class));
 	}
 
 	/**

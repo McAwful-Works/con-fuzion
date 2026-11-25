@@ -22,11 +22,19 @@ import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
 
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
@@ -36,10 +44,19 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import app.confuzion.backend.model.record.ReportPageResponse;
+import app.confuzion.backend.model.record.ReportResponse;
+import app.confuzion.backend.model.record.ResolveReportRequest;
+import app.confuzion.backend.model.record.ResolveReportRequest.Resolution;
+import app.confuzion.backend.service.EventService;
+import app.confuzion.backend.service.ReportService;
+
 /**
- * Unit tests for {@link ModerationController}'s contract stubs: valid requests
- * are 501s until #85, and bad ones are 400s. {@code SecurityConfig}'s role
- * checks are in {@code SecurityConfigIntegrationTest}.
+ * Unit tests for {@link ModerationController}: valid requests reach the
+ * services with the caller's ID, and bad ones are 400s.
+ * {@code SecurityConfig}'s role checks are in
+ * {@code SecurityConfigIntegrationTest}, and the behaviour in
+ * {@code ModerationControllerIntegrationTest}.
  *
  * @author mcawful
  */
@@ -47,44 +64,77 @@ class ModerationControllerTest {
 	/**
 	 * A moderator.
 	 */
+	private static final UUID MODERATOR_ID = UUID.randomUUID();
+
+	/**
+	 * The moderator's {@link Authentication}.
+	 */
 	private static final Authentication AUTHENTICATION = UsernamePasswordAuthenticationToken.authenticated(
-			UUID.randomUUID().toString(), null,
+			MODERATOR_ID.toString(), null,
 			List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_MODERATOR")));
 
 	/**
 	 * An event's public ID.
 	 */
-	private static final String EVENT = "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60";
+	private static final UUID EVENT_ID = UUID.fromString("3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60");
+
+	/**
+	 * The event's admin path.
+	 */
+	private static final String EVENT = "/api/admin/events/" + EVENT_ID;
+
+	/**
+	 * The mocked {@link ReportService}.
+	 */
+	private final ReportService reportService = mock(ReportService.class);
+
+	/**
+	 * The mocked {@link EventService}.
+	 */
+	private final EventService eventService = mock(EventService.class);
 
 	/**
 	 * The {@link MockMvc} for the controller.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new ModerationController());
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new ModerationController(reportService, eventService));
 
 	/**
-	 * Returns valid requests to every operation.
-	 *
-	 * @return the requests
+	 * Tests that every operation maps to its service with the caller's ID and the
+	 * request's values, and answers in the envelope or with a 204.
 	 */
-	static Stream<MockHttpServletRequestBuilder> validRequests() {
-		return Stream.of(get("/api/admin/reports"), get("/api/admin/reports?status=DISMISSED&cursor=abc_1-X&limit=50"),
-				get("/api/admin/reports/7"),
-				json(post("/api/admin/reports/7/resolve"), "{\"resolution\":\"ACTIONED\"}"),
-				json(post("/api/admin/reports/7/resolve"),
-						"{\"resolution\":\"DISMISSED\",\"resolutionNote\":\"" + "x".repeat(1000) + "\"}"),
-				json(post(EVENT + "/hide"), "{\"reason\":\"" + "x".repeat(500) + "\"}"), post(EVENT + "/unhide"),
-				json(post(EVENT + "/cancel"), "{\"reason\":\"Unsafe location\"}"));
-	}
+	@Test
+	void testOperationsMapToTheServices() throws Exception {
+		var report = new ReportResponse(7, ReportResponse.TargetType.USER, UUID.randomUUID(), "Sam",
+				ReportResponse.Reason.SPAM, null, ReportResponse.Status.DISMISSED, null, Instant.now(), MODERATOR_ID,
+				Instant.now(), "x".repeat(1000));
+		when(reportService.getReports(MODERATOR_ID, ReportResponse.Status.OPEN, null, 20))
+				.thenReturn(new ReportPageResponse(List.of(), null));
+		when(reportService.getReports(MODERATOR_ID, ReportResponse.Status.DISMISSED, "abc_1-X", 50))
+				.thenReturn(new ReportPageResponse(List.of(report), "next"));
+		when(reportService.getReport(MODERATOR_ID, 7)).thenReturn(report);
+		var resolve = new ResolveReportRequest(Resolution.DISMISSED, "x".repeat(1000));
+		when(reportService.resolve(MODERATOR_ID, 7, resolve)).thenReturn(report);
 
-	/**
-	 * Tests that a valid request is a 501 in the error envelope.
-	 *
-	 * @param request the request
-	 */
-	@ParameterizedTest
-	@MethodSource("validRequests")
-	void testValidRequestsAreNotImplementedYet(MockHttpServletRequestBuilder request) throws Exception {
-		assertError(mockMvc, request.principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
+		mockMvc.perform(get("/api/admin/reports").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("REPORT_PAGE"));
+		mockMvc.perform(get("/api/admin/reports?status=DISMISSED&cursor=abc_1-X&limit=50").principal(AUTHENTICATION))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.body.nextCursor").value("next"));
+		mockMvc.perform(get("/api/admin/reports/7").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("REPORT"));
+		mockMvc.perform(json(post("/api/admin/reports/7/resolve"),
+				"{\"resolution\":\"DISMISSED\",\"resolutionNote\":\"" + "x".repeat(1000) + "\"}")
+				.principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.body.status").value("DISMISSED"));
+		mockMvc.perform(
+				json(post(EVENT + "/hide"), "{\"reason\":\"" + "x".repeat(500) + "\"}").principal(AUTHENTICATION))
+				.andExpect(status().isNoContent());
+		mockMvc.perform(post(EVENT + "/unhide").principal(AUTHENTICATION)).andExpect(status().isNoContent());
+		mockMvc.perform(json(post(EVENT + "/cancel"), "{\"reason\":\"Unsafe location\"}").principal(AUTHENTICATION))
+				.andExpect(status().isNoContent());
+
+		verify(eventService).hide(MODERATOR_ID, EVENT_ID, "x".repeat(500));
+		verify(eventService).unhide(MODERATOR_ID, EVENT_ID);
+		verify(eventService).cancelAsModerator(MODERATOR_ID, EVENT_ID, "Unsafe location");
 	}
 
 	/**
