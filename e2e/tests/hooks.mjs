@@ -1,6 +1,6 @@
-import { test as base } from "@playwright/test";
-import { joinAs } from "./social.mjs";
-import { resetStub } from "./support.mjs";
+import { test as base } from '@playwright/test';
+import { joinAs } from './social.mjs';
+import { resetStub } from './support.mjs';
 
 /**
  * `test` with the fake Discord reset before every test, so no test sees another's scenario, and a `join` fixture
@@ -28,4 +28,4 @@ export const test = base.extend({
     }
   },
 });
-export { expect } from "@playwright/test";
+export { expect } from '@playwright/test';
