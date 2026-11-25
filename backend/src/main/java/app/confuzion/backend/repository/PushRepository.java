@@ -171,7 +171,7 @@ public class PushRepository {
 						type = NotificationResponse.Type.valueOf(rs.getString("type"));
 						payload = jsonMapper.readValue(rs.getString("payload"), NotificationPayload.class);
 					} catch (RuntimeException unreadable) {
-						type = null;
+						type = null; // a bad payload after a good type
 					}
 					return new Pending(rs.getLong("id"), rs.getObject("user_id", UUID.class), type,
 							rs.getObject("public_id", UUID.class), payload, rs.getBoolean("push_enabled"));

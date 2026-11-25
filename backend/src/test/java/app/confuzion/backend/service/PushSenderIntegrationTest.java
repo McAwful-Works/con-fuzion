@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -176,7 +177,8 @@ class PushSenderIntegrationTest {
 	/**
 	 * Tests that a subscription the push service answers 410 or 404 for is deleted,
 	 * and a row no browser took ends {@code FAILED}, while a row that reached one
-	 * of several browsers is {@code SENT}.
+	 * of several browsers is {@code SENT}. A {@code FRIEND_ACCEPTED} message has no
+	 * {@code eventId} at all.
 	 *
 	 * @throws Exception on failure
 	 */
@@ -190,7 +192,8 @@ class PushSenderIntegrationTest {
 		var lostRow = friendAccepted(lost);
 		var mixed = user(true);
 		var dead = subscribe(mixed, "https://fcm.googleapis.com/fcm/send/", new TestBrowser());
-		var alive = subscribe(mixed, "https://wns2-par02p.notify.windows.com/w/?token=", new TestBrowser());
+		var windows = new TestBrowser();
+		var alive = subscribe(mixed, "https://wns2-par02p.notify.windows.com/w/?token=", windows);
 		stub.answer(dead, 410, null);
 		var mixedRow = friendAccepted(mixed);
 
@@ -202,6 +205,11 @@ class PushSenderIntegrationTest {
 		assertThat(pushStatus(lostRow)).isEqualTo("FAILED");
 		assertThat(endpoints(mixed)).containsExactly(alive);
 		assertThat(pushStatus(mixedRow)).isEqualTo("SENT");
+		@SuppressWarnings("unchecked")
+		Map<String, Object> message = JSON.readValue(windows.decrypt(stub.receivedBy(alive).getFirst().body()),
+				Map.class);
+		assertThat(message).containsExactlyInAnyOrderEntriesOf(
+				Map.of("type", "FRIEND_ACCEPTED", "text", "Someone accepted your friend invite."));
 	}
 
 	/**
@@ -357,6 +365,82 @@ class PushSenderIntegrationTest {
 	}
 
 	/**
+	 * Tests that a run interrupted mid-send (a shutdown) puts its rows back to
+	 * {@code PENDING} instead of losing them, and claims nothing more.
+	 *
+	 * @throws Exception on failure
+	 */
+	@Test
+	void testAnInterruptedRunPutsItsRowsBack() throws Exception {
+		// Other tests leave older PENDING rows: send them first, so the batch below is
+		// this test's.
+		sender().run();
+		stub = new StubPushService();
+		var user = user(true);
+		var endpoint = subscribe(user, "https://fcm.googleapis.com/fcm/send/", new TestBrowser());
+		var rows = new ArrayList<Long>();
+		for (var i = 0; i < PushSender.BATCH_SIZE + 5; i++)
+			rows.add(friendAccepted(user));
+		stub.delay(Duration.ofSeconds(30));
+
+		try (var executor = Executors.newSingleThreadExecutor()) {
+			var running = executor.submit(sender()::run);
+			var deadline = Instant.now().plusSeconds(10);
+			while (stub.receivedBy(endpoint).isEmpty() && Instant.now().isBefore(deadline))
+				Thread.sleep(10);
+			assertThat(stub.receivedBy(endpoint)).isNotEmpty();
+			executor.shutdownNow();
+			running.get();
+		}
+
+		assertThat(stub.receivedBy(endpoint)).hasSizeLessThanOrEqualTo(PushSender.BATCH_SIZE);
+		for (var row : rows)
+			assertThat(pushStatus(row)).isEqualTo("PENDING");
+	}
+
+	/**
+	 * Tests that a run stops claiming once {@link PushSender#RUN_BUDGET} has
+	 * passed, leaving the rest for the next run.
+	 */
+	@Test
+	void testARunStopsAfterItsBudget() {
+		// Other tests leave older PENDING rows: send them first, so the batches below
+		// are this test's.
+		sender().run();
+		stub = new StubPushService();
+		var user = user(true);
+		var endpoint = subscribe(user, "https://fcm.googleapis.com/fcm/send/", new TestBrowser());
+		for (var i = 0; i < PushSender.BATCH_SIZE * 2; i++)
+			friendAccepted(user);
+		var calls = new AtomicLong();
+		var start = Instant.now();
+		var sender = sender(new Clock() {
+			@Override
+			public Instant instant() {
+				// Every reading is a budget later than the last.
+				return start.plus(PushSender.RUN_BUDGET.multipliedBy(calls.getAndIncrement()));
+			}
+
+			@Override
+			public java.time.ZoneId getZone() {
+				return java.time.ZoneOffset.UTC;
+			}
+
+			@Override
+			public Clock withZone(java.time.ZoneId zone) {
+				return this;
+			}
+		});
+
+		sender.run();
+		var first = stub.receivedBy(endpoint).size();
+		assertThat(first).isPositive().isLessThanOrEqualTo(PushSender.BATCH_SIZE);
+
+		sender.run();
+		assertThat(stub.receivedBy(endpoint).size()).isGreaterThan(first);
+	}
+
+	/**
 	 * Tests that two senders running at once, with more than a batch queued and
 	 * slow push services, push every row exactly once.
 	 *
@@ -378,15 +462,18 @@ class PushSenderIntegrationTest {
 		var second = sender();
 
 		var start = new CountDownLatch(1);
+		var runs = new ArrayList<Future<?>>();
 		try (var executor = Executors.newFixedThreadPool(2)) {
 			for (var sender : List.of(first, second))
-				executor.submit(() -> {
+				runs.add(executor.submit(() -> {
 					start.await();
 					sender.run();
 					return null;
-				});
+				}));
 			start.countDown();
 		}
+		for (var run : runs)
+			run.get();
 
 		var texts = new HashMap<String, Integer>();
 		for (var received : stub.receivedBy(endpoint)) {

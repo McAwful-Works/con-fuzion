@@ -78,9 +78,19 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code Retry-After} on this task, and a row that only the pause held back
  * goes back to {@code PENDING}, as does every row of a batch when the task is
  * interrupted (shutting down) or the database fails before anything was sent. A
- * run walks the whole queue once, so rows held back at its head never stall the
- * rest. Delivery is at most once: a task that dies mid-batch leaves those rows
- * {@code SENT}, and the inbox still has them (D-014).
+ * run walks the queue once, so rows held back at its head never stall the rest,
+ * and stops after {@link #RUN_BUDGET}: scheduled jobs share one scheduler
+ * thread, so a slow push service mustn't hold up the offer expiry and the
+ * reminders. Delivery is at most once (D-014): a task that dies mid-batch
+ * leaves those rows {@code SENT}, and the inbox still has them. The exception
+ * is a send interrupted at shutdown after its request went out: the row goes
+ * back to {@code PENDING} and is sent again, which the service worker's
+ * notification tag folds into the first.
+ * <p>
+ * Subscriptions are read once per batch, so an endpoint that moves to another
+ * user during a batch (D-014 rule 13) can still get one push meant for its
+ * previous user: at most one batch, about 15 seconds, after that user's
+ * sign-out failed to unsubscribe it.
  * <p>
  * The sender POSTs only to an https endpoint on an allowed push service host,
  * checked again here before each send, and never follows a redirect, so a
@@ -121,6 +131,12 @@ public class PushSender {
 	 * The longest pause a {@code Retry-After} can ask for.
 	 */
 	static final Duration MAX_RETRY_AFTER = Duration.ofHours(1);
+
+	/**
+	 * How long a run keeps claiming batches. The batch in flight finishes, so a run
+	 * holds the scheduler thread for at most this plus one batch's timeouts.
+	 */
+	static final Duration RUN_BUDGET = Duration.ofSeconds(30);
 
 	/**
 	 * The push service hosts a subscription may use (D-014 rule 13), besides
@@ -224,15 +240,18 @@ public class PushSender {
 
 	/**
 	 * Sends what's pending, a batch at a time, walking the queue once from the
-	 * oldest row. It runs five seconds after the last run ended, or as
-	 * {@code con-fuzion.push.send-interval} (an ISO-8601 duration) says. With no
-	 * VAPID keys, push is off and it does nothing.
+	 * oldest row, until {@link #RUN_BUDGET} has passed or the thread is
+	 * interrupted. The next run starts from the oldest row again. It runs five
+	 * seconds after the last run ended, or as {@code con-fuzion.push.send-interval}
+	 * (an ISO-8601 duration) says. With no VAPID keys, push is off and it does
+	 * nothing.
 	 */
 	@Scheduled(fixedDelayString = "${con-fuzion.push.send-interval:PT5S}", initialDelayString = "${con-fuzion.push.send-interval:PT5S}")
 	public void run() {
 		var keyPair = vapidKeys.keyPair();
 		if (keyPair.isEmpty())
 			return;
+		var deadline = clock.instant().plus(RUN_BUDGET);
 		var afterId = 0L;
 		List<Pending> rows;
 		do {
@@ -241,7 +260,8 @@ public class PushSender {
 				return;
 			sendBatch(keyPair.get(), rows);
 			afterId = rows.getLast().id();
-		} while (rows.size() == BATCH_SIZE && !Thread.currentThread().isInterrupted());
+		} while (rows.size() == BATCH_SIZE && !Thread.currentThread().isInterrupted()
+				&& clock.instant().isBefore(deadline));
 	}
 
 	/**
@@ -286,8 +306,9 @@ public class PushSender {
 				continue;
 			var outcomes = new ArrayList<Outcome>();
 			for (var send : sends.get(i)) {
-				outcomes.add(send.outcome());
-				if (send.outcome() == Outcome.GONE)
+				var outcome = send.outcome();
+				outcomes.add(outcome);
+				if (outcome == Outcome.GONE)
 					gone.add(send.subscription().id());
 			}
 			if (outcomes.contains(Outcome.ACCEPTED))
@@ -354,8 +375,11 @@ public class PushSender {
 			if (status == 429) {
 				var now = clock.instant();
 				var until = now.plus(retryAfter(response.headers().firstValue("Retry-After").orElse(null), now));
+				// Parallel sends to one host can all get a 429: log only when the pause grows.
+				var previous = pausedUntil.get(host);
 				pausedUntil.merge(host, until, (a, b) -> a.isAfter(b) ? a : b);
-				LOGGER.warn("Push service {} is rate limiting: paused until {}", host, until);
+				if (previous == null || until.isAfter(previous))
+					LOGGER.warn("Push service {} is rate limiting: paused until {}", host, until);
 				return Outcome.DEFERRED;
 			}
 			LOGGER.warn("Push to subscription {} got HTTP {}", subscription.id(), status);
