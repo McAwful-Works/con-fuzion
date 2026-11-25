@@ -75,10 +75,12 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code FAILED} when none did, the user has push off or no subscription left,
  * or the row can't be read. A subscription the push service answers 404 or 410
  * for is deleted. A 429 pauses sends to that push service for its
- * {@code Retry-After}, and a row that only the pause held back goes back to
- * {@code PENDING}. A run walks the whole queue once, so rows held back at its
- * head never stall the rest. Delivery is at most once: a task that stops
- * mid-batch leaves those rows {@code SENT}, and the inbox still has them.
+ * {@code Retry-After} on this task, and a row that only the pause held back
+ * goes back to {@code PENDING}, as does every row of a batch when the task is
+ * interrupted (shutting down) or the database fails before anything was sent. A
+ * run walks the whole queue once, so rows held back at its head never stall the
+ * rest. Delivery is at most once: a task that dies mid-batch leaves those rows
+ * {@code SENT}, and the inbox still has them (D-014).
  * <p>
  * The sender POSTs only to an https endpoint on an allowed push service host,
  * checked again here before each send, and never follows a redirect, so a
@@ -239,7 +241,7 @@ public class PushSender {
 				return;
 			sendBatch(keyPair.get(), rows);
 			afterId = rows.getLast().id();
-		} while (rows.size() == BATCH_SIZE);
+		} while (rows.size() == BATCH_SIZE && !Thread.currentThread().isInterrupted());
 	}
 
 	/**
@@ -250,8 +252,15 @@ public class PushSender {
 	 */
 	private void sendBatch(VAPIDKeyPair keyPair, List<Pending> rows) {
 		var userIds = rows.stream().filter(Pending::pushEnabled).map(Pending::userId).collect(Collectors.toSet());
-		var subscriptions = pushRepository.findSubscriptions(userIds).stream()
-				.collect(Collectors.groupingBy(Subscription::userId));
+		Map<UUID, List<Subscription>> subscriptions;
+		try {
+			subscriptions = pushRepository.findSubscriptions(userIds).stream()
+					.collect(Collectors.groupingBy(Subscription::userId));
+		} catch (RuntimeException e) {
+			// Nothing was sent yet, so the whole batch can wait for the next run.
+			pushRepository.markPushStatus(rows.stream().map(Pending::id).toList(), "PENDING");
+			throw e;
+		}
 
 		var sends = new ArrayList<List<Send>>();
 		var failed = new ArrayList<Long>();
@@ -283,13 +292,19 @@ public class PushSender {
 			}
 			if (outcomes.contains(Outcome.ACCEPTED))
 				continue;
-			(outcomes.contains(Outcome.DEFERRED) ? heldBack : failed).add(rows.get(i).id());
+			var onlyPaused = outcomes.contains(Outcome.DEFERRED)
+					&& outcomes.stream().allMatch(o -> o == Outcome.DEFERRED || o == Outcome.GONE);
+			(onlyPaused ? heldBack : failed).add(rows.get(i).id());
 		}
-		pushRepository.markPushStatus(failed, "FAILED");
 		pushRepository.markPushStatus(heldBack, "PENDING");
+		pushRepository.markPushStatus(failed, "FAILED");
 		pushRepository.deleteByIds(gone);
-		LOGGER.info("Push batch: {} sent, {} failed, {} held back, {} dead subscriptions deleted",
-				rows.size() - failed.size() - heldBack.size(), failed.size(), heldBack.size(), gone.size());
+		var sent = rows.size() - failed.size() - heldBack.size();
+		// A paused push service puts the same rows back on every run, so that alone
+		// isn't worth a line.
+		if (sent > 0 || !failed.isEmpty() || !gone.isEmpty())
+			LOGGER.info("Push batch: {} sent, {} failed, {} held back, {} dead subscriptions deleted", sent,
+					failed.size(), heldBack.size(), gone.size());
 	}
 
 	/**
@@ -349,8 +364,9 @@ public class PushSender {
 			LOGGER.warn("Push to subscription {} failed ({})", subscription.id(), e.getClass().getSimpleName());
 			return Outcome.FAILED;
 		} catch (InterruptedException e) {
+			// Shutting down: put the row back rather than lose it.
 			Thread.currentThread().interrupt();
-			return Outcome.FAILED;
+			return Outcome.DEFERRED;
 		}
 	}
 

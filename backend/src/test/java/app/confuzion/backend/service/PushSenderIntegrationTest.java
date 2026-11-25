@@ -39,6 +39,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.config.VapidKeys;
@@ -101,6 +102,13 @@ class PushSenderIntegrationTest {
 	 */
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+
+	/**
+	 * The {@link TransactionTemplate}, for a lock timeout that lasts one
+	 * transaction.
+	 */
+	@Autowired
+	private TransactionTemplate transactionTemplate;
 
 	/**
 	 * The throwaway VAPID key pair: public, then private.
@@ -315,6 +323,37 @@ class PushSenderIntegrationTest {
 
 		sender.run();
 		assertThat(stub.receivedBy(limitedEndpoint)).hasSize(requests);
+	}
+
+	/**
+	 * Tests that a row being pushed isn't locked while the push service is slow, so
+	 * marking it read and deleting it (as a block does) don't wait for the sender.
+	 *
+	 * @throws Exception on failure
+	 */
+	@Test
+	void testNoRowLockIsHeldWhileSending() throws Exception {
+		var user = user(true);
+		var endpoint = subscribe(user, "https://fcm.googleapis.com/fcm/send/", new TestBrowser());
+		var read = friendAccepted(user);
+		var deleted = friendAccepted(user);
+		stub.delay(Duration.ofSeconds(3));
+
+		try (var executor = Executors.newSingleThreadExecutor()) {
+			var running = executor.submit(sender()::run);
+			var deadline = Instant.now().plusSeconds(10);
+			while (stub.receivedBy(endpoint).size() < 2 && Instant.now().isBefore(deadline))
+				Thread.sleep(10);
+			assertThat(stub.receivedBy(endpoint)).hasSize(2);
+			transactionTemplate.executeWithoutResult(status -> {
+				jdbcTemplate.execute("SET LOCAL lock_timeout = '500ms'");
+				assertThat(jdbcTemplate.update("UPDATE notification SET read_at = now() WHERE id = ?", read)).isOne();
+				assertThat(jdbcTemplate.update("DELETE FROM notification WHERE id = ?", deleted)).isOne();
+			});
+			assertThat(running.isDone()).isFalse();
+			running.get();
+		}
+		assertThat(pushStatus(read)).isEqualTo("SENT");
 	}
 
 	/**

@@ -445,6 +445,10 @@ Context · Decision · Consequences · Trigger to revisit
     send and doesn't follow redirects, so the allowlist holds even if the request pattern is loosened later. A
     `PENDING` row whose user has turned push off, or has no subscription left, by send time ends as `FAILED`. #67
     also makes "log out everywhere" delete the user's subscriptions (rule 18).
+  - **#67's delivery is at most once.** One statement claims a batch (`SKIP LOCKED`) and marks it `SENT`, then the
+    pushes go out with no row lock held, so inbox reads and blocks never wait on a push service. Rows nobody received
+    become `FAILED`; rows only a 429 held back, and a batch interrupted at shutdown, go back to `PENDING`. A task that
+    dies mid-send leaves its batch `SENT` without a push; the inbox still has every notification.
   - **#68** runs `npm run gen:api` and sends `confirmWindowMinutes` from the event form. After #68 the field could
     become required; that's a later contract change, not part of M4.
 - **Consequences:** a freed spot waits for someone who wants it instead of going to someone who may not have noticed,
