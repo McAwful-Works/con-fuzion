@@ -2,7 +2,7 @@ import { useMe } from '../../api/me';
 import { useHasSubscription, usePushKey } from '../../api/push';
 import { ErrorState } from '../../components/ErrorState';
 import { AddToHomeScreenSteps } from '../install/InstallHint';
-import { pushSupport } from './browserPush';
+import { pushSupport, subscribeFromTap } from './browserPush';
 import { useTurnPushOff, useTurnPushOn } from './usePush';
 
 /**
@@ -57,7 +57,7 @@ function Note({ children }: { children: string | string[] }) {
 
 function PushSwitch({ publicKey, pushEnabled }: { publicKey: string; pushEnabled: boolean }) {
   const subscribed = useHasSubscription(true);
-  const turnOn = useTurnPushOn(publicKey);
+  const turnOn = useTurnPushOn();
   const turnOff = useTurnPushOff();
   const busy = turnOn.isPending || turnOff.isPending;
   // Read each render: it changes when the user re-enables notifications in the browser's settings.
@@ -86,7 +86,11 @@ function PushSwitch({ publicKey, pushEnabled }: { publicKey: string; pushEnabled
           className="btn btn-primary"
           disabled={busy || blocked || subscribed.isPending}
           // The permission prompt and the subscription start from this tap, never from loading the page.
-          onClick={() => turnOn.mutate()}
+          onClick={() => {
+            const attempt = subscribeFromTap(publicKey);
+            attempt.catch(() => undefined); // mutate() reports the failure
+            turnOn.mutate(attempt);
+          }}
         >
           Turn on push
         </button>

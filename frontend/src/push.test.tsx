@@ -144,8 +144,9 @@ describe('push on a capable browser', () => {
     expect(browser.pushManager.subscribe).not.toHaveBeenCalled();
 
     fireEvent.click(button);
-    await screen.findByRole('button', { name: 'Turn off push' });
+    // Inside the tap itself, not a few microtasks later: iOS needs the user gesture to still be live.
     expect(browser.requestPermission).toHaveBeenCalledTimes(1);
+    await screen.findByRole('button', { name: 'Turn off push' });
   });
 
   it('subscribes with the server key, saves the subscription, then sets pushEnabled', async () => {
@@ -322,6 +323,28 @@ describe('signing out', () => {
     expect(calls.some((c) => c.path === '/api/auth/logout-everywhere')).toBe(true);
   });
 
+  it('still signs out when the service worker can’t be asked for the subscription', async () => {
+    pushBrowser({ permission: 'granted', subscribed: true });
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        ready: new Promise(() => undefined),
+        getRegistration: async () => {
+          throw new Error('worker is updating');
+        },
+      },
+    });
+    const calls = pushApi(({ method, path }) =>
+      method === 'POST' && path === '/api/auth/logout' ? noContent() : undefined,
+    );
+
+    const router = renderApp('/settings');
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/welcome'));
+    expect(calls.some((c) => c.path === '/api/auth/logout')).toBe(true);
+  });
+
   it('needs no push calls when this browser never subscribed', async () => {
     pushBrowser();
     const calls = pushApi(({ method, path }) =>
@@ -416,6 +439,9 @@ describe('onboarding: servers, notifications, install', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
     await waitFor(() => expect(prompt).toHaveBeenCalledTimes(1));
+    // The prompt used up, the step stays put instead of falling back to the one before it.
+    expect(screen.getByRole('heading', { name: 'One last thing' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Continue' })).toHaveAttribute('href', '/');
   });
 
   it('shows the iOS steps on the install step, not a second push step', async () => {

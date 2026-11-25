@@ -16,7 +16,9 @@ export function Onboarding() {
   const navigate = useNavigate();
   const { support, key } = usePushAvailability();
   const installHint = useInstallHint();
-  const [index, setIndex] = useState(0);
+  // The step is kept by name, so a step that drops out of the list while it's showing (the install
+  // prompt was used, or the server turned out to have no push keys) doesn't move the user elsewhere.
+  const [step, setStep] = useState<Step>('servers');
 
   // On iOS outside the Home Screen, the install step explains push, so there is no separate push step.
   const pushStep = support === 'ok' && !key.isError && key.data !== null;
@@ -25,8 +27,8 @@ export function Onboarding() {
     ...(pushStep ? (['notifications'] as const) : []),
     ...(installHint ? (['install'] as const) : []),
   ];
-  const step = steps[Math.min(index, steps.length - 1)]!;
-  const last = step === steps[steps.length - 1];
+  const at = steps.indexOf(step);
+  const next = at === -1 ? undefined : steps[at + 1];
 
   return (
     <section className="space-y-4">
@@ -51,7 +53,7 @@ export function Onboarding() {
           <InstallHint onDismiss={() => void navigate('/')} />
         </>
       )}
-      {last ? (
+      {next === undefined ? (
         <Link to="/" className="btn btn-primary w-full sm:w-auto">
           Continue
         </Link>
@@ -59,7 +61,7 @@ export function Onboarding() {
         <button
           type="button"
           className="btn btn-primary w-full sm:w-auto"
-          onClick={() => setIndex(index + 1)}
+          onClick={() => setStep(next)}
         >
           Next
         </button>

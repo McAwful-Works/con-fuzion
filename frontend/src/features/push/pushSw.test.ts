@@ -158,7 +158,8 @@ describe('the service worker push handler', () => {
     const worker = loadWorker([]);
     await worker.click({ url: 'https://evil.example/phish' });
     await worker.click({ url: '//evil.example' });
+    await worker.click({ url: String.raw`/\evil.example` });
     await worker.click(undefined);
-    expect(worker.openWindow.mock.calls).toEqual([['/'], ['/'], ['/']]);
+    expect(worker.openWindow.mock.calls).toEqual([['/'], ['/'], ['/'], ['/']]);
   });
 });

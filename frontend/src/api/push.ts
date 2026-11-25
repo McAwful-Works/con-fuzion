@@ -66,7 +66,13 @@ export function setPushEnabled(pushEnabled: boolean) {
  * first because it needs the session; `strict` says whether its failure stops the rest.
  */
 export async function dropSubscription(strict: boolean): Promise<void> {
-  const subscription = await currentSubscription();
+  let subscription: PushSubscription | null = null;
+  try {
+    subscription = await currentSubscription();
+  } catch (error) {
+    // A worker that is broken or updating can't be asked; on sign-out that mustn't keep anyone signed in.
+    if (strict) throw error;
+  }
   if (!subscription) return;
   try {
     await api<void>(SUBSCRIPTIONS_PATH, {

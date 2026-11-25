@@ -11,15 +11,18 @@ import { subscribeFromTap } from './browserPush';
 export type TurnOnResult = 'on' | 'denied' | 'dismissed';
 
 /**
- * Turns push on for this browser. Run it straight from a tap (`subscribeFromTap`). It subscribes, saves
+ * Turns push on for this browser. Start it straight from a tap, passing `subscribeFromTap(key)` made in the click handler. It subscribes, saves
  * the subscription, then sets `pushEnabled`, because saving a subscription doesn't turn push on (rule 12).
  * If saving fails the browser's new subscription is dropped again, so the two never disagree.
  */
-export function useTurnPushOn(publicKey: string) {
+export function useTurnPushOn() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<TurnOnResult> => {
-      const { permission, subscription } = await subscribeFromTap(publicKey);
+    // `attempt` is `subscribeFromTap(...)`, already started by the click handler: TanStack Query waits
+    // a few microtasks before it calls `mutationFn`, which would put the permission prompt (and, on iOS,
+    // the subscribe) outside the tap.
+    mutationFn: async (attempt: ReturnType<typeof subscribeFromTap>): Promise<TurnOnResult> => {
+      const { permission, subscription } = await attempt;
       if (!subscription) return permission === 'denied' ? 'denied' : 'dismissed';
       try {
         await saveSubscription(subscription);

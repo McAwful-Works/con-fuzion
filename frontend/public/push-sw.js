@@ -55,8 +55,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const path = event.notification.data && event.notification.data.url;
   // Only a same-origin path from this worker's own `push` handler is ever opened.
-  const url =
-    typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') ? path : '/';
+  const url = typeof path === 'string' && /^\/(?![/\\])/.test(path) ? path : '/';
   event.waitUntil(openOrFocus(url));
 });
 
