@@ -25,9 +25,12 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
+import java.sql.Timestamp;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,6 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
@@ -56,6 +60,7 @@ import app.confuzion.backend.repository.EventRepository;
 import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.service.RsvpService;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The RSVP endpoints end to end, through the security filter chain: the
@@ -70,6 +75,11 @@ import io.github.bucket4j.distributed.proxy.ProxyManager;
 		"con-fuzion.rate-limiter.join.capacity=10000" })
 @Import(TestcontainersConfiguration.class)
 class RsvpControllerIntegrationTest {
+	/**
+	 * Writes edit bodies.
+	 */
+	private static final JsonMapper JSON = JsonMapper.builder().build();
+
 	/**
 	 * The {@link WebApplicationContext}.
 	 */
@@ -236,6 +246,9 @@ class RsvpControllerIntegrationTest {
 		var spots = content(get(path(event) + "/spots").with(login(waiting)), 200);
 		assertThat(JsonPath.<Integer>read(spots, "$.body.spotsLeft")).isEqualTo(2);
 		assertThat(JsonPath.<Integer>read(spots, "$.body.waitlisted")).isEqualTo(1);
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(1);
+		assertThat(status(edit(event, 5))).isEqualTo(200);
+		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("WAITLISTED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(1);
 
 		var cancelled = event(2);
@@ -417,9 +430,99 @@ class RsvpControllerIntegrationTest {
 		var event = event(5);
 		var guest = guest(event);
 		limited.join(guest, event.publicId());
-		assertThatThrownBy(() -> limited.join(guest, event.publicId())).isInstanceOf(RateLimitException.class);
+		// A repeat is answered from the checks, so it's never limited (rule 5).
+		limited.join(guest, event.publicId());
+		var second = event(5);
+		fixtures.audience(second.id(), "USER", null, null, guest);
+		assertThatThrownBy(() -> limited.join(guest, second.publicId())).isInstanceOf(RateLimitException.class);
+		assertThat(fixtures.rsvpStatus(second.id(), guest)).isNull();
 		var other = guest(event);
 		limited.join(other, event.publicId());
+	}
+
+	/**
+	 * Tests capacity edits over HTTP: a cut below the confirmed count is a 409
+	 * {@code CAPACITY_BELOW_CONFIRMED} that saves nothing, and making the event
+	 * unlimited confirms everyone waiting, in queue order, at once.
+	 */
+	@Test
+	void testCapacityEdits() throws Exception {
+		var event = event(3);
+		var first = guest(event);
+		var second = guest(event);
+		var third = guest(event);
+		var fourth = guest(event);
+		join(first, event, "CONFIRMED");
+		join(second, event, "CONFIRMED");
+		join(third, event, "WAITLISTED");
+		join(fourth, event, "WAITLISTED");
+
+		assertConflict(edit(event, 2), "CAPACITY_BELOW_CONFIRMED");
+		assertThat(jdbcTemplate.queryForObject("SELECT capacity FROM event WHERE id = ?", Integer.class, event.id()))
+				.isEqualTo(3);
+
+		assertThat(status(edit(event, null))).isEqualTo(200);
+		assertThat(fixtures.rsvpStatus(event.id(), third)).isEqualTo("CONFIRMED");
+		assertThat(fixtures.rsvpStatus(event.id(), fourth)).isEqualTo("CONFIRMED");
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(5);
+		assertThat(JsonPath.<Map<String, Object>>read(content(get(path(event) + "/spots").with(login(first)), 200),
+				"$.body")).containsEntry("waitlisted", 0).containsEntry("spotsLeft", null);
+	}
+
+	/**
+	 * Tests that the attendee list leaves out anyone in a block with the caller,
+	 * either way, while the host still sees everyone. A block between two attendees
+	 * leaves both their RSVPs alone.
+	 */
+	@Test
+	void testAttendeesLeaveOutBlockedPeople() throws Exception {
+		var event = event(5);
+		var blocker = guest(event);
+		var blocked = guest(event);
+		join(blocker, event, "CONFIRMED");
+		join(blocked, event, "CONFIRMED");
+		assertThat(status(put("/api/blocks/" + blocked).with(login(blocker)).with(csrf()))).isEqualTo(204);
+
+		assertThat(attendees(event, blocker)).containsExactly(host.toString(), blocker.toString());
+		assertThat(attendees(event, blocked)).containsExactly(host.toString(), blocked.toString());
+		assertThat(JsonPath.<List<String>>read(content(get(path(event) + "/attendees").with(login(host)), 200),
+				"$.body.confirmed[*].id")).containsExactly(host.toString(), blocker.toString(), blocked.toString());
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(3);
+	}
+
+	/**
+	 * Returns the confirmed people an attendee sees.
+	 *
+	 * @param event  the event
+	 * @param userId the attendee
+	 * @return the confirmed people's IDs
+	 */
+	private List<String> attendees(SeededEvent event, UUID userId) throws Exception {
+		return JsonPath.read(content(get(path(event) + "/attendees").with(login(userId)), 200),
+				"$.body.confirmed[*].id");
+	}
+
+	/**
+	 * Builds the host's edit of a seeded event with a new capacity, keeping its
+	 * start.
+	 *
+	 * @param event    the event
+	 * @param capacity the new capacity, or {@code null} for unlimited
+	 * @return the request
+	 */
+	private MockHttpServletRequestBuilder edit(SeededEvent event, Integer capacity) {
+		var startsAt = jdbcTemplate.queryForObject("SELECT starts_at FROM event WHERE id = ?", Timestamp.class,
+				event.id());
+		var body = new HashMap<String, Object>();
+		body.put("title", "Seeded");
+		body.put("location", "Hall A");
+		body.put("startsAt", startsAt.toInstant().toString());
+		body.put("timeZone", "UTC");
+		body.put("capacity", capacity);
+		body.put("locationVisibility", "CONFIRMED");
+		body.put("audience", List.of(Map.of("type", "FRIENDS")));
+		return patch(path(event)).contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(body))
+				.with(login(host)).with(csrf());
 	}
 
 	/**

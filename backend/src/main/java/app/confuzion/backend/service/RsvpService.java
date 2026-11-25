@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -133,12 +134,13 @@ public class RsvpService {
 	/**
 	 * Joins an event. The checks run read-only, in D-013 rule 17's order, before
 	 * one short transaction locks the event row, adds the RSVP and, when a spot is
-	 * free, takes it.
+	 * free, takes it. Only that claim counts against the join limit, so a repeat
+	 * (rule 5) or a refused join is never a 429.
 	 *
 	 * @param userId  the signed-in user's ID
 	 * @param eventId the event's public ID
 	 * @return the caller's status and, while waitlisted, their position
-	 * @throws RateLimitException     when the caller joined within the last second
+	 * @throws RateLimitException     when the caller claimed within the last second
 	 * @throws NoSuchElementException when the caller can't see the event, or it was
 	 *                                cancelled or a block came between them and the
 	 *                                host while joining
@@ -146,8 +148,6 @@ public class RsvpService {
 	 *                                open
 	 */
 	public RsvpResponse join(UUID userId, UUID eventId) {
-		if (!proxyManager.getProxy(JOIN_KEY_PREFIX + userId, () -> joinBucket).tryConsume(1))
-			throw new RateLimitException();
 		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
 		var mine = rsvpRepository.findMine(event.getId(), userId);
 		if (mine.isPresent() && mine.get().status() != MyStatus.REMOVED)
@@ -159,6 +159,8 @@ public class RsvpService {
 			throw new ConflictException(Conflict.SIGNUP_NOT_OPEN);
 		if (!now.isBefore(event.getStartsAt()))
 			throw new ConflictException(Conflict.SIGNUP_CLOSED);
+		if (!proxyManager.getProxy(JOIN_KEY_PREFIX + userId, () -> joinBucket).tryConsume(1))
+			throw new RateLimitException();
 
 		transactionTemplate.executeWithoutResult(tx -> {
 			var locked = rsvpRepository.lock(event.getId());
@@ -211,7 +213,8 @@ public class RsvpService {
 
 	/**
 	 * Returns who is going, to the host and confirmed attendees only. The host also
-	 * gets the waitlist.
+	 * gets the waitlist. Both lists come from one snapshot, so a promotion between
+	 * the two reads can't put someone in both or neither.
 	 *
 	 * @param userId  the signed-in user's ID
 	 * @param eventId the event's public ID
@@ -219,7 +222,7 @@ public class RsvpService {
 	 * @throws NoSuchElementException when the caller is neither the host nor
 	 *                                confirmed, or can't see the event
 	 */
-	@Transactional(readOnly = true)
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public AttendeesResponse getAttendees(UUID userId, UUID eventId) {
 		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
 		var isHost = event.getHostId().equals(userId);

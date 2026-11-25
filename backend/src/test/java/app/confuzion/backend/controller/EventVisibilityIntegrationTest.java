@@ -252,6 +252,59 @@ class EventVisibilityIntegrationTest {
 	}
 
 	/**
+	 * Returns the RSVP rows of the truth table (D-013 rule 10): each RSVP status,
+	 * on a published and a cancelled event, with no block and with a block each
+	 * way. The event has no audience entries, so only the RSVP can make it visible.
+	 *
+	 * @return the status, whether the event is cancelled, the block, and the
+	 *         expected visibility
+	 */
+	static Stream<Arguments> rsvpTruthTable() {
+		var rows = new ArrayList<Arguments>();
+		for (var status : List.of("CONFIRMED", "WAITLISTED", "LEFT", "REMOVED"))
+			for (var cancelled : List.of(false, true))
+				for (var change : List.of(Change.NONE, Change.HOST_BLOCKS, Change.VIEWER_BLOCKS))
+					rows.add(Arguments.of(status, cancelled, change,
+							(status.equals("CONFIRMED") || status.equals("WAITLISTED")) && change == Change.NONE));
+		return rows.stream();
+	}
+
+	/**
+	 * Tests one RSVP row: an active RSVP keeps the event visible, cancelled or not
+	 * and whatever the audience, unless a block stands between the viewer and the
+	 * host. A left or removed RSVP grants nothing. The detail view and the feed
+	 * (which lists only published events) agree.
+	 *
+	 * @param status    the viewer's RSVP status
+	 * @param cancelled whether the event is cancelled
+	 * @param change    the block, if any
+	 * @param expected  whether the viewer should see the event
+	 */
+	@ParameterizedTest(name = "RSVP {0}, cancelled {1}, {2} -> {3}")
+	@MethodSource("rsvpTruthTable")
+	void rsvpVisibility(String status, boolean cancelled, Change change, boolean expected) throws Exception {
+		var host = fixtures.user("Host");
+		var viewer = fixtures.user("Viewer");
+		var event = fixtures.event(host);
+		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status) VALUES (?, ?, ?)", event.id(), viewer,
+				status);
+		if (cancelled)
+			fixtures.cancel(event.id());
+		switch (change) {
+		case HOST_BLOCKS -> fixtures.block(host, viewer);
+		case VIEWER_BLOCKS -> fixtures.block(viewer, host);
+		default -> {
+		}
+		}
+
+		var detail = mockMvc.perform(get("/api/events/" + event.publicId()).with(login(viewer))).andReturn()
+				.getResponse().getStatus();
+		assertThat(detail).as("detail").isEqualTo(expected ? 200 : 404);
+		assertThat(feedIds(viewer)).as("feed")
+				.isEqualTo(expected && !cancelled ? List.of(event.publicId().toString()) : List.of());
+	}
+
+	/**
 	 * Tests that the host sees their cancelled event in the hosting list, though no
 	 * longer in their feed.
 	 */
