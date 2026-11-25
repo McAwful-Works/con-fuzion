@@ -14,8 +14,17 @@ Finished in M5 and M6, once maintenance mode and the infrastructure exist.
 ## 2. Rotate secrets
 - **Discord client secret:** Discord Developer Portal → OAuth2 → Reset Secret. Update Secrets Manager, then
   redeploy.
-- **VAPID keys:** generate a new pair and update Secrets Manager. Existing push subscriptions become invalid, and
-  clients re-subscribe on their next visit.
+- **VAPID keys** (Web Push; format and generation in [docs/security.md](../security.md#vapid-keys-web-push)):
+  1. Generate a new pair as `docs/security.md` describes. Don't reuse or derive from the old one.
+  2. Update `CONFUZION_VAPID_PUBLIC_KEY` and `CONFUZION_VAPID_PRIVATE_KEY` together in Secrets Manager, then redeploy.
+     Startup fails if the two don't match, so a half-done update can't go live.
+  3. Every existing subscription was made with the old public key, so push services refuse new pushes to it (the
+     sender marks those notifications `FAILED`; the inbox still has them). Each browser gets pushes again once it
+     subscribes with the new key on its next visit.
+  4. If the old private key leaked, also delete every subscription so nothing signed by the old key is ever accepted
+     again: `DELETE FROM push_subscription;`. Users keep their push setting and re-subscribe on their next visit.
+  - **To turn push off** in an emergency, unset both values and redeploy: `/api/push/key` becomes a 404 and nothing is
+    sent. Pending notifications wait in the queue.
 - **AWS:** deploys use GitHub OIDC (no static keys). If a human's credentials leaked, deactivate them in IAM and
   review CloudTrail.
 

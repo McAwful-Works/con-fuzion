@@ -27,12 +27,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.PushEndpointRequest;
 import app.confuzion.backend.model.record.PushKeyResponse;
 import app.confuzion.backend.model.record.PushSubscriptionRequest;
 import app.confuzion.backend.model.record.ResponseRecord;
+import app.confuzion.backend.service.PushService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -51,6 +52,20 @@ import jakarta.validation.Valid;
 @Tag(name = "push", description = "Web Push key and browser subscriptions")
 public class PushController {
 	/**
+	 * The {@link PushService}.
+	 */
+	private final PushService pushService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param pushService the {@link PushService}
+	 */
+	public PushController(PushService pushService) {
+		this.pushService = pushService;
+	}
+
+	/**
 	 * Returns the server's VAPID public key.
 	 *
 	 * @param authentication the session's {@link Authentication}
@@ -63,7 +78,7 @@ public class PushController {
 	@ApiResponse(responseCode = "404", description = "Push isn't set up on this server (no VAPID keys), so the client "
 			+ "hides the push setting.")
 	public ResponseRecord<PushKeyResponse> getKey(@Parameter(hidden = true) Authentication authentication) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(pushService.getKey());
 	}
 
 	/**
@@ -84,7 +99,7 @@ public class PushController {
 			+ "isn't the right length of base64url.")
 	public void subscribe(@Parameter(hidden = true) Authentication authentication,
 			@Valid @RequestBody PushSubscriptionRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		pushService.subscribe(HttpUtil.userId(authentication), request);
 	}
 
 	/**
@@ -101,6 +116,6 @@ public class PushController {
 	@ApiResponse(responseCode = "204", description = "Removed, or wasn't subscribed.")
 	public void unsubscribe(@Parameter(hidden = true) Authentication authentication,
 			@Valid @RequestBody PushEndpointRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		pushService.unsubscribe(HttpUtil.userId(authentication), request.endpoint());
 	}
 }

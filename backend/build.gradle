@@ -49,6 +49,9 @@ dependencies {
     implementation 'com.bucket4j:bucket4j_jdk17-lettuce:8.23.0'
     // The per-task 1-second cache of /spots counts (plan B2, D-013). Version from the Boot BOM.
     implementation 'com.github.ben-manes.caffeine:caffeine'
+    // Web Push (RFC 8030/8291/8292, D-014): message encryption and VAPID. No runtime dependencies; used with the JDK
+    // HttpClient, so none of its optional HTTP client integrations come in.
+    implementation 'com.zerodeplibs:zerodep-web-push-java:2.1.5'
     annotationProcessor 'org.projectlombok:lombok'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
