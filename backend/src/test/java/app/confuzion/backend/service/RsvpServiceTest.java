@@ -113,7 +113,7 @@ class RsvpServiceTest {
 	@Test
 	void testLimitedJoinAnswersATwinsClaim() {
 		var userId = UUID.randomUUID();
-		when(eventRepository.findVisible(event.getPublicId(), userId, false)).thenReturn(Optional.of(event));
+		when(eventRepository.findVisible(event.getPublicId(), userId)).thenReturn(Optional.of(event));
 		when(rsvpRepository.findMine(7L, userId)).thenReturn(Optional.empty())
 				.thenReturn(Optional.of(new Mine(MyStatus.WAITLISTED, 3, null))).thenReturn(Optional.empty());
 		when(bucket.tryConsume(1)).thenReturn(false);
@@ -136,15 +136,15 @@ class RsvpServiceTest {
 		var confirmed = UUID.randomUUID();
 		var other = UUID.randomUUID();
 		for (var user : List.of(confirmed, other))
-			when(eventRepository.findVisible(event.getPublicId(), user, false)).thenReturn(Optional.of(event));
+			when(eventRepository.findVisible(event.getPublicId(), user)).thenReturn(Optional.of(event));
 		when(rsvpRepository.findMine(7L, confirmed)).thenReturn(Optional.of(new Mine(MyStatus.CONFIRMED, null, null)));
 		when(rsvpRepository.findMine(7L, other)).thenReturn(Optional.empty());
 		when(rsvpRepository.findCounts(7L)).thenReturn(new Counts(null, 12, 0));
 		var service = new RsvpService(eventRepository, rsvpRepository, mock(TransactionTemplate.class), proxyManager,
 				1);
 
-		var mine = service.getSpots(confirmed, event.getPublicId(), false);
-		var theirs = service.getSpots(other, event.getPublicId(), false);
+		var mine = service.getSpots(confirmed, event.getPublicId());
+		var theirs = service.getSpots(other, event.getPublicId());
 
 		assertThat(mine.myStatus()).isEqualTo(MyStatus.CONFIRMED);
 		assertThat(theirs.myStatus()).isEqualTo(MyStatus.NONE);
@@ -167,7 +167,7 @@ class RsvpServiceTest {
 			return null;
 		}).when(transactionTemplate).executeWithoutResult(any());
 		var userId = UUID.randomUUID();
-		when(eventRepository.findVisible(event.getPublicId(), userId, false)).thenReturn(Optional.of(event));
+		when(eventRepository.findVisible(event.getPublicId(), userId)).thenReturn(Optional.of(event));
 		when(rsvpRepository.findMine(7L, userId)).thenReturn(Optional.empty());
 		when(rsvpRepository.lock(7L)).thenReturn(new LockedEvent(hostId, "CANCELLED", 5, 1));
 

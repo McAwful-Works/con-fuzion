@@ -177,7 +177,7 @@ class RsvpConcurrencyIntegrationTest {
 		eventService.updateEvent(host, event.publicId(), request(13));
 		assertThat(statuses(event, queue.subList(14, 17))).containsExactly("OFFERED", "OFFERED", "WAITLISTED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(13);
-		assertThat(rsvpService.getSpots(queue.get(16).userId(), event.publicId(), false).myPosition()).isEqualTo(1);
+		assertThat(rsvpService.getSpots(queue.get(16).userId(), event.publicId()).myPosition()).isEqualTo(1);
 
 		assertThatThrownBy(() -> eventService.updateEvent(host, event.publicId(), request(12))).isInstanceOfSatisfying(
 				ConflictException.class, e -> assertThat(e.getConflict()).isEqualTo(Conflict.CAPACITY_BELOW_CONFIRMED));

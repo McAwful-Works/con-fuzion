@@ -22,9 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 
-import app.confuzion.backend.config.SecurityConfig;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.experimental.UtilityClass;
 
@@ -72,20 +70,5 @@ public class HttpUtil {
 	 */
 	public UUID userId(Authentication authentication) {
 		return UUID.fromString(authentication.getName());
-	}
-
-	/**
-	 * Returns whether the session holds MODERATOR or ADMIN in effect: the
-	 * authorities granted at sign-in, which only a user with Discord MFA on gets
-	 * (D-015). Never look the roles up elsewhere, so what a moderator may see
-	 * always matches what {@code SecurityConfig} lets them do.
-	 *
-	 * @param authentication the session's {@link Authentication}
-	 * @return {@code true} for {@code ROLE_MODERATOR} or {@code ROLE_ADMIN}
-	 */
-	public boolean isModerator(Authentication authentication) {
-		return authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority)
-				.anyMatch(authority -> authority.equals("ROLE_" + SecurityConfig.MODERATOR)
-						|| authority.equals("ROLE_" + SecurityConfig.ADMIN));
 	}
 }

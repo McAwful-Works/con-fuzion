@@ -19,15 +19,16 @@
 package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.EventFixtures.login;
-import static app.confuzion.backend.controller.ModerationControllerIntegrationTest.as;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.OAuth2LoginRequestPostProcessor;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -47,6 +51,7 @@ import org.springframework.web.context.WebApplicationContext;
 import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.TestcontainersConfiguration;
+import app.confuzion.backend.service.DiscordOAuth2UserService;
 
 /**
  * Integration tests for reporting and the moderation queue (D-015 rules 6 to 9
@@ -291,6 +296,23 @@ class ReportControllerIntegrationTest {
 		done.addAll(pageIds(asModerator, "DISMISSED"));
 		assertThat(pageIds(asModerator, "DISMISSED")).isSortedAccordingTo((a, b) -> Long.compare(b, a));
 		assertThat(done).contains(ids.get(1), ids.get(2));
+	}
+
+	/**
+	 * Returns a signed-in principal for a user with extra authorities, as the login
+	 * grants them with MFA on. With none, the user acts as a plain user, as a
+	 * moderator does while their MFA is off.
+	 *
+	 * @param userId      the user ID
+	 * @param authorities the authorities besides {@code ROLE_USER}
+	 * @return the request post-processor
+	 */
+	static OAuth2LoginRequestPostProcessor as(UUID userId, String... authorities) {
+		var granted = new ArrayList<>(AuthorityUtils.createAuthorityList(authorities));
+		granted.addAll(AuthorityUtils.createAuthorityList("ROLE_USER"));
+		return oauth2Login().oauth2User(
+				new DefaultOAuth2User(granted, Map.of(DiscordOAuth2UserService.USER_ID_ATTRIBUTE, userId.toString()),
+						DiscordOAuth2UserService.USER_ID_ATTRIBUTE));
 	}
 
 	/**

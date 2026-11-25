@@ -457,9 +457,9 @@ class EventControllerIntegrationTest {
 		jdbcTemplate.update("UPDATE event SET hidden_by_moderation = true, moderation_reason = 'Unsafe location' "
 				+ "WHERE public_id = ?", UUID.fromString(event));
 		assertThat(read(get(path(event)), host, "$.body.hiddenReason")).isEqualTo("Unsafe location");
-		// The host's friend can't see it at all now (D-015 rule 10), so never the
-		// reason.
-		assertThat(status(get(path(event)).with(login(friend)))).isEqualTo(404);
+		// Until #85 hides the event from them, the host's friend still sees it, but
+		// never the reason.
+		assertThat(read(get(path(event)), friend, "$.body.hiddenReason")).isNull();
 
 		assertThat(JsonPath.<String>read(content(edit(path(event), host, Map.of("title", "Renamed")), 200),
 				"$.body.hiddenReason")).isEqualTo("Unsafe location");

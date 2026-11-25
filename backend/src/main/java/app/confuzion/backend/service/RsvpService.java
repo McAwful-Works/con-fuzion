@@ -52,10 +52,7 @@ import io.github.bucket4j.distributed.proxy.ProxyManager;
 /**
  * Joining, leaving, removal, attendee lists and spot counts (plan B4, D-013).
  * Every operation first needs the event to be visible to the caller
- * ({@link EventRepository#VISIBLE}); otherwise it is a 404. Only the spot
- * counts also open to a moderator reviewing an event under moderation (D-015
- * rule 8): a moderator can't join, leave or list attendees through that, and an
- * event hidden by moderators can't be opened, joined or left by its attendees
+ * ({@link EventRepository#VISIBLE}); otherwise it is a 404
  * ({@link NoSuchElementException}). Every write that changes who holds a spot
  * locks the event row before it touches an RSVP (D-013).
  * <p>
@@ -151,7 +148,7 @@ public class RsvpService {
 	 *                                open
 	 */
 	public RsvpResponse join(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
+		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
 		var mine = rsvpRepository.findMine(event.getId(), userId);
 		if (mine.isPresent() && mine.get().status() != MyStatus.REMOVED)
 			return toRsvp(mine.get());
@@ -203,7 +200,7 @@ public class RsvpService {
 	 */
 	@Transactional
 	public RsvpResponse accept(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
+		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
 		var locked = rsvpRepository.lock(event.getId());
 		var confirmed = new RsvpResponse(RsvpResponse.Status.CONFIRMED, null, null);
 		if (Status.PUBLISHED.name().equals(locked.status()) && rsvpRepository.acceptOffer(event.getId(), userId))
@@ -229,7 +226,7 @@ public class RsvpService {
 	 */
 	@Transactional
 	public void leave(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
+		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
 		if (event.getHostId().equals(userId))
 			throw new ConflictException(Conflict.HOST_CANNOT_LEAVE);
 		end(event.getId(), userId, "LEFT");
@@ -267,7 +264,7 @@ public class RsvpService {
 	 */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public AttendeesResponse getAttendees(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
+		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
 		var isHost = event.getHostId().equals(userId);
 		if (!isHost && rsvpRepository.findMine(event.getId(), userId).map(Mine::status)
 				.filter(MyStatus.CONFIRMED::equals).isEmpty())
@@ -282,15 +279,14 @@ public class RsvpService {
 	 * up to {@link #COUNTS_TTL} old; the caller's status and position are always
 	 * current.
 	 *
-	 * @param userId    the signed-in user's ID
-	 * @param eventId   the event's public ID
-	 * @param moderator whether the session holds MODERATOR or ADMIN in effect
+	 * @param userId  the signed-in user's ID
+	 * @param eventId the event's public ID
 	 * @return the {@link SpotsResponse}
 	 * @throws NoSuchElementException when the caller can't see the event
 	 */
 	@Transactional(readOnly = true)
-	public SpotsResponse getSpots(UUID userId, UUID eventId, boolean moderator) {
-		var event = eventRepository.findVisible(eventId, userId, moderator).orElseThrow();
+	public SpotsResponse getSpots(UUID userId, UUID eventId) {
+		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
 		var shared = counts.get(event.getId(), rsvpRepository::findCounts);
 		var mine = rsvpRepository.findMine(event.getId(), userId);
 		return new SpotsResponse(shared.capacity(), shared.confirmed(), shared.waitlisted(),
@@ -323,7 +319,7 @@ public class RsvpService {
 	 * @throws NoSuchElementException when it doesn't exist or isn't theirs
 	 */
 	private Event hosted(UUID hostId, UUID eventId) {
-		return eventRepository.findVisible(eventId, hostId, false).filter(event -> event.getHostId().equals(hostId))
+		return eventRepository.findVisible(eventId, hostId).filter(event -> event.getHostId().equals(hostId))
 				.orElseThrow();
 	}
 

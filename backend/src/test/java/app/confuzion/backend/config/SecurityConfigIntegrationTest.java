@@ -148,14 +148,11 @@ class SecurityConfigIntegrationTest {
 
 	/**
 	 * What the built {@code /api/admin} routes answer a caller with the role, by
-	 * {@code "METHOD path"}: the queue lists, and the report and event don't exist.
-	 * The others are 501 stubs until #84 and #86.
+	 * {@code "METHOD path"}: the queue lists, and the report doesn't exist. The
+	 * others are 501 stubs until #84, #85's second part and #86.
 	 */
 	private static final Map<String, Integer> BUILT_ADMIN_ROUTES = Map.of("GET /api/admin/reports?status=OPEN", 200,
-			"GET /api/admin/reports/7", 404, "POST /api/admin/reports/7/resolve", 404,
-			"POST /api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/hide", 404,
-			"POST /api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/unhide", 404,
-			"POST /api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/cancel", 404);
+			"GET /api/admin/reports/7", 404, "POST /api/admin/reports/7/resolve", 404);
 
 	/**
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it

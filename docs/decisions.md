@@ -615,6 +615,23 @@ Context · Decision · Consequences · Trigger to revisit
     change, so a change that rolls back leaves no row. The one exception is `SIGN_IN_REFUSED`, which records no change:
     it commits on its own before the sign-in is refused, since the refusal rolls the login back. Nothing else writes
     `audit_log`, and M7's account deletion never touches it, the bans, or the reports' target IDs.
+- **As built (owner-confirmed 2026-11-25, #85):**
+  - **Reports about the viewer are invisible to them, whatever their role.** A moderator or admin who is the reported
+    user, or hosts the reported event, gets no `REPORT_RECEIVED`, and the queue, read and resolve answer as if the
+    report didn't exist (404). This goes past rule 12's "every user with MODERATOR or ADMIN in effect", so that the
+    reported user never learns of a report.
+  - **Who counts as a moderator** comes only from the session's authorities (`ROLE_MODERATOR` or `ROLE_ADMIN`), never
+    from `user_role`, so what a moderator sees always matches what `SecurityConfig` lets them do. Rule 8's moderator
+    view applies to the event detail and `/spots` only. Joining, accepting, leaving, the attendee list, the feed and My
+    schedule never use it, so a moderator can review a reported event but not join it or list its attendees.
+  - **A moderator's own report doesn't open an event to them** (rule 8 reads "reported by someone else"), so reporting
+    an event can't get them past a host's block or a CONFIRMED-only location.
+  - **Unhiding hands the spots freed while hidden to the waitlist** in queue order, with the usual `SPOT_OFFERED`, so a
+    new join can't take them first (D-013). Nobody is told about the unhide itself.
+  - **The bootstrap ADMIN** gets no `REPORT_RECEIVED` until #84 stores its `user_role` row, since the fan-out reads
+    stored roles.
+  - Reports and the queue land first; hiding, unhiding, the moderator cancel and the `VISIBLE` change follow in a
+    second PR for #85.
 - **Consequences:** moderators can act without seeing anything a user hasn't made public, and attendees are told only
   when an event is really off. The audit log can't be edited from the app, even by a bug, and outlives every account it
   names. Reports and audit rows keep the IDs of deleted accounts and purged events, which name nobody once those are

@@ -30,13 +30,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.ModerationRequest;
 import app.confuzion.backend.model.record.ReportPageResponse;
 import app.confuzion.backend.model.record.ReportResponse;
 import app.confuzion.backend.model.record.ResolveReportRequest;
 import app.confuzion.backend.model.record.ResponseRecord;
-import app.confuzion.backend.service.EventService;
 import app.confuzion.backend.service.ReportService;
 import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,7 +52,8 @@ import jakarta.validation.constraints.Size;
 /**
  * The {@link RestController} for the moderation queue and event moderation
  * (D-015). Every route needs MODERATOR or ADMIN in effect, which
- * {@code SecurityConfig} checks.
+ * {@code SecurityConfig} checks. The event routes are stubs until the second
+ * part of #85.
  *
  * @author mcawful
  */
@@ -66,19 +67,12 @@ public class ModerationController {
 	private final ReportService reportService;
 
 	/**
-	 * The {@link EventService}.
-	 */
-	private final EventService eventService;
-
-	/**
 	 * Creates the controller.
 	 *
 	 * @param reportService the {@link ReportService}
-	 * @param eventService  the {@link EventService}
 	 */
-	public ModerationController(ReportService reportService, EventService eventService) {
+	public ModerationController(ReportService reportService) {
 		this.reportService = reportService;
-		this.eventService = eventService;
 	}
 
 	/**
@@ -163,7 +157,7 @@ public class ModerationController {
 	public void hideEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId,
 			@Valid @RequestBody ModerationRequest request) {
-		eventService.hide(HttpUtil.userId(authentication), eventId, request.reason());
+		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}
 
 	/**
@@ -181,7 +175,7 @@ public class ModerationController {
 	@ApiResponse(responseCode = "404", description = "No such event.")
 	public void unhideEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		eventService.unhide(HttpUtil.userId(authentication), eventId);
+		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}
 
 	/**
@@ -202,6 +196,6 @@ public class ModerationController {
 	public void cancelEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId,
 			@Valid @RequestBody ModerationRequest request) {
-		eventService.cancelAsModerator(HttpUtil.userId(authentication), eventId, request.reason());
+		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
 	}
 }

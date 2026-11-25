@@ -54,9 +54,6 @@ import app.confuzion.backend.model.entity.Event;
 import app.confuzion.backend.model.entity.EventAudience;
 import app.confuzion.backend.model.entity.EventAudience.Ref;
 import app.confuzion.backend.model.entity.UserGuild;
-import app.confuzion.backend.model.record.AuditDetails;
-import app.confuzion.backend.model.record.AuditEntryResponse.Action;
-import app.confuzion.backend.model.record.AuditEntryResponse.TargetType;
 import app.confuzion.backend.model.record.EventPageResponse;
 import app.confuzion.backend.model.record.EventRequest;
 import app.confuzion.backend.model.record.EventResponse;
@@ -70,7 +67,6 @@ import app.confuzion.backend.model.record.NotificationPayload.Change;
 import app.confuzion.backend.model.record.NotificationResponse.Type;
 import app.confuzion.backend.model.record.PersonResponse;
 import app.confuzion.backend.repository.AppUserRepository;
-import app.confuzion.backend.repository.AuditLogRepository;
 import app.confuzion.backend.repository.EventAudienceRepository;
 import app.confuzion.backend.repository.EventAudienceRepository.LabelledEntry;
 import app.confuzion.backend.repository.EventRepository;
@@ -151,11 +147,6 @@ public class EventService {
 	private final NotificationRepository notificationRepository;
 
 	/**
-	 * The {@link AuditLogRepository}, for moderators' actions.
-	 */
-	private final AuditLogRepository auditLogRepository;
-
-	/**
 	 * Creates the service.
 	 *
 	 * @param eventRepository        the {@link EventRepository}
@@ -165,12 +156,11 @@ public class EventService {
 	 * @param socialRepository       the {@link SocialRepository}
 	 * @param rsvpRepository         the {@link RsvpRepository}
 	 * @param notificationRepository the {@link NotificationRepository}
-	 * @param auditLogRepository     the {@link AuditLogRepository}
 	 */
 	public EventService(EventRepository eventRepository, EventAudienceRepository audienceRepository,
 			AppUserRepository appUserRepository, UserGuildRepository userGuildRepository,
 			SocialRepository socialRepository, RsvpRepository rsvpRepository,
-			NotificationRepository notificationRepository, AuditLogRepository auditLogRepository) {
+			NotificationRepository notificationRepository) {
 		this.eventRepository = eventRepository;
 		this.audienceRepository = audienceRepository;
 		this.appUserRepository = appUserRepository;
@@ -178,7 +168,6 @@ public class EventService {
 		this.socialRepository = socialRepository;
 		this.rsvpRepository = rsvpRepository;
 		this.notificationRepository = notificationRepository;
-		this.auditLogRepository = auditLogRepository;
 	}
 
 	/**
@@ -211,26 +200,21 @@ public class EventService {
 		eventRepository.save(event);
 		eventRepository.addHostRsvp(event.getId());
 		audienceRepository.saveAll(refs.stream().map(ref -> new EventAudience(event.getId(), ref)).toList());
-		return toResponses(hostId, List.of(event), false).getFirst();
+		return toResponses(hostId, List.of(event)).getFirst();
 	}
 
 	/**
-	 * Returns an event the caller can see. A moderator also sees an event under
-	 * moderation (hidden or reported), with its location, so they can review it
-	 * (D-015 rule 8).
+	 * Returns an event the caller can see.
 	 *
-	 * @param viewer    the signed-in user's ID
-	 * @param eventId   the event's public ID
-	 * @param moderator whether the session holds MODERATOR or ADMIN in effect
+	 * @param viewer  the signed-in user's ID
+	 * @param eventId the event's public ID
 	 * @return the event as the caller may see it
 	 * @throws NoSuchElementException when it doesn't exist or the caller can't see
 	 *                                it
 	 */
 	@Transactional(readOnly = true)
-	public EventResponse getEvent(UUID viewer, UUID eventId, boolean moderator) {
-		var event = eventRepository.findVisible(eventId, viewer, moderator).orElseThrow();
-		return toResponses(viewer, List.of(event), moderator && eventRepository.isModerated(event.getId(), viewer))
-				.getFirst();
+	public EventResponse getEvent(UUID viewer, UUID eventId) {
+		return toResponses(viewer, List.of(eventRepository.findVisible(eventId, viewer).orElseThrow())).getFirst();
 	}
 
 	/**
@@ -255,10 +239,10 @@ public class EventService {
 		default -> eventRepository.findFeed(viewer, after.startsAt(), after.id(), limit + 1);
 		};
 		if (events.size() <= limit)
-			return new EventPageResponse(toResponses(viewer, events, false), null);
+			return new EventPageResponse(toResponses(viewer, events), null);
 		var page = events.subList(0, limit);
 		var last = page.getLast();
-		return new EventPageResponse(toResponses(viewer, page, false),
+		return new EventPageResponse(toResponses(viewer, page),
 				new Cursor(last.getStartsAt(), last.getPublicId()).encode(scope));
 	}
 
@@ -268,9 +252,9 @@ public class EventService {
 	 * ones must be usable. The event row stays locked until the transaction ends,
 	 * so the capacity check can't race a join (D-013). If the start, end or
 	 * location changed, everyone with an active RSVP but the host gets one
-	 * {@code EVENT_CHANGED} notification, in the same transaction (D-014), unless
-	 * the event is hidden by moderators (D-015 rule 10). Once saved, waitlisted
-	 * people fill any free spots in queue order, if the event hasn't started.
+	 * {@code EVENT_CHANGED} notification, in the same transaction (D-014). Once
+	 * saved, waitlisted people fill any free spots in queue order, if the event
+	 * hasn't started.
 	 *
 	 * @param hostId  the signed-in user's ID
 	 * @param eventId the event's public ID
@@ -305,13 +289,13 @@ public class EventService {
 		var changes = changes(event, request);
 		apply(event, request);
 		eventRepository.flush();
-		if (!changes.isEmpty() && event.getModerationReason() == null)
+		if (!changes.isEmpty())
 			notificationRepository.insertForActiveRsvps(event.getId(), hostId, Type.EVENT_CHANGED,
 					new NotificationPayload(event.getTitle(), null, event.getStartsAt(), changes, null, null, null,
 							null));
 		rsvpRepository.fillFreeSpots(event.getId(),
 				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
-		return toResponses(hostId, List.of(event), false).getFirst();
+		return toResponses(hostId, List.of(event)).getFirst();
 	}
 
 	/**
@@ -325,92 +309,12 @@ public class EventService {
 	 */
 	@Transactional
 	public void cancelEvent(UUID hostId, UUID eventId) {
-		cancel(eventRepository.findByPublicIdAndHostId(eventId, hostId).orElseThrow());
-	}
-
-	/**
-	 * Cancels an event as a moderator, through the host's cancel path, so everyone
-	 * with an active RSVP but the host gets the usual {@code EVENT_CANCELLED} with
-	 * no reason. The host gets {@code EVENT_CANCELLED} with the reason, and the
-	 * cancel is audit-logged (D-015 rule 11). A cancelled or ended event is left as
-	 * it is, and nobody is told.
-	 *
-	 * @param moderatorId the signed-in moderator's ID
-	 * @param eventId     the event's public ID
-	 * @param reason      the moderator's reason, already validated
-	 * @throws NoSuchElementException when the event doesn't exist
-	 */
-	@Transactional
-	public void cancelAsModerator(UUID moderatorId, UUID eventId, String reason) {
-		var event = eventRepository.findByPublicId(eventId).orElseThrow();
-		if (event.getStatus() == Status.CANCELLED || !end(event).isAfter(Instant.now()))
-			return;
-		cancel(event);
-		notificationRepository.insert(event.getHostId(), Type.EVENT_CANCELLED, event.getId(),
-				new NotificationPayload(event.getTitle(), null, null, null, null, null, null, reason));
-		auditLogRepository.insert(moderatorId, Action.EVENT_CANCELLED, TargetType.EVENT, eventId.toString(),
-				new AuditDetails(reason, null, null, null, null, null, null));
-	}
-
-	/**
-	 * Hides an event from everyone but its host and moderators (D-015 rule 10).
-	 * Attendees keep their RSVPs and are told nothing; the host gets
-	 * {@code EVENT_HIDDEN} with the reason. Audit-logged. Hiding a hidden event
-	 * changes nothing.
-	 *
-	 * @param moderatorId the signed-in moderator's ID
-	 * @param eventId     the event's public ID
-	 * @param reason      the moderator's reason, already validated
-	 * @throws NoSuchElementException when the event doesn't exist
-	 */
-	@Transactional
-	public void hide(UUID moderatorId, UUID eventId, String reason) {
-		var event = eventRepository.findByPublicId(eventId).orElseThrow();
-		if (event.getModerationReason() != null)
-			return;
-		eventRepository.setHidden(event.getId(), reason);
-		notificationRepository.insert(event.getHostId(), Type.EVENT_HIDDEN, event.getId(),
-				new NotificationPayload(event.getTitle(), null, null, null, null, null, null, reason));
-		auditLogRepository.insert(moderatorId, Action.EVENT_HIDDEN, TargetType.EVENT, eventId.toString(),
-				new AuditDetails(reason, null, null, null, null, null, null));
-	}
-
-	/**
-	 * Makes a hidden event visible to its audience again and clears its reason.
-	 * Nobody is told of the unhide. Spots freed while it was hidden then go to the
-	 * waitlist in queue order, as after an edit, so a new join can't take them
-	 * first (D-013); those people get the usual offer. Audit-logged. Unhiding a
-	 * visible event changes nothing.
-	 *
-	 * @param moderatorId the signed-in moderator's ID
-	 * @param eventId     the event's public ID
-	 * @throws NoSuchElementException when the event doesn't exist
-	 */
-	@Transactional
-	public void unhide(UUID moderatorId, UUID eventId) {
-		var event = eventRepository.findByPublicId(eventId).orElseThrow();
-		if (event.getModerationReason() == null)
-			return;
-		eventRepository.setHidden(event.getId(), null);
-		rsvpRepository.fillFreeSpots(event.getId(),
-				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
-		auditLogRepository.insert(moderatorId, Action.EVENT_UNHIDDEN, TargetType.EVENT, eventId.toString(), null);
-	}
-
-	/**
-	 * Cancels an event that the caller has locked, and tells everyone with an
-	 * active RSVP but the host, in the same transaction (D-014), hidden or not
-	 * (D-015 rule 10). Cancelling it again is a no-op that notifies nobody, and so
-	 * is cancelling one that has already ended.
-	 *
-	 * @param event the locked {@link Event}
-	 */
-	private void cancel(Event event) {
+		var event = eventRepository.findByPublicIdAndHostId(eventId, hostId).orElseThrow();
 		if (event.getStatus() == Status.CANCELLED)
 			return;
-		eventRepository.cancel(event.getPublicId(), event.getHostId());
+		eventRepository.cancel(eventId, hostId);
 		if (end(event).isAfter(Instant.now()))
-			notificationRepository.insertForActiveRsvps(event.getId(), event.getHostId(), Type.EVENT_CANCELLED,
+			notificationRepository.insertForActiveRsvps(event.getId(), hostId, Type.EVENT_CANCELLED,
 					new NotificationPayload(event.getTitle(), null, null, null, null, null, null, null));
 	}
 
@@ -523,13 +427,11 @@ public class EventService {
 	 * Maps events to what the viewer may see, loading hosts, where the viewer
 	 * stands and (for the viewer's own events) audiences in one query each.
 	 *
-	 * @param viewer    the viewer's user ID
-	 * @param events    the events, which the viewer may see
-	 * @param reviewing whether a moderator is reviewing the one event under
-	 *                  moderation, and so sees its location
+	 * @param viewer the viewer's user ID
+	 * @param events the events, which the viewer may see
 	 * @return the responses, in the same order
 	 */
-	private List<EventResponse> toResponses(UUID viewer, List<Event> events, boolean reviewing) {
+	private List<EventResponse> toResponses(UUID viewer, List<Event> events) {
 		var hosts = appUserRepository.findAllById(events.stream().map(Event::getHostId).collect(toSet())).stream()
 				.collect(toMap(AppUser::getId, Function.identity()));
 		var ownIds = events.stream().filter(event -> event.getHostId().equals(viewer)).map(Event::getId).toList();
@@ -538,27 +440,25 @@ public class EventService {
 						groupingBy(LabelledEntry::getEventId, mapping(EventService::toAudienceEntry, toList())));
 		var statuses = rsvpRepository.findStatuses(viewer, events.stream().map(Event::getId).toList());
 		return events.stream().map(event -> toResponse(viewer, event, hosts.get(event.getHostId()),
-				statuses.getOrDefault(event.getId(), MyStatus.NONE), audiences, reviewing)).toList();
+				statuses.getOrDefault(event.getId(), MyStatus.NONE), audiences)).toList();
 	}
 
 	/**
 	 * Maps one event to what the viewer may see. Only the host gets the audience,
 	 * and a {@link LocationVisibility#CONFIRMED} location is withheld from everyone
-	 * but the host, confirmed attendees (D-013) and a moderator reviewing it (D-015
-	 * rule 8).
+	 * but the host and confirmed attendees (D-013).
 	 *
 	 * @param viewer    the viewer's user ID
 	 * @param event     the {@link Event}
 	 * @param host      the host
 	 * @param myStatus  where the viewer stands
 	 * @param audiences the audiences of the viewer's own events, by event ID
-	 * @param reviewing whether a moderator is reviewing it
 	 * @return the {@link EventResponse}
 	 */
 	private static EventResponse toResponse(UUID viewer, Event event, AppUser host, MyStatus myStatus,
-			Map<Long, List<AudienceEntry>> audiences, boolean reviewing) {
+			Map<Long, List<AudienceEntry>> audiences) {
 		var isHost = event.getHostId().equals(viewer);
-		var locationHidden = !isHost && !reviewing && myStatus != MyStatus.CONFIRMED
+		var locationHidden = !isHost && myStatus != MyStatus.CONFIRMED
 				&& event.getLocationVisibility() == LocationVisibility.CONFIRMED;
 		return new EventResponse(event.getPublicId(),
 				new PersonResponse(host.getId(),

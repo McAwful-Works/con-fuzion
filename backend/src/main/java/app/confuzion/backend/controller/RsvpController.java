@@ -235,8 +235,7 @@ public class RsvpController {
 	public ResponseEntity<ResponseRecord<SpotsResponse>> getSpots(
 			@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		var spots = rsvpService.getSpots(HttpUtil.userId(authentication), eventId,
-				HttpUtil.isModerator(authentication));
+		var spots = rsvpService.getSpots(HttpUtil.userId(authentication), eventId);
 		return ResponseEntity.ok().eTag(etag(spots)).cacheControl(SPOTS_CACHE_CONTROL)
 				.body(new ResponseRecord<>(spots));
 	}

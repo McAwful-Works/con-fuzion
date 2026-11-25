@@ -71,16 +71,15 @@ public class RsvpRepository {
 
 	/**
 	 * Selects the next {@code :count} waitlisted RSVPs of {@code :eventId}, in
-	 * queue order, but only while the event is published, hasn't started and isn't
-	 * hidden by moderators: nobody is promoted after the start (D-013 rule 2), and
-	 * nobody is offered a spot while it's hidden (D-015 rule 10), so a freed spot
-	 * just frees up. The start is compared with the statement's time, not the
-	 * transaction's, since a write may wait for locks across the start.
+	 * queue order, but only while the event is published and hasn't started: nobody
+	 * is promoted after that (D-013 rule 2). The start is compared with the
+	 * statement's time, not the transaction's, since a write may wait for locks
+	 * across the start.
 	 */
 	private static final String NEXT_IN_LINE = """
 			SELECT w.id FROM rsvp w JOIN event e ON e.id = w.event_id
 			WHERE w.event_id = :eventId AND w.status = 'WAITLISTED' AND e.status = 'PUBLISHED'
-				AND NOT e.hidden_by_moderation AND e.starts_at > statement_timestamp()
+				AND e.starts_at > statement_timestamp()
 			ORDER BY w.id LIMIT :count""";
 
 	/**
@@ -254,7 +253,7 @@ public class RsvpRepository {
 	 * reopens sign-up. Each is offered a spot, or confirmed at once near the start
 	 * ({@link #PROMOTE}). Making the capacity unlimited confirms everyone
 	 * waitlisted and every open offer instead (D-014 rule 17). Nobody moves up once
-	 * the event has started, or while it's hidden by moderators.
+	 * the event has started.
 	 *
 	 * @param eventId   the event's internal ID
 	 * @param freeSpots how many spots are free, {@link Integer#MAX_VALUE} for an
@@ -271,7 +270,7 @@ public class RsvpRepository {
 				UPDATE rsvp r SET status = 'CONFIRMED', offer_expires_at = NULL, updated_at = now()
 				FROM event e WHERE e.id = r.event_id AND r.event_id = :eventId AND r.status = 'OFFERED'
 					AND r.offer_expires_at > statement_timestamp() AND e.capacity IS NULL AND e.status = 'PUBLISHED'
-					AND NOT e.hidden_by_moderation AND e.starts_at > statement_timestamp()
+					AND e.starts_at > statement_timestamp()
 				RETURNING r.user_id, r.offer_expires_at, e.title""").param("eventId", eventId)
 				.query(RsvpRepository::promoted).list());
 	}
