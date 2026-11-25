@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { api, type ContractPath } from './client';
 import { endOfflineSession, forgetOtherUsersCache } from './offlineCache';
+import { dropSubscriptionBeforeSignOut } from './push';
 import type { components } from './schema';
 
 type Schemas = components['schemas'];
@@ -14,7 +15,7 @@ export const SIGN_IN_URL = '/api/oauth2/authorization/discord';
 const SIGN_OUT_PATH = '/auth/logout' satisfies ContractPath;
 const SIGN_OUT_EVERYWHERE_PATH = '/auth/logout-everywhere' satisfies ContractPath;
 
-const meKey = ['me'] as const;
+export const meKey = ['me'] as const;
 const guildsKey = ['guilds'] as const;
 export const singleGuildKey = ['guild'] as const;
 
@@ -108,8 +109,11 @@ export function useSetAllGuildsDiscoverable() {
 export function useSignOut(everywhere: boolean) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      api<void>(everywhere ? SIGN_OUT_EVERYWHERE_PATH : SIGN_OUT_PATH, { method: 'POST' }),
+    mutationFn: async () => {
+      // D-014 rule 18: this browser stops getting pushes before the session that owns them ends.
+      await dropSubscriptionBeforeSignOut();
+      return api<void>(everywhere ? SIGN_OUT_EVERYWHERE_PATH : SIGN_OUT_PATH, { method: 'POST' });
+    },
     // Drop everything cached for the old session so nothing leaks into the next sign-in.
     onSuccess: () => {
       queryClient.clear();

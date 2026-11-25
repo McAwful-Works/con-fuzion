@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router';
 import { useSignOut } from '../api/me';
 import { ErrorState } from '../components/ErrorState';
+import { PushSetting } from '../features/push/PushSetting';
 import { BlockedList } from '../features/social/BlockedList';
 import { PrivacyNote, ServerList } from '../features/servers/ServerList';
 
@@ -20,6 +21,13 @@ export function Settings() {
         </h2>
         <PrivacyNote />
         <ServerList />
+      </section>
+
+      <section aria-labelledby="notifications-heading" className="space-y-4">
+        <h2 id="notifications-heading" className="text-xl font-semibold">
+          Notifications
+        </h2>
+        <PushSetting />
       </section>
 
       <section aria-labelledby="blocked-heading" className="space-y-4">
