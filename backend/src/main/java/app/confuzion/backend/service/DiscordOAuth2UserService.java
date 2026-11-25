@@ -22,13 +22,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
@@ -63,6 +61,11 @@ import app.confuzion.backend.model.record.GuildResponse;
  * at most {@link #MAX_RETRY_WAIT}. When the user call still fails the login
  * fails; when the guild call fails the login goes ahead with the last known
  * servers.
+ * <p>
+ * A banned Discord ID, or a user whose suspension hasn't ended, is refused
+ * before anything is recorded, with {@link #SIGN_IN_REFUSED}. Otherwise the
+ * principal gets {@code ROLE_USER}, plus a {@code ROLE_} authority for each
+ * role in {@code user_role}, but only while Discord reports MFA on (D-015).
  *
  * @author mcawful
  */
@@ -78,6 +81,12 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
 	 * The principal attribute that says whether this login created the user.
 	 */
 	public static final String FIRST_LOGIN_ATTRIBUTE = "firstLogin";
+
+	/**
+	 * The OAuth2 error code of a sign-in refused for a ban or a suspension. The
+	 * failure handler sends it to its own neutral page, which says neither which.
+	 */
+	public static final String SIGN_IN_REFUSED = "sign_in_refused";
 
 	/**
 	 * The longest {@code 429} wait we retry after. A longer one fails that call at
@@ -112,23 +121,14 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
 	private final UserService userService;
 
 	/**
-	 * The Discord IDs that get ADMIN while their account has MFA on.
-	 */
-	private final Set<Long> bootstrapAdminIds;
-
-	/**
 	 * Creates the service.
 	 *
-	 * @param restClient        the {@link RestClient} for Discord's API
-	 * @param userService       the {@link UserService}
-	 * @param bootstrapAdminIds the Discord IDs in
-	 *                          {@code con-fuzion.admin.bootstrap-discord-ids}
+	 * @param restClient  the {@link RestClient} for Discord's API
+	 * @param userService the {@link UserService}
 	 */
-	public DiscordOAuth2UserService(@Qualifier("discordRestClient") RestClient restClient, UserService userService,
-			@Value("${con-fuzion.admin.bootstrap-discord-ids:}") Set<Long> bootstrapAdminIds) {
+	public DiscordOAuth2UserService(@Qualifier("discordRestClient") RestClient restClient, UserService userService) {
 		this.restClient = restClient;
 		this.userService = userService;
-		this.bootstrapAdminIds = Set.copyOf(bootstrapAdminIds);
 	}
 
 	/**
@@ -137,8 +137,9 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
 	 *
 	 * @param userRequest the {@link OAuth2UserRequest} with the access token
 	 * @return an {@link OAuth2User} named by the Con-Fuzion user ID
-	 * @throws OAuth2AuthenticationException when Discord's user can't be read or
-	 *                                       the login can't be recorded
+	 * @throws OAuth2AuthenticationException when Discord's user can't be read, the
+	 *                                       sign-in is refused, or the login can't
+	 *                                       be recorded
 	 */
 	@Override
 	public OAuth2User loadUser(OAuth2UserRequest userRequest) {
@@ -158,7 +159,14 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
 
 		UserService.LoginResult login;
 		try {
-			login = userService.recordLogin(user, fetchGuilds(userUri + GUILDS_QUERY, token));
+			// The guild call (which may wait out a 429) comes first, so the refusal check
+			// runs right before the login is recorded and the session saved: a ban or
+			// suspension landing in between finds as little as possible to miss. A refused
+			// sign-in records nothing and creates no account (D-015 rule 5).
+			var guilds = fetchGuilds(userUri + GUILDS_QUERY, token);
+			if (userService.signInRefusal(Long.parseLong(user.id())).isPresent())
+				throw new OAuth2AuthenticationException(new OAuth2Error(SIGN_IN_REFUSED));
+			login = userService.recordLogin(user, guilds);
 		} catch (DataAccessException e) {
 			// Fail the login cleanly (a redirect to the sign-in page) rather than a 500 on
 			// the callback.
@@ -166,14 +174,11 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
 			throw new OAuth2AuthenticationException(new OAuth2Error("login_failed"), e);
 		}
 
+		// Granted roles are in effect only while Discord reports MFA on (D-015).
 		List<GrantedAuthority> authorities = new ArrayList<>();
 		authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-		// TODO(M5, https://github.com/McAwful-Works/con-fuzion/milestone/6): grant from
-		// user_role, audit-log the
-		// bootstrap grant, and reject banned or suspended users. Until then the
-		// bootstrap IDs map to ADMIN in memory.
-		if (Boolean.TRUE.equals(user.mfaEnabled()) && bootstrapAdminIds.contains(Long.parseLong(user.id())))
-			authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+		if (Boolean.TRUE.equals(user.mfaEnabled()))
+			login.roles().forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name())));
 
 		return new DefaultOAuth2User(authorities,
 				Map.of(USER_ID_ATTRIBUTE, login.userId().toString(), FIRST_LOGIN_ATTRIBUTE, login.firstLogin()),

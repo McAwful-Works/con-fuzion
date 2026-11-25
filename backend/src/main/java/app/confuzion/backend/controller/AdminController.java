@@ -18,6 +18,7 @@
  */
 package app.confuzion.backend.controller;
 
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -31,12 +32,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.AuditPageResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
 import app.confuzion.backend.model.record.RolesRequest;
 import app.confuzion.backend.model.record.RolesResponse;
+import app.confuzion.backend.service.AdminService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -49,8 +51,7 @@ import jakarta.validation.constraints.Size;
 
 /**
  * The {@link RestController} for role grants and the audit log (D-015). Every
- * route needs ADMIN in effect, which {@code SecurityConfig} checks. Stubs until
- * #84.
+ * route needs ADMIN in effect, which {@code SecurityConfig} checks.
  *
  * @author mcawful
  */
@@ -58,6 +59,20 @@ import jakarta.validation.constraints.Size;
 @RequestMapping("/api/admin")
 @Tag(name = "admin", description = "Role grants and the audit log (ADMIN)")
 public class AdminController {
+	/**
+	 * The {@link AdminService}.
+	 */
+	private final AdminService adminService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param adminService the {@link AdminService}
+	 */
+	public AdminController(AdminService adminService) {
+		this.adminService = adminService;
+	}
+
 	/**
 	 * Returns a user's granted roles.
 	 *
@@ -72,7 +87,7 @@ public class AdminController {
 	@ApiResponse(responseCode = "404", description = "No such user.")
 	public ResponseRecord<RolesResponse> getRoles(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The user's ID") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(adminService.getRoles(userId));
 	}
 
 	/**
@@ -94,7 +109,7 @@ public class AdminController {
 	public ResponseRecord<RolesResponse> setRoles(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The user's ID") @PathVariable UUID userId,
 			@Valid @RequestBody RolesRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(adminService.setRoles(HttpUtil.userId(authentication), userId, request.roles()));
 	}
 
 	/**
@@ -112,7 +127,7 @@ public class AdminController {
 	@ApiResponse(responseCode = "409", description = "No user would hold ADMIN any more (errorType LAST_ADMIN).")
 	public void removeRoles(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The user's ID") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		adminService.setRoles(HttpUtil.userId(authentication), userId, Set.of());
 	}
 
 	/**
@@ -132,6 +147,6 @@ public class AdminController {
 	public ResponseRecord<AuditPageResponse> getAudit(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The previous page's nextCursor. Opaque.") @RequestParam(required = false) @Size(max = 200) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String cursor,
 			@Parameter(description = "Rows per page, 1 to 50") @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(adminService.getAudit(cursor, limit));
 	}
 }

@@ -623,8 +623,8 @@ Context · Decision · Consequences · Trigger to revisit
     moderator may notice a gap in the IDs they see. That says a report they can't see exists, never what it says or
     who made it, and gaps have other causes too.
   - **The `REPORT_RECEIVED` fan-out reads stored roles** (`user_role` rows whose user had MFA on at their last
-    sign-in), the closest stored match to the roles in effect, since it reaches users other than the caller. So the
-    bootstrap ADMIN gets none until #84 stores its `user_role` row.
+    sign-in), the same rows and flag that #84 grants the roles in effect from, since it reaches users other than the
+    caller. A bootstrap ADMIN is reached once a sign-in has stored its `user_role` row.
   - **Whether the caller is a moderator** for anything they do or see (the queue, and rule 8's view of events) comes
     only from the session's authorities (`ROLE_MODERATOR` or `ROLE_ADMIN`), never from `user_role`, so it always
     matches what `SecurityConfig` lets them do.

@@ -66,7 +66,13 @@ export function useMarkRead() {
         method: 'POST',
         body: { upTo } satisfies Schemas['NotificationReadRequest'],
       }),
-    // Only the badge: the list keeps showing which entries were new when it was opened.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: unreadKey }),
+    // Only the badge: the list keeps showing which entries were new when it was opened. On a fresh page
+    // the badge's first fetch can still be in flight, counted before this read, and invalidating a query
+    // with no data yet reuses that fetch, so the old count would stick until the next poll. Cancel it
+    // first, so the refetch always starts after the read.
+    onSuccess: async () => {
+      await queryClient.cancelQueries({ queryKey: unreadKey });
+      await queryClient.invalidateQueries({ queryKey: unreadKey });
+    },
   });
 }

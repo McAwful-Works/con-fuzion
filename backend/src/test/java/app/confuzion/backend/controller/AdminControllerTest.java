@@ -20,14 +20,24 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
@@ -37,9 +47,14 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import app.confuzion.backend.model.record.AuditPageResponse;
+import app.confuzion.backend.model.record.GrantedRole;
+import app.confuzion.backend.model.record.RolesResponse;
+import app.confuzion.backend.service.AdminService;
+
 /**
- * Unit tests for {@link AdminController}'s contract stubs: valid requests are
- * 501s until #84, and bad ones are 400s.
+ * Unit tests for {@link AdminController}: valid requests reach the service, and
+ * bad ones are 400s.
  *
  * @author mcawful
  */
@@ -57,30 +72,49 @@ class AdminControllerTest {
 	private static final String ROLES = "/api/admin/users/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/roles";
 
 	/**
+	 * The user in {@link #ROLES}.
+	 */
+	private static final UUID USER = UUID.fromString("3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60");
+
+	/**
+	 * The mocked {@link AdminService}.
+	 */
+
+	/**
 	 * The {@link MockMvc} for the controller.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new AdminController());
+	private final AdminService adminService = mock(AdminService.class);
 
 	/**
-	 * Returns valid requests to every operation.
-	 *
-	 * @return the requests
+	 * The {@link MockMvc} for the controller.
 	 */
-	static Stream<MockHttpServletRequestBuilder> validRequests() {
-		return Stream.of(get(ROLES), json(put(ROLES), "{\"roles\":[\"MODERATOR\",\"ADMIN\"]}"),
-				json(put(ROLES), "{\"roles\":[]}"), delete(ROLES), get("/api/admin/audit"),
-				get("/api/admin/audit?cursor=abc_1-X&limit=50"));
-	}
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new AdminController(adminService));
 
 	/**
-	 * Tests that a valid request is a 501 in the error envelope.
-	 *
-	 * @param request the request
+	 * Tests that each operation passes the caller, the user and the request on to
+	 * the service and wraps its answer.
 	 */
-	@ParameterizedTest
-	@MethodSource("validRequests")
-	void testValidRequestsAreNotImplementedYet(MockHttpServletRequestBuilder request) throws Exception {
-		assertError(mockMvc, request.principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
+	@Test
+	void testDelegatesToTheService() throws Exception {
+		var actor = UUID.fromString(AUTHENTICATION.getName());
+		var roles = new RolesResponse(List.of(GrantedRole.MODERATOR), true);
+		when(adminService.getRoles(USER)).thenReturn(roles);
+		when(adminService.setRoles(eq(actor), eq(USER), any())).thenReturn(roles);
+		when(adminService.getAudit(any(), anyInt())).thenReturn(new AuditPageResponse(List.of(), null));
+
+		mockMvc.perform(get(ROLES).principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("ROLES"))
+				.andExpect(jsonPath("$.body.roles[0]").value("MODERATOR"));
+		mockMvc.perform(json(put(ROLES), "{\"roles\":[\"ADMIN\",\"MODERATOR\"]}").principal(AUTHENTICATION))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.body.mfaEnabled").value(true));
+		verify(adminService).setRoles(actor, USER, Set.of(GrantedRole.MODERATOR, GrantedRole.ADMIN));
+		mockMvc.perform(delete(ROLES).principal(AUTHENTICATION)).andExpect(status().isNoContent());
+		verify(adminService).setRoles(actor, USER, Set.of());
+		mockMvc.perform(get("/api/admin/audit?cursor=abc_1-X&limit=50").principal(AUTHENTICATION))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("AUDIT_PAGE"));
+		verify(adminService).getAudit("abc_1-X", 50);
+		mockMvc.perform(get("/api/admin/audit").principal(AUTHENTICATION)).andExpect(status().isOk());
+		verify(adminService).getAudit(null, 20);
 	}
 
 	/**

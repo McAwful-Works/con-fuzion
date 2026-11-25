@@ -18,12 +18,14 @@
  */
 package app.confuzion.backend.repository;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import app.confuzion.backend.model.record.AuditDetails;
+import app.confuzion.backend.model.record.AuditEntryResponse;
 import app.confuzion.backend.model.record.AuditEntryResponse.Action;
 import app.confuzion.backend.model.record.AuditEntryResponse.TargetType;
 import tools.jackson.databind.json.JsonMapper;
@@ -83,5 +85,25 @@ public class AuditLogRepository {
 				.param("targetType", targetType.name()).param("targetId", targetId)
 				.param("details", details == null ? "{}" : jsonMapper.writeValueAsString(details)).query(Long.class)
 				.single();
+	}
+
+	/**
+	 * Returns a page of the log, newest first. This is the only read of the log.
+	 *
+	 * @param beforeId return only rows older than this ID, or {@code null} for the
+	 *                 newest
+	 * @param limit    the most rows to return
+	 * @return the rows
+	 */
+	public List<AuditEntryResponse> findPage(Long beforeId, int limit) {
+		return jdbc.sql("""
+				SELECT id, actor_id, action, target_type, target_id, details, created_at FROM audit_log
+				WHERE CAST(:beforeId AS bigint) IS NULL OR id < :beforeId
+				ORDER BY id DESC LIMIT :limit""").param("beforeId", beforeId).param("limit", limit)
+				.query((rs, row) -> new AuditEntryResponse(rs.getLong("id"), rs.getObject("actor_id", UUID.class),
+						Action.valueOf(rs.getString("action")), TargetType.valueOf(rs.getString("target_type")),
+						rs.getString("target_id"), jsonMapper.readValue(rs.getString("details"), AuditDetails.class),
+						rs.getTimestamp("created_at").toInstant()))
+				.list();
 	}
 }
