@@ -23,6 +23,8 @@ import org.springframework.security.web.authentication.logout.SecurityContextLog
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Service;
 
+import app.confuzion.backend.util.HttpUtil;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -41,18 +43,27 @@ public class SessionService {
 	private final FindByIndexNameSessionRepository<?> sessionRepository;
 
 	/**
+	 * The {@link PushService}, to stop pushes to signed-out devices.
+	 */
+	private final PushService pushService;
+
+	/**
 	 * Creates the service.
 	 *
 	 * @param sessionRepository the indexed session repository
+	 * @param pushService       the {@link PushService}
 	 */
-	public SessionService(FindByIndexNameSessionRepository<?> sessionRepository) {
+	public SessionService(FindByIndexNameSessionRepository<?> sessionRepository, PushService pushService) {
 		this.sessionRepository = sessionRepository;
+		this.pushService = pushService;
 	}
 
 	/**
-	 * Ends every session of the signed-in user, on every device. The current
-	 * session is invalidated through the request, so it isn't saved again when this
-	 * request ends.
+	 * Ends every session of the signed-in user, on every device, and deletes all
+	 * their push subscriptions so no signed-out device gets another push (D-014
+	 * rule 18). Sessions go first, so a database error can't leave them alive. The
+	 * current session is invalidated through the request, so it isn't saved again
+	 * when this request ends.
 	 *
 	 * @param request        the {@link HttpServletRequest}
 	 * @param response       the {@link HttpServletResponse}
@@ -62,5 +73,6 @@ public class SessionService {
 			Authentication authentication) {
 		new SecurityContextLogoutHandler().logout(request, response, authentication);
 		sessionRepository.findByPrincipalName(authentication.getName()).keySet().forEach(sessionRepository::deleteById);
+		pushService.unsubscribeAll(HttpUtil.userId(authentication));
 	}
 }

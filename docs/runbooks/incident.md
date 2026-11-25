@@ -14,8 +14,22 @@ Finished in M5 and M6, once maintenance mode and the infrastructure exist.
 ## 2. Rotate secrets
 - **Discord client secret:** Discord Developer Portal → OAuth2 → Reset Secret. Update Secrets Manager, then
   redeploy.
-- **VAPID keys:** generate a new pair and update Secrets Manager. Existing push subscriptions become invalid, and
-  clients re-subscribe on their next visit.
+- **VAPID keys** (Web Push; format and generation in [docs/security.md](../security.md#vapid-keys-web-push)):
+  1. Generate a new pair as `docs/security.md` describes. Don't reuse or derive from the old one.
+  2. Update `CONFUZION_VAPID_PUBLIC_KEY` and `CONFUZION_VAPID_PRIVATE_KEY` together in Secrets Manager, then redeploy.
+     Startup fails if the two don't match, so a half-done update can't go live.
+  3. Every existing subscription was made with the old public key, and browsers keep it: the client doesn't yet
+     notice that `/api/push/key` changed (see `docs/backlog.md`). Push services refuse the new key's pushes to those
+     subscriptions, so the sender marks those notifications `FAILED` (the inbox still has them), and deletes a
+     subscription only if its push service answers 404 or 410. Until the client check exists, each user has to turn
+     push off and on again in Settings to subscribe with the new key; tell users to do that.
+  4. If the old private key leaked, also delete every subscription, `DELETE FROM push_subscription;`, so the sender
+     stops trying old-key subscriptions. That doesn't stop the push services accepting the old key: whoever holds it
+     and a browser's endpoint can push to that browser until it unsubscribes, which today happens only when the user
+     turns push off (or signs out). Users keep their push setting but get no pushes until they turn push off and on
+     again.
+  - **To turn push off** in an emergency, unset both values and redeploy: `/api/push/key` becomes a 404 and nothing is
+    sent. Pending notifications wait in the queue.
 - **AWS:** deploys use GitHub OIDC (no static keys). If a human's credentials leaked, deactivate them in IAM and
   review CloudTrail.
 

@@ -20,11 +20,19 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -39,10 +47,14 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import app.confuzion.backend.model.record.PushKeyResponse;
+import app.confuzion.backend.model.record.PushSubscriptionRequest;
+import app.confuzion.backend.service.PushService;
+
 /**
- * Unit tests for the {@link PushController} stubs: a valid request is a 501
- * until #66 and #67, and a subscription outside the push service allowlist, or
- * with keys of the wrong size, is a 400 first.
+ * Unit tests for the {@link PushController}: it maps to the {@link PushService}
+ * for the caller, and a subscription outside the push service allowlist, or
+ * with keys of the wrong size, is a 400 before the service is called.
  *
  * @author mcawful
  */
@@ -52,6 +64,11 @@ class PushControllerTest {
 	 */
 	private static final Authentication AUTHENTICATION = UsernamePasswordAuthenticationToken
 			.authenticated(UUID.randomUUID().toString(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+	/**
+	 * The caller's ID.
+	 */
+	private static final UUID USER_ID = UUID.fromString(AUTHENTICATION.getName());
 
 	/**
 	 * A browser's P-256 public key: 65 bytes of base64url.
@@ -64,9 +81,14 @@ class PushControllerTest {
 	static final String AUTH = "a".repeat(22);
 
 	/**
+	 * The mocked {@link PushService}.
+	 */
+	private final PushService pushService = mock(PushService.class);
+
+	/**
 	 * The {@link MockMvc}.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new PushController());
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new PushController(pushService));
 
 	/**
 	 * Returns a subscription body.
@@ -82,31 +104,54 @@ class PushControllerTest {
 	}
 
 	/**
-	 * Tests that the key and unsubscribing are 501s.
+	 * Tests that the key is returned in its envelope, and is a 404 when push is
+	 * off.
+	 *
+	 * @throws Exception on failure
 	 */
 	@Test
-	void testKeyAndUnsubscribeAreNotImplementedYet() throws Exception {
-		assertError(mockMvc, get("/api/push/key").principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
-		assertError(mockMvc,
-				json(delete("/api/push/subscriptions"), "{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}")
-						.principal(AUTHENTICATION),
-				HttpStatus.NOT_IMPLEMENTED);
+	void testKey() throws Exception {
+		when(pushService.getKey()).thenReturn(new PushKeyResponse(P256DH));
+		mockMvc.perform(get("/api/push/key").principal(AUTHENTICATION)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("PUSH_KEY"))
+				.andExpect(jsonPath("$.body.publicKey").value(P256DH));
+
+		when(pushService.getKey()).thenThrow(new NoSuchElementException());
+		assertError(mockMvc, get("/api/push/key").principal(AUTHENTICATION), HttpStatus.NOT_FOUND);
 	}
 
 	/**
-	 * Tests that a subscription on each allowed push service passes validation (and
-	 * is a 501), padded keys included.
+	 * Tests that unsubscribing removes the caller's subscription with that
+	 * endpoint.
+	 *
+	 * @throws Exception on failure
+	 */
+	@Test
+	void testUnsubscribe() throws Exception {
+		mockMvc.perform(
+				json(delete("/api/push/subscriptions"), "{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}")
+						.principal(AUTHENTICATION))
+				.andExpect(status().isNoContent());
+		verify(pushService).unsubscribe(USER_ID, "https://fcm.googleapis.com/fcm/send/x");
+	}
+
+	/**
+	 * Tests that a subscription on each allowed push service is saved for the
+	 * caller, padded keys included.
 	 *
 	 * @param endpoint the endpoint
+	 * @throws Exception on failure
 	 */
 	@ParameterizedTest
 	@ValueSource(strings = { "https://fcm.googleapis.com/fcm/send/dQw4w9WgXcQ:APA91bH-x_y",
 			"https://updates.push.services.mozilla.com/wpush/v2/gAAAAABk",
 			"https://web.push.apple.com/QGuQyavXutnMH3a9S6Pd2tmAYYgj",
 			"https://wns2-par02p.notify.windows.com/w/?token=BQYAAAB%2bXyz" })
-	void testAllowedEndpointsAreNotImplementedYet(String endpoint) throws Exception {
-		assertError(mockMvc, subscribe(subscription(endpoint, P256DH, AUTH)), HttpStatus.NOT_IMPLEMENTED);
-		assertError(mockMvc, subscribe(subscription(endpoint, P256DH + "=", AUTH + "==")), HttpStatus.NOT_IMPLEMENTED);
+	void testSubscribesOnAllowedPushServices(String endpoint) throws Exception {
+		mockMvc.perform(subscribe(subscription(endpoint, P256DH, AUTH))).andExpect(status().isNoContent());
+		mockMvc.perform(subscribe(subscription(endpoint, P256DH + "=", AUTH + "=="))).andExpect(status().isNoContent());
+		verify(pushService).subscribe(USER_ID,
+				new PushSubscriptionRequest(endpoint, new PushSubscriptionRequest.Keys(P256DH, AUTH)));
 	}
 
 	/**
@@ -123,7 +168,9 @@ class PushControllerTest {
 				subscription("https://fcm.googleapis.com@example.com/x", P256DH, AUTH),
 				subscription("https://fcm.googleapis.com:8443/x", P256DH, AUTH),
 				subscription("https://fcm.googleapis.com", P256DH, AUTH),
-				subscription("https://localhost/x", P256DH, AUTH),
+				subscription("https://localhost/x", P256DH, AUTH), subscription("https://127.0.0.1/x", P256DH, AUTH),
+				subscription("https://[::1]/x", P256DH, AUTH),
+				subscription("https://169.254.169.254/latest/meta-data", P256DH, AUTH),
 				subscription("https://evil.example/.notify.windows.com/x", P256DH, AUTH),
 				subscription("https://fcm.googleapis.com/a b", P256DH, AUTH),
 				subscription("https://fcm.googleapis.com/" + "a".repeat(2048), P256DH, AUTH),
@@ -142,6 +189,7 @@ class PushControllerTest {
 	@MethodSource("badSubscriptions")
 	void testRejectsBadSubscriptions(String body) throws Exception {
 		assertError(mockMvc, subscribe(body), HttpStatus.BAD_REQUEST);
+		verify(pushService, never()).subscribe(any(), any());
 	}
 
 	/**
