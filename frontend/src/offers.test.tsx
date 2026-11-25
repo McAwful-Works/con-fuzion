@@ -32,6 +32,7 @@ const walk: Schemas['EventResponse'] = {
   confirmWindowMinutes: 30,
   tag: null,
   host: ada,
+  hiddenReason: null,
   isHost: false,
   myStatus: 'OFFERED',
   status: 'PUBLISHED',

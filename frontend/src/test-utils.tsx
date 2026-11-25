@@ -15,6 +15,7 @@ export const me: Schemas['MeResponse'] = {
   globalName: 'Con Goer',
   avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
   mfaEnabled: false,
+  mfaRequired: false,
   pushEnabled: false,
   roles: ['USER'],
   timeZone: 'America/Chicago',

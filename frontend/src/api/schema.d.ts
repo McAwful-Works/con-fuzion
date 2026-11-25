@@ -4,6 +4,271 @@
  */
 
 export interface paths {
+    "/api/admin/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the audit log (ADMIN)
+         * @description Newest first. Every moderator and admin action, refused sign-in, role change and session purge. Nothing is ever changed or removed.
+         */
+        get: operations["getAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/bans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban a Discord ID (ADMIN)
+         * @description It can never sign in, even after the account is deleted and made again, and it needn't have an account yet. If it has one, the account is kept, its sessions are deleted, its upcoming hosted events are cancelled (with the usual EVENT_CANCELLED) and its active RSVPs end as LEFT, freeing their spots. Banning a banned ID is a 204 that changes nothing. Audit-logged.
+         */
+        post: operations["ban"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/bans/{discordId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Lift a ban (ADMIN)
+         * @description The Discord ID can sign in again. Nothing the ban did is undone. An ID that isn't banned is a 204 that changes nothing. Audit-logged.
+         */
+        delete: operations["unban"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/events/{eventId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel an event (MODERATOR or ADMIN)
+         * @description As if the host cancelled it: everyone with an active RSVP but the host gets the usual EVENT_CANCELLED, with no reason. The host gets EVENT_CANCELLED with the reason. Cancelling a cancelled or ended event is a 204 that changes nothing, as for a host. Audit-logged.
+         */
+        post: operations["cancelEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/events/{eventId}/hide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hide an event (MODERATOR or ADMIN)
+         * @description Silent for attendees: the event becomes a 404 for everyone but its host and moderators, and its RSVPs are kept. While it's hidden, attendees get no change or reminder notifications and nobody is offered a spot; a cancel still tells them. The host gets EVENT_HIDDEN with the reason and sees the reason as hiddenReason on the event. Hiding a hidden event is a 204 that changes nothing. Audit-logged.
+         */
+        post: operations["hideEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/events/{eventId}/unhide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unhide an event (MODERATOR or ADMIN)
+         * @description The event is visible again to its audience and clears its reason. Nobody is notified. Unhiding a visible event is a 204 that changes nothing. Audit-logged.
+         */
+        post: operations["unhideEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List reports (MODERATOR or ADMIN)
+         * @description OPEN reports oldest first, so the queue is worked in order; ACTIONED and DISMISSED ones newest first.
+         */
+        get: operations["getReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reports/{reportId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a report (MODERATOR or ADMIN) */
+        get: operations["getReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reports/{reportId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve a report (MODERATOR or ADMIN)
+         * @description Closes this one report as ACTIONED or DISMISSED, and sends the reporter a REPORT_REVIEWED notification that says nothing about the outcome. Act on the target first (hide or cancel the event, suspend the user, or ask an admin to ban), then resolve. Audit-logged.
+         */
+        post: operations["resolveReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find users (MODERATOR or ADMIN)
+         * @description Matches an exact user ID or Discord ID, or part of a username or display name, ignoring case. At most 20, by username. Returns only what moderators may see: never servers, friends, circles or RSVPs.
+         */
+        get: operations["findUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{userId}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a user's roles (ADMIN)
+         * @description The granted roles, whether or not MFA puts them in effect.
+         */
+        get: operations["getRoles"];
+        /**
+         * Set a user's roles (ADMIN)
+         * @description Replaces the user's granted roles with exactly the set sent. If that changes anything, their sessions are deleted, so the new roles apply when they next sign in. The same set again is a 200 that changes nothing. Audit-logged, as is the session purge.
+         */
+        put: operations["setRoles"];
+        post?: never;
+        /**
+         * Remove all of a user's roles (ADMIN)
+         * @description The same as setting an empty set. A user with no role is a 204 that changes nothing.
+         */
+        delete: operations["removeRoles"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{userId}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspend a user (MODERATOR or ADMIN)
+         * @description Until the given time they can't sign in, and their sessions are deleted at once. Their events and RSVPs are left alone. Suspending again replaces the end time. A moderator can suspend only users with no granted role; an admin can also suspend moderators. Audit-logged, as is the session purge.
+         */
+        post: operations["suspendUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{userId}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lift a suspension (MODERATOR or ADMIN)
+         * @description They can sign in again. A user who isn't suspended is a 204 that changes nothing. Audit-logged.
+         */
+        post: operations["unsuspendUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/logout": {
         parameters: {
             query?: never;
@@ -194,7 +459,7 @@ export interface paths {
          * Cancel an event the user hosts
          * @description Sets its status to CANCELLED and keeps it; it drops out of everyone's feed. Cancelling a cancelled event is also a 204. 404 unless the user is the host.
          */
-        delete: operations["cancelEvent"];
+        delete: operations["cancelEvent_1"];
         options?: never;
         head?: never;
         /**
@@ -577,10 +842,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report an event or a user
+         * @description Every moderator and admin is notified. The reported user never learns of the report or who made it, and the reporter later gets a REPORT_REVIEWED notification with no details. A block in either direction doesn't stop a report. Reporting the same target again while the caller's report on it is open is a 204 that changes nothing and doesn't count towards the daily limit (D-015).
+         */
+        post: operations["report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminUserBanResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            reason: string;
+        };
+        AdminUserListResponse: {
+            /** @description At most 20 matches, by username. Narrow the search to find others. */
+            items: components["schemas"]["AdminUserResponse"][];
+        };
+        AdminUserResponse: {
+            /** @description Null when the Discord ID isn't banned. */
+            ban: components["schemas"]["AdminUserBanResponse"];
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * @description The Discord user ID, as a string. Bans are by this ID.
+             * @example 80351110224678912
+             */
+            discordId: string;
+            /** @example Con Goer */
+            globalName: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            lastLoginAt: string;
+            /**
+             * Format: int32
+             * @description Reports naming this user, open or resolved.
+             */
+            reportCount: number;
+            /**
+             * Format: date-time
+             * @description When the suspension ends. Null when not suspended; a past time means it has ended.
+             */
+            suspendedUntil: string | null;
+            /** @example con_goer */
+            username: string;
+        };
         AttendeesResponse: {
             /** @description People holding a spot, in the order they joined, so the host comes first. Leaves out anyone who has blocked the caller or whom the caller has blocked. */
             confirmed: components["schemas"]["PersonResponse"][];
@@ -613,6 +936,66 @@ export interface components {
             type: "GUILD" | "FRIENDS" | "CIRCLE" | "USER";
             /** Format: uuid */
             userId: string | null;
+        };
+        AuditDetails: {
+            /**
+             * @description SESSIONS_PURGED (ROLES_CHANGED, USER_SUSPENDED or ACCOUNT_BANNED) and SIGN_IN_REFUSED (USER_SUSPENDED or ACCOUNT_BANNED): the action behind it.
+             * @enum {string}
+             */
+            cause?: "ROLES_CHANGED" | "SESSIONS_PURGED" | "SIGN_IN_REFUSED" | "REPORT_RESOLVED" | "EVENT_HIDDEN" | "EVENT_UNHIDDEN" | "EVENT_CANCELLED" | "USER_SUSPENDED" | "USER_UNSUSPENDED" | "ACCOUNT_BANNED" | "ACCOUNT_UNBANNED";
+            /** @description REPORT_RESOLVED only: the moderator's resolution note. */
+            note?: string;
+            /** @description EVENT_HIDDEN, EVENT_CANCELLED, USER_SUSPENDED and ACCOUNT_BANNED: the reason given. */
+            reason?: string;
+            /**
+             * @description REPORT_RESOLVED only.
+             * @enum {string}
+             */
+            resolution?: "ACTIONED" | "DISMISSED";
+            /** @description ROLES_CHANGED only: the full new set, possibly empty. */
+            roles?: ("MODERATOR" | "ADMIN")[];
+            /**
+             * Format: int32
+             * @description SESSIONS_PURGED only: how many sessions were deleted.
+             */
+            sessions?: number;
+            /**
+             * Format: date-time
+             * @description USER_SUSPENDED only: when the suspension ends.
+             */
+            until?: string;
+        };
+        AuditEntryResponse: {
+            /** @enum {string} */
+            action: "ROLES_CHANGED" | "SESSIONS_PURGED" | "SIGN_IN_REFUSED" | "REPORT_RESOLVED" | "EVENT_HIDDEN" | "EVENT_UNHIDDEN" | "EVENT_CANCELLED" | "USER_SUSPENDED" | "USER_UNSUSPENDED" | "ACCOUNT_BANNED" | "ACCOUNT_UNBANNED";
+            /**
+             * Format: uuid
+             * @description Who acted. Null for the system: a bootstrap grant or a refused sign-in. Kept after the account is deleted.
+             */
+            actorId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            details: components["schemas"]["AuditDetails"];
+            /** Format: int64 */
+            id: number;
+            /** @description A user ID or event public ID (UUID), a report ID, or a Discord ID, by targetType. */
+            targetId: string;
+            /** @enum {string} */
+            targetType: "USER" | "EVENT" | "REPORT" | "DISCORD_ACCOUNT";
+        };
+        AuditPageResponse: {
+            items: components["schemas"]["AuditEntryResponse"][];
+            /** @description Pass it as cursor for the next, older page. Null on the last page. */
+            nextCursor: string | null;
+        };
+        BanRequest: {
+            /**
+             * @description The Discord user ID, as a string.
+             * @example 80351110224678912
+             */
+            discordId: string;
+            /** @description Plain text, for the audit log and other admins. The user never sees it. */
+            reason: string;
         };
         CircleListResponse: {
             circles: components["schemas"]["CircleResponse"][];
@@ -699,6 +1082,8 @@ export interface components {
             description: string | null;
             /** Format: date-time */
             endsAt: string | null;
+            /** @description Set only for the host, while moderators have hidden the event: their reason, as plain text. Nobody else can see a hidden event (D-015). Null otherwise. */
+            hiddenReason: string | null;
             host: components["schemas"]["PersonResponse"];
             /** Format: uuid */
             id: string;
@@ -771,12 +1156,22 @@ export interface components {
             /** Format: uuid */
             id: string;
             mfaEnabled: boolean;
+            /** @description True when the user holds MODERATOR or ADMIN but it isn't in effect because their Discord account has MFA off. Show the "turn on Discord 2FA" note; it takes effect at the next sign-in after they turn it on. */
+            mfaRequired: boolean;
             pushEnabled: boolean;
+            /** @description The roles in effect for this session. Always includes USER. MODERATOR and ADMIN apply only while Discord reported MFA on at sign-in (D-015). */
             roles: ("USER" | "MODERATOR" | "ADMIN")[];
             /** @example America/Chicago */
             timeZone: string | null;
             /** @example con_goer */
             username: string;
+        };
+        ModerationRequest: {
+            /**
+             * @description Plain text. The host reads it in their inbox (and, while the event is hidden, on the event); attendees never do.
+             * @example The location isn't a public space.
+             */
+            reason: string;
         };
         NotificationPageResponse: {
             items: components["schemas"]["NotificationResponse"][];
@@ -792,7 +1187,7 @@ export interface components {
             /** @description EVENT_CHANGED only: what changed, at least one. The new location is never included. */
             changes?: ("START" | "END" | "LOCATION")[];
             /**
-             * @description The event's title when the notification was made. Set for every type but FRIEND_ACCEPTED.
+             * @description The event's title when the notification was made. Set for every type with an eventId.
              * @example Cosplay photo walk
              */
             eventTitle?: string;
@@ -806,11 +1201,23 @@ export interface components {
              * @description SPOT_OFFERED only: when the offer runs out. Accept before then.
              */
             offerExpiresAt?: string;
+            /** @description EVENT_HIDDEN, and the host's EVENT_CANCELLED when a moderator cancelled: the moderator's reason, as plain text. Shown in the inbox only, never in a push. */
+            reason?: string;
+            /**
+             * Format: int64
+             * @description REPORT_RECEIVED only: the report's ID, for GET /api/admin/reports/{reportId}. Never the reporter or the target.
+             */
+            reportId?: number;
             /**
              * Format: date-time
              * @description EVENT_CHANGED (the start after the change) and EVENT_REMINDER only.
              */
             startsAt?: string;
+            /**
+             * @description REPORT_RECEIVED only: whether an event or a user was reported.
+             * @enum {string}
+             */
+            targetType?: "EVENT" | "USER";
         };
         NotificationReadRequest: {
             /**
@@ -824,7 +1231,7 @@ export interface components {
             createdAt: string;
             /**
              * Format: uuid
-             * @description The event's public ID. Null for FRIEND_ACCEPTED.
+             * @description The event's public ID. Null for FRIEND_ACCEPTED, REPORT_RECEIVED and REPORT_REVIEWED.
              */
             eventId: string | null;
             /**
@@ -835,7 +1242,7 @@ export interface components {
             payload: components["schemas"]["NotificationPayload"];
             read: boolean;
             /** @enum {string} */
-            type: "SPOT_OFFERED" | "SPOT_CONFIRMED" | "EVENT_CHANGED" | "EVENT_CANCELLED" | "EVENT_REMINDER" | "FRIEND_ACCEPTED";
+            type: "SPOT_OFFERED" | "SPOT_CONFIRMED" | "EVENT_CHANGED" | "EVENT_CANCELLED" | "EVENT_REMINDER" | "FRIEND_ACCEPTED" | "REPORT_RECEIVED" | "REPORT_REVIEWED" | "EVENT_HIDDEN";
         };
         PersonListResponse: {
             people: components["schemas"]["PersonResponse"][];
@@ -870,90 +1277,190 @@ export interface components {
             endpoint: string;
             keys: components["schemas"]["PushSubscriptionKeys"];
         };
+        ReportPageResponse: {
+            items: components["schemas"]["ReportResponse"][];
+            /** @description Pass it as cursor for the next page. Null on the last page. */
+            nextCursor: string | null;
+        };
+        ReportRequest: {
+            /** @description Optional. What happened, as plain text. */
+            note?: string | null;
+            /** @enum {string} */
+            reason: "HARASSMENT" | "UNSAFE" | "SPAM" | "INAPPROPRIATE" | "OTHER";
+            /**
+             * Format: uuid
+             * @description The event's public ID, or the user's ID.
+             */
+            targetId: string;
+            /** @enum {string} */
+            targetType: "EVENT" | "USER";
+        };
+        ReportResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Null while open.
+             */
+            handledAt: string | null;
+            /**
+             * Format: uuid
+             * @description The moderator who resolved it. Null while open, or once their account is gone.
+             */
+            handledBy: string | null;
+            /** Format: int64 */
+            id: number;
+            /** @description The reporter's note, as plain text. */
+            note: string | null;
+            /** @enum {string} */
+            reason: "HARASSMENT" | "UNSAFE" | "SPAM" | "INAPPROPRIATE" | "OTHER";
+            /**
+             * Format: uuid
+             * @description The reporter's user ID, for moderators only. Null once their account is gone.
+             */
+            reporterId: string | null;
+            /** @description The resolving moderator's note, as plain text. Never sent to the reporter. */
+            resolutionNote: string | null;
+            /** @enum {string} */
+            status: "OPEN" | "ACTIONED" | "DISMISSED";
+            /**
+             * Format: uuid
+             * @description The event's public ID (moderators can open a reported event with GET /api/events/{eventId}, hidden or not), or the user's ID.
+             */
+            targetId: string;
+            /**
+             * @description The event's title or the user's display name. Null once the event was purged or the account deleted: the report outlives its target.
+             * @example Cosplay photo walk
+             */
+            targetLabel: string | null;
+            /** @enum {string} */
+            targetType: "EVENT" | "USER";
+        };
+        ResolveReportRequest: {
+            /** @enum {string} */
+            resolution: "ACTIONED" | "DISMISSED";
+            /** @description Optional. What was done, as plain text, for other moderators. Never sent to the reporter. */
+            resolutionNote?: string | null;
+        };
+        ResponseRecordAdminUserListResponse: {
+            body: components["schemas"]["AdminUserListResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
+        };
         ResponseRecordAttendeesResponse: {
             body: components["schemas"]["AttendeesResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordAuditPageResponse: {
+            body: components["schemas"]["AuditPageResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordCircleListResponse: {
             body: components["schemas"]["CircleListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordCircleResponse: {
             body: components["schemas"]["CircleResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordErrorResponseBodyRecord: {
             body: components["schemas"]["ErrorResponseBodyRecord"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordEventPageResponse: {
             body: components["schemas"]["EventPageResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordEventResponse: {
             body: components["schemas"]["EventResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordGuildListResponse: {
             body: components["schemas"]["GuildListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordGuildResponse: {
             body: components["schemas"]["GuildResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordInvitePreviewResponse: {
             body: components["schemas"]["InvitePreviewResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordInviteResponse: {
             body: components["schemas"]["InviteResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordMeResponse: {
             body: components["schemas"]["MeResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordNotificationPageResponse: {
             body: components["schemas"]["NotificationPageResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordPersonListResponse: {
             body: components["schemas"]["PersonListResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordPersonResponse: {
             body: components["schemas"]["PersonResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordPushKeyResponse: {
             body: components["schemas"]["PushKeyResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordReportPageResponse: {
+            body: components["schemas"]["ReportPageResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordReportResponse: {
+            body: components["schemas"]["ReportResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
+        };
+        ResponseRecordRolesResponse: {
+            body: components["schemas"]["RolesResponse"];
+            /** @enum {string} */
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordRsvpResponse: {
             body: components["schemas"]["RsvpResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
         };
         ResponseRecordSpotsResponse: {
             body: components["schemas"]["SpotsResponse"];
             /** @enum {string} */
-            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "UNKNOWN";
+            responseType: "ERROR" | "ME" | "GUILD" | "GUILD_LIST" | "PERSON" | "PERSON_LIST" | "INVITE" | "INVITE_PREVIEW" | "CIRCLE" | "CIRCLE_LIST" | "EVENT" | "EVENT_PAGE" | "RSVP" | "ATTENDEES" | "SPOTS" | "NOTIFICATION_PAGE" | "PUSH_KEY" | "REPORT" | "REPORT_PAGE" | "ADMIN_USER_LIST" | "ROLES" | "AUDIT_PAGE" | "UNKNOWN";
+        };
+        RolesRequest: {
+            /** @description The full set the user should hold. Empty removes every role, like DELETE. */
+            roles: ("MODERATOR" | "ADMIN")[];
+        };
+        RolesResponse: {
+            /** @description Whether Discord reported MFA on at the user's last sign-in. Without it the roles aren't in effect. */
+            mfaEnabled: boolean;
+            /** @description Granted roles, MODERATOR before ADMIN. Empty for a plain user. */
+            roles: ("MODERATOR" | "ADMIN")[];
         };
         RsvpResponse: {
             /**
@@ -1003,6 +1510,15 @@ export interface components {
              */
             waitlisted: number;
         };
+        SuspendRequest: {
+            /** @description Plain text, for the audit log. The user never sees it. */
+            reason: string;
+            /**
+             * Format: date-time
+             * @description When the suspension ends: in the future, and at most 365 days away.
+             */
+            until: string;
+        };
         UpdateGuildRequest: {
             discoverable: boolean;
         };
@@ -1028,6 +1544,1316 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAudit: {
+        parameters: {
+            query?: {
+                /** @description The previous page's nextCursor. Opaque. */
+                cursor?: string;
+                /** @description Rows per page, 1 to 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordAuditPageResponse"];
+                };
+            };
+            /** @description A cursor that this endpoint didn't issue, or a limit out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    ban: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BanRequest"];
+            };
+        };
+        responses: {
+            /** @description Banned, or already banned. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The account holds ADMIN (errorType TARGET_HAS_ROLE). Remove the role first. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    unban: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Discord user ID (a snowflake, as a string) */
+                discordId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lifted, or wasn't banned. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not found, or not visible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    cancelEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Cancelled, or nothing to cancel. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such event. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    hideEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Hidden, or already hidden. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such event. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    unhideEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The event's public ID */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unhidden, or wasn't hidden. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such event. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getReports: {
+        parameters: {
+            query?: {
+                /** @description Which reports to list */
+                status?: "OPEN" | "ACTIONED" | "DISMISSED";
+                /** @description The previous page's nextCursor. Opaque. */
+                cursor?: string;
+                /** @description Reports per page, 1 to 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordReportPageResponse"];
+                };
+            };
+            /** @description A cursor that this endpoint didn't issue, or a limit out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The report's ID */
+                reportId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordReportResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such report. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    resolveReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The report's ID */
+                reportId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveReportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordReportResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such report. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The report is already resolved (errorType REPORT_RESOLVED). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    findUsers: {
+        parameters: {
+            query: {
+                /** @description A user ID, a Discord ID, or 2 to 100 characters of a name */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordAdminUserListResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    getRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user's ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordRolesResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    setRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user's ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordRolesResponse"];
+                };
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No user would hold ADMIN any more (errorType LAST_ADMIN). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    removeRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user's ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed, or had none. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No user would hold ADMIN any more (errorType LAST_ADMIN). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    suspendUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user's ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspendRequest"];
+            };
+        };
+        responses: {
+            /** @description Suspended. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation, or the end is more than 365 days away. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The user's granted role protects them (errorType TARGET_HAS_ROLE). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    unsuspendUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user's ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lifted, or wasn't suspended. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Signed in without the role this route needs (in its summary), which is in effect only with Discord MFA on; or, on a write, the CSRF token is missing or invalid. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -2171,7 +3997,7 @@ export interface operations {
             };
         };
     };
-    cancelEvent: {
+    cancelEvent_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -4036,6 +5862,91 @@ export interface operations {
                 };
             };
             /** @description Rate limited. Try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Any other error. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+        };
+    };
+    report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Reported, or already reported and still open. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request failed validation, or the caller reported themself or an event they host. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description CSRF token missing or invalid. Send the XSRF-TOKEN cookie's value in the X-XSRF-TOKEN header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description No such user, or no such event that the caller can see or has ever had an RSVP on. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
+                };
+            };
+            /** @description The caller already made 10 reports in the last 24 hours (errorType REPORT_LIMIT), or is rate limited (errorType TOO_MANY_REQUESTS). */
             429: {
                 headers: {
                     [name: string]: unknown;

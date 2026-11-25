@@ -1,13 +1,18 @@
-import { Bell } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 import { Link, Outlet } from 'react-router';
+import { useState } from 'react';
 import { useMe } from '../api/me';
+import { useUnavailable } from '../api/maintenance';
 import { formatUnread, useUnreadCount } from '../api/notifications';
+import { MaintenancePage } from '../features/maintenance/MaintenancePage';
 import { useOnline } from '../features/rsvp/useOnline';
 
 export function AppShell() {
   const me = useMe();
   const user = me.data;
   const online = useOnline();
+  const unavailable = useUnavailable();
+  const [mfaDismissed, setMfaDismissed] = useState(false);
   const unread = useUnreadCount(Boolean(user)).data ?? 0;
 
   return (
@@ -54,8 +59,27 @@ export function AppShell() {
           people need a connection.
         </p>
       )}
+      {user?.mfaRequired && !mfaDismissed && !unavailable && (
+        <div
+          role="note"
+          className="bg-surface-raised border-line flex items-start gap-2 border-b px-4 py-3 text-sm"
+        >
+          <p className="flex-1">
+            Your moderator tools are switched off because Discord two-factor authentication (2FA) is
+            off on your account. Turn it on in Discord, then sign out and sign in again here.
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss this note"
+            className="rounded-control flex min-h-11 min-w-11 shrink-0 items-center justify-center"
+            onClick={() => setMfaDismissed(true)}
+          >
+            <X aria-hidden="true" className="size-5" />
+          </button>
+        </div>
+      )}
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
-        <Outlet />
+        {unavailable ? <MaintenancePage /> : <Outlet />}
       </main>
       <footer className="border-line text-ink-muted border-t px-4 py-4 text-sm">
         Free meetups for convention-goers.
