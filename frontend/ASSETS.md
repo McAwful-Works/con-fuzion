@@ -6,8 +6,9 @@ Claude never creates art. The owner or the hired artist adds the files and the r
 
 Put the file's path relative to `frontend/` in backticks in the first column.
 
-| File | Source | Author | License | Notes |
-| ---- | ------ | ------ | ------- | ----- |
+| File                | Source          | Author                  | License | Notes                                                                                             |
+| ------------------- | --------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `public/push-sw.js` | This repository | Con-Fuzion contributors | MIT     | Code, not art: the service worker's push handlers. Listed because `check-assets` walks `public/`. |
 
 ## Not files, so not listed above
 

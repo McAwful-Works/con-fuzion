@@ -25,6 +25,10 @@ export default defineConfig({
         icons: [],
       },
       workbox: {
+        // The push and notificationclick handlers (public/push-sw.js). Keeping `generateSW` and importing
+        // the handlers means the precache and the runtime rule below stay exactly as they were, and no
+        // workbox-* package has to become a direct dependency, which `injectManifest` would need.
+        importScripts: ['push-sw.js'],
         // The SPA shell fallback must never swallow API calls.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
