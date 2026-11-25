@@ -282,6 +282,8 @@ class RsvpControllerIntegrationTest {
 
 		assertThat(status(delete(path(event) + "/rsvps/" + removed).with(login(host)).with(csrf()))).isEqualTo(204);
 		assertThat(fixtures.rsvpStatus(event.id(), removed)).isEqualTo("REMOVED");
+		assertThat(JsonPath.<Map<String, Object>>read(content(get(path(event) + "/spots").with(login(removed)), 200),
+				"$.body")).containsEntry("myStatus", "REMOVED").containsEntry("myPosition", null);
 		assertThat(fixtures.rsvpStatus(event.id(), next)).isEqualTo("CONFIRMED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(2);
 
@@ -432,11 +434,11 @@ class RsvpControllerIntegrationTest {
 				webApplicationContext.getBean(TransactionTemplate.class), proxyManager(), 1);
 		var event = event(5);
 		var guest = guest(event);
+		var second = event(5);
+		fixtures.audience(second.id(), "USER", null, null, guest);
 		limited.join(guest, event.publicId());
 		// A repeat is answered from the checks, so it's never limited (rule 5).
 		limited.join(guest, event.publicId());
-		var second = event(5);
-		fixtures.audience(second.id(), "USER", null, null, guest);
 		assertThatThrownBy(() -> limited.join(guest, second.publicId())).isInstanceOf(RateLimitException.class);
 		assertThat(fixtures.rsvpStatus(second.id(), guest)).isNull();
 		var other = guest(event);

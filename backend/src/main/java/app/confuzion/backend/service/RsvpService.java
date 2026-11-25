@@ -160,7 +160,10 @@ public class RsvpService {
 		if (!now.isBefore(event.getStartsAt()))
 			throw new ConflictException(Conflict.SIGNUP_CLOSED);
 		if (!proxyManager.getProxy(JOIN_KEY_PREFIX + userId, () -> joinBucket).tryConsume(1))
-			throw new RateLimitException();
+			// A twin join from another device may have claimed since the checks ran: answer
+			// it as the repeat it now is (rule 5).
+			return rsvpRepository.findMine(event.getId(), userId).filter(m -> m.status() != MyStatus.REMOVED)
+					.map(RsvpService::toRsvp).orElseThrow(RateLimitException::new);
 
 		transactionTemplate.executeWithoutResult(tx -> {
 			var locked = rsvpRepository.lock(event.getId());
