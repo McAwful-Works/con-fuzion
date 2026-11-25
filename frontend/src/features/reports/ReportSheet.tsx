@@ -45,6 +45,11 @@ export function ReportSheet({ targetType, targetId, label, blockable, onDone }: 
     };
   }, []);
 
+  // The form is replaced by the thanks, which unmounts the button that had focus: move focus to the heading.
+  useEffect(() => {
+    if (send.isSuccess) titleRef.current?.focus();
+  }, [send.isSuccess]);
+
   const close = () => {
     // The block changes who you can see, so lists refresh now and not while the thanks was showing.
     if (blocked) void invalidateSocial();

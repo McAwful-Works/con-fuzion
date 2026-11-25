@@ -90,6 +90,8 @@ describe('reporting a person', () => {
       await screen.findByText(/Thanks\. The moderators will look at it\./),
     ).toBeInTheDocument();
     expect(screen.getByText(/You’ve also blocked Ada/)).toBeInTheDocument();
+    // Focus follows the form into the thanks, so a keyboard user isn't dropped at the top of the page.
+    expect(screen.getByRole('heading', { name: 'Report Ada' })).toHaveFocus();
     const written = calls.filter((c) => c.method !== 'GET');
     expect(written.map((c) => `${c.method} ${c.path}`)).toEqual([
       'POST /api/reports',
@@ -179,12 +181,17 @@ describe('reporting an event', () => {
       return undefined;
     });
     renderApp(`/events/${walk.id}`);
-    fireEvent.click(await screen.findByRole('button', { name: 'Report event' }));
+    const opener = await screen.findByRole('button', { name: 'Report event' });
+    opener.focus(); // a real click focuses the button; fireEvent doesn't
+    fireEvent.click(opener);
     expect(screen.getByRole('checkbox', { name: /Also block Ada/ })).toBeInTheDocument();
     pickReason('Inappropriate');
     fireEvent.click(screen.getByRole('button', { name: 'Send report' }));
 
     await screen.findByText(/Thanks\./);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    // The opener stays mounted, so focus goes back to it.
+    expect(screen.getByRole('button', { name: 'Report event' })).toHaveFocus();
     expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
       targetType: 'EVENT',
       targetId: walk.id,
@@ -324,7 +331,7 @@ describe('notifications for reports and hidden events', () => {
   it('describes each from its payload alone', () => {
     const text = (n: Schemas['NotificationResponse']) => describeNotification(n, now);
     expect(text(note({ payload: { eventTitle: 'Walk', reason: 'Not a public space.' } }))).toBe(
-      '“Walk” was hidden by the moderators. Only you can see it now. Reason: Not a public space.',
+      '“Walk” was hidden by the moderators. Only you and the moderators can see it now. Reason: Not a public space.',
     );
     expect(text(note({ type: 'REPORT_REVIEWED', eventId: null }))).toMatch(/reviewed a report/);
     expect(text(note({ type: 'REPORT_RECEIVED', eventId: null, payload: { reportId: 1 } }))).toBe(

@@ -43,7 +43,7 @@ export function describeNotification(n: Notification, nowMs: number): string {
         ? `${title} was cancelled by the moderators. Reason: ${reason}`
         : `${title} was cancelled.`;
     case 'EVENT_HIDDEN':
-      return `${title} was hidden by the moderators. Only you can see it now.${
+      return `${title} was hidden by the moderators. Only you and the moderators can see it now.${
         reason ? ` Reason: ${reason}` : ''
       }`;
     case 'REPORT_REVIEWED':

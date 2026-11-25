@@ -57,21 +57,27 @@ function CancelEvent({ event }: { event: Event }) {
 /** "Report event", for anyone but the host (D-015 rule 6: you can't report your own event). */
 function ReportEvent({ event }: { event: Event }) {
   const [open, setOpen] = useState(false);
-  if (open) {
-    return (
-      <ReportSheet
-        targetType="EVENT"
-        targetId={event.id}
-        label={`“${event.title}”`}
-        blockable={event.host}
-        onDone={() => setOpen(false)}
-      />
-    );
-  }
+  // The button stays mounted, so focus has somewhere to return to when the sheet closes.
   return (
-    <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
-      Report event
-    </button>
+    <div className="space-y-3">
+      <button
+        type="button"
+        className="btn btn-secondary"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        Report event
+      </button>
+      {open && (
+        <ReportSheet
+          targetType="EVENT"
+          targetId={event.id}
+          label={`“${event.title}”`}
+          blockable={event.host}
+          onDone={() => setOpen(false)}
+        />
+      )}
+    </div>
   );
 }
 

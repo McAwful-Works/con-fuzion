@@ -14,6 +14,7 @@ export function markUnavailable() {
   listeners.forEach((listener) => listener());
 }
 
+/** Used by tests to reset the flag. The app itself leaves it set until the page reloads. */
 export function clearUnavailable() {
   if (!down) return;
   down = false;
