@@ -44,12 +44,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	 * visibility predicate that the detail view, the feed, My schedule and RSVP
 	 * share. The host always sees their own events. Anyone else needs no block
 	 * between them and the host, either way, and then either an active
-	 * ({@link RsvpRepository#ACTIVE}: confirmed, waitlisted or offered) RSVP, which keeps a cancelled event
-	 * visible too (D-013 rule 10), or a published event with an audience entry that
-	 * matches them: a {@code USER} entry naming them, a {@code FRIENDS} entry while
-	 * they are the host's friend, a {@code CIRCLE} entry for one of the host's
-	 * circles they are in, or a {@code GUILD} entry for a server where both of them
-	 * are discoverable now.
+	 * ({@link RsvpRepository#ACTIVE}: confirmed, waitlisted or offered) RSVP, which
+	 * keeps a cancelled event visible too (D-013 rule 10), or a published event
+	 * with an audience entry that matches them: a {@code USER} entry naming them, a
+	 * {@code FRIENDS} entry while they are the host's friend, a {@code CIRCLE}
+	 * entry for one of the host's circles they are in, or a {@code GUILD} entry for
+	 * a server where both of them are discoverable now.
 	 */
 	String VISIBLE = """
 			(e.host_id = :viewer OR (NOT EXISTS (SELECT 1 FROM block b
@@ -118,22 +118,22 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 					UNION ALL
 					SELECT r.event_id FROM rsvp r WHERE r.user_id = :viewer AND\s""" + RsvpRepository.ACTIVE + """
 
-					UNION ALL
-					SELECT a.event_id FROM circle_member cm JOIN event_audience a ON a.circle_id = cm.circle_id
-						WHERE cm.user_id = :viewer
-					UNION ALL
-					SELECT a.event_id FROM user_guild g JOIN event_audience a ON a.guild_id = g.guild_id
-						WHERE g.user_id = :viewer AND g.discoverable
-					UNION ALL
-					SELECT h.id FROM event h WHERE h.host_id = :viewer AND h.starts_at > now() - interval '7 days'
-					UNION ALL
-					SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_b
-						WHERE f.user_a = :viewer AND h.starts_at > now() - interval '7 days'
-					UNION ALL
-					SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_a
-						WHERE f.user_b = :viewer AND h.starts_at > now() - interval '7 days')
-				AND e.status = 'PUBLISHED'
-				AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + """
+				UNION ALL
+				SELECT a.event_id FROM circle_member cm JOIN event_audience a ON a.circle_id = cm.circle_id
+					WHERE cm.user_id = :viewer
+				UNION ALL
+				SELECT a.event_id FROM user_guild g JOIN event_audience a ON a.guild_id = g.guild_id
+					WHERE g.user_id = :viewer AND g.discoverable
+				UNION ALL
+				SELECT h.id FROM event h WHERE h.host_id = :viewer AND h.starts_at > now() - interval '7 days'
+				UNION ALL
+				SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_b
+					WHERE f.user_a = :viewer AND h.starts_at > now() - interval '7 days'
+				UNION ALL
+				SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_a
+					WHERE f.user_b = :viewer AND h.starts_at > now() - interval '7 days')
+			AND e.status = 'PUBLISHED'
+			AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + """
 			ORDER BY e.starts_at, e.public_id
 			LIMIT :limit
 			""", nativeQuery = true)
@@ -156,8 +156,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
 	/**
 	 * Returns a page of My schedule (D-013 rule 12): upcoming events where the
-	 * viewer is confirmed, waitlisted or offered, their own included, and cancelled ones
-	 * while they still hold an RSVP.
+	 * viewer is confirmed, waitlisted or offered, their own included, and cancelled
+	 * ones while they still hold an RSVP.
 	 *
 	 * @param viewer        the viewer's user ID
 	 * @param afterStartsAt the cursor's start time
@@ -169,8 +169,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 			SELECT e.* FROM event e
 			WHERE e.id IN (SELECT r.event_id FROM rsvp r
 					WHERE r.user_id = :viewer AND\s""" + RsvpRepository.ACTIVE + """
-				)
-				AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + """
+			)
+			AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + """
 			ORDER BY e.starts_at, e.public_id
 			LIMIT :limit
 			""", nativeQuery = true)

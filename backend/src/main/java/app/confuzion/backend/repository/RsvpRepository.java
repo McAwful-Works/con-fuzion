@@ -217,8 +217,8 @@ public class RsvpRepository {
 	}
 
 	/**
-	 * Ends a user's active RSVP on an event, as {@code LEFT} or {@code REMOVED}.
-	 * An offer past its deadline isn't active: it is left for {@link #expireDue}.
+	 * Ends a user's active RSVP on an event, as {@code LEFT} or {@code REMOVED}. An
+	 * offer past its deadline isn't active: it is left for {@link #expireDue}.
 	 *
 	 * @param eventId the event's internal ID
 	 * @param userId  the user's ID
@@ -252,18 +252,19 @@ public class RsvpRepository {
 	 * saved edit: a raised capacity, or a start moved back into the future, which
 	 * reopens sign-up. Each is offered a spot, or confirmed at once near the start
 	 * ({@link #PROMOTE}). Making the capacity unlimited confirms everyone
-	 * waitlisted and every open offer instead (D-014 rule 17). Nobody moves up
-	 * once the event has started.
+	 * waitlisted and every open offer instead (D-014 rule 17). Nobody moves up once
+	 * the event has started.
 	 *
 	 * @param eventId   the event's internal ID
 	 * @param freeSpots how many spots are free, {@link Integer#MAX_VALUE} for an
 	 *                  unlimited event
 	 */
 	public void fillFreeSpots(long eventId, int freeSpots) {
-		notifyPromoted(eventId, jdbc.sql("WITH promoted AS (" + PROMOTE + "), taken AS (UPDATE event "
-				+ "SET confirmed_count = confirmed_count + (SELECT count(*) FROM promoted) WHERE id = :eventId "
-				+ "AND EXISTS (SELECT 1 FROM promoted)) SELECT * FROM promoted").param("eventId", eventId)
-				.param("count", freeSpots).query(RsvpRepository::promoted).list());
+		notifyPromoted(eventId,
+				jdbc.sql("WITH promoted AS (" + PROMOTE + "), taken AS (UPDATE event "
+						+ "SET confirmed_count = confirmed_count + (SELECT count(*) FROM promoted) WHERE id = :eventId "
+						+ "AND EXISTS (SELECT 1 FROM promoted)) SELECT * FROM promoted").param("eventId", eventId)
+						.param("count", freeSpots).query(RsvpRepository::promoted).list());
 		// The spots these offers hold are already counted.
 		notifyPromoted(eventId, jdbc.sql("""
 				UPDATE rsvp r SET status = 'CONFIRMED', offer_expires_at = NULL, updated_at = now()
@@ -281,8 +282,8 @@ public class RsvpRepository {
 	 * rule 15).
 	 *
 	 * @param eventId the event's internal ID
-	 * @param userId  the person whose offer to end, or {@code null} for every
-	 *                offer past its deadline
+	 * @param userId  the person whose offer to end, or {@code null} for every offer
+	 *                past its deadline
 	 * @return how many offers ended
 	 */
 	public int expireDue(long eventId, UUID userId) {
@@ -291,8 +292,8 @@ public class RsvpRepository {
 					WHERE event_id = :eventId AND status = 'OFFERED' AND offer_expires_at <= statement_timestamp()
 						AND (CAST(:userId AS uuid) IS NULL OR user_id = :userId)
 					RETURNING id)
-				SELECT count(*) FROM expired""").param("eventId", eventId).param("userId", userId)
-				.query(Integer.class).single();
+				SELECT count(*) FROM expired""").param("eventId", eventId).param("userId", userId).query(Integer.class)
+				.single();
 		if (expired > 0)
 			freeSpots(eventId, expired);
 		return expired;
@@ -312,8 +313,8 @@ public class RsvpRepository {
 				SELECT e.id FROM event e
 				WHERE e.id IN (SELECT r.event_id FROM rsvp r
 					WHERE r.status = 'OFFERED' AND r.offer_expires_at <= statement_timestamp())
-				ORDER BY e.id LIMIT :limit FOR NO KEY UPDATE SKIP LOCKED""").param("limit", limit)
-				.query(Long.class).list();
+				ORDER BY e.id LIMIT :limit FOR NO KEY UPDATE SKIP LOCKED""").param("limit", limit).query(Long.class)
+				.list();
 	}
 
 	/**
@@ -344,8 +345,8 @@ public class RsvpRepository {
 		return jdbc.sql("""
 				UPDATE rsvp SET status = 'CONFIRMED', offer_expires_at = NULL, updated_at = now()
 				WHERE event_id = :eventId AND user_id = :userId AND status = 'OFFERED'
-					AND offer_expires_at > statement_timestamp()""").param("eventId", eventId)
-				.param("userId", userId).update() > 0;
+					AND offer_expires_at > statement_timestamp()""").param("eventId", eventId).param("userId", userId)
+				.update() > 0;
 	}
 
 	/**
@@ -356,10 +357,11 @@ public class RsvpRepository {
 	 * @param count   how many spots were freed
 	 */
 	private void freeSpots(long eventId, int count) {
-		notifyPromoted(eventId, jdbc.sql("WITH promoted AS (" + PROMOTE + "), freed AS (UPDATE event "
-				+ "SET confirmed_count = confirmed_count - (:count - (SELECT count(*) FROM promoted)) "
-				+ "WHERE id = :eventId AND :count > (SELECT count(*) FROM promoted)) SELECT * FROM promoted")
-				.param("eventId", eventId).param("count", count).query(RsvpRepository::promoted).list());
+		notifyPromoted(eventId,
+				jdbc.sql("WITH promoted AS (" + PROMOTE + "), freed AS (UPDATE event "
+						+ "SET confirmed_count = confirmed_count - (:count - (SELECT count(*) FROM promoted)) "
+						+ "WHERE id = :eventId AND :count > (SELECT count(*) FROM promoted)) SELECT * FROM promoted")
+						.param("eventId", eventId).param("count", count).query(RsvpRepository::promoted).list());
 	}
 
 	/**

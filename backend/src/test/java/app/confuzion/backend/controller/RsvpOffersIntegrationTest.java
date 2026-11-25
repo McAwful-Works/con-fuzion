@@ -169,8 +169,8 @@ class RsvpOffersIntegrationTest {
 
 	/**
 	 * Tests an offer from a freed spot: the next person in line holds it until
-	 * {@code now + window}, the count stays, they get {@code SPOT_OFFERED} with only
-	 * the title and the deadline, and every read shows the offer to them alone
+	 * {@code now + window}, the count stays, they get {@code SPOT_OFFERED} with
+	 * only the title and the deadline, and every read shows the offer to them alone
 	 * ({@code /spots}, a repeat join, the feed, My schedule). They don't see the
 	 * {@code CONFIRMED} location or the attendee list until they accept; the host
 	 * sees them in {@code offered}. Declining is leaving, and offers the spot to
@@ -368,16 +368,16 @@ class RsvpOffersIntegrationTest {
 			join(guest, event, "WAITLISTED");
 
 		assertThat(status(edit(event, 4))).isEqualTo(200);
-		assertThat(guests.stream().map(guest -> fixtures.rsvpStatus(event.id(), guest)))
-				.containsExactly("CONFIRMED", "OFFERED", "OFFERED", "WAITLISTED", "WAITLISTED");
+		assertThat(guests.stream().map(guest -> fixtures.rsvpStatus(event.id(), guest))).containsExactly("CONFIRMED",
+				"OFFERED", "OFFERED", "WAITLISTED", "WAITLISTED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(4);
 		// The spots held by offers count: a cut below them is refused.
 		assertConflict(edit(event, 3), "CAPACITY_BELOW_CONFIRMED");
 
 		pastDeadline(event, guests.get(2));
 		assertThat(status(edit(event, null))).isEqualTo(200);
-		assertThat(guests.stream().map(guest -> fixtures.rsvpStatus(event.id(), guest)))
-				.containsExactly("CONFIRMED", "CONFIRMED", "OFFERED", "CONFIRMED", "CONFIRMED");
+		assertThat(guests.stream().map(guest -> fixtures.rsvpStatus(event.id(), guest))).containsExactly("CONFIRMED",
+				"CONFIRMED", "OFFERED", "CONFIRMED", "CONFIRMED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(6);
 		assertThat(notifications(guests.get(1))).containsExactly("SPOT_OFFERED", "SPOT_CONFIRMED");
 		assertThat(notifications(guests.get(3))).containsExactly("SPOT_CONFIRMED");

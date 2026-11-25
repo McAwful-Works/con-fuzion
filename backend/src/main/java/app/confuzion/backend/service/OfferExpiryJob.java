@@ -18,7 +18,6 @@
  */
 package app.confuzion.backend.service;
 
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -36,7 +35,6 @@ import app.confuzion.backend.repository.RsvpRepository;
  * @author mcawful
  */
 @Component
-@EnableScheduling
 public class OfferExpiryJob {
 	/**
 	 * The most events one transaction handles.
@@ -69,7 +67,7 @@ public class OfferExpiryJob {
 	 * batch comes back short. The interval defaults to 30 seconds, and tests may
 	 * lower it with {@code con-fuzion.offers.expiry-interval}.
 	 */
-	@Scheduled(fixedDelayString = "${con-fuzion.offers.expiry-interval:30s}", initialDelayString = "${con-fuzion.offers.expiry-interval:30s}")
+	@Scheduled(fixedDelayString = "${con-fuzion.offers.expiry-interval:PT30S}", initialDelayString = "${con-fuzion.offers.expiry-interval:PT30S}")
 	public void run() {
 		while (expireBatch() == BATCH) {
 			// A full batch: there may be more.

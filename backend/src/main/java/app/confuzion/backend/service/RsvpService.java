@@ -303,7 +303,8 @@ public class RsvpService {
 	 */
 	private void end(long eventId, UUID userId, String status) {
 		rsvpRepository.lock(eventId);
-		if (rsvpRepository.end(eventId, userId, status).filter(held -> held == MyStatus.CONFIRMED || held == MyStatus.OFFERED).isPresent())
+		if (rsvpRepository.end(eventId, userId, status)
+				.filter(held -> held == MyStatus.CONFIRMED || held == MyStatus.OFFERED).isPresent())
 			rsvpRepository.freeSpot(eventId);
 	}
 

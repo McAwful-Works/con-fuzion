@@ -254,9 +254,9 @@ class EventVisibilityIntegrationTest {
 	/**
 	 * Returns the RSVP rows of the truth table (D-013 rule 10, D-014 rules 3 and
 	 * 15): each RSVP status, an open offer and one past its deadline
-	 * ({@code OFFERED_LATE}),
-	 * on a published and a cancelled event, with no block and with a block each
-	 * way. The event has no audience entries, so only the RSVP can make it visible.
+	 * ({@code OFFERED_LATE}), on a published and a cancelled event, with no block
+	 * and with a block each way. The event has no audience entries, so only the
+	 * RSVP can make it visible.
 	 *
 	 * @return the status, whether the event is cancelled, the block, and the
 	 *         expected visibility
@@ -275,8 +275,8 @@ class EventVisibilityIntegrationTest {
 	 * Tests one RSVP row: an active RSVP keeps the event visible, cancelled or not
 	 * and whatever the audience, unless a block stands between the viewer and the
 	 * host. A left, removed or expired RSVP grants nothing, nor does an offer past
-	 * its deadline. The detail view and the feed
-	 * (which lists only published events) agree.
+	 * its deadline. The detail view and the feed (which lists only published
+	 * events) agree.
 	 *
 	 * @param status    the viewer's RSVP status
 	 * @param cancelled whether the event is cancelled
@@ -294,8 +294,9 @@ class EventVisibilityIntegrationTest {
 		case "OFFERED_LATE" -> "now() - interval '1 second'";
 		default -> "NULL";
 		};
-		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status, offer_expires_at) VALUES (?, ?, ?, "
-				+ deadline + ")", event.id(), viewer, status.replace("_LATE", ""));
+		jdbcTemplate.update(
+				"INSERT INTO rsvp (event_id, user_id, status, offer_expires_at) VALUES (?, ?, ?, " + deadline + ")",
+				event.id(), viewer, status.replace("_LATE", ""));
 		if (cancelled)
 			fixtures.cancel(event.id());
 		switch (change) {

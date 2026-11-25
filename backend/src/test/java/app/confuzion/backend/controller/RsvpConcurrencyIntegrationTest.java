@@ -134,9 +134,9 @@ class RsvpConcurrencyIntegrationTest {
 	 * Tests the headline case. Capacity 11 with the host holding one spot: 200
 	 * parallel joins confirm exactly 10 guests and waitlist 190 in insert order.
 	 * Three confirmed guests leave and the first three waitlisted are offered the
-	 * spots in order (D-014). One offer expires and the next in line is offered
-	 * its spot. Raising the capacity by 2 offers the next two, and cutting it below
-	 * the held spots is a 409 that saves nothing.
+	 * spots in order (D-014). One offer expires and the next in line is offered its
+	 * spot. Raising the capacity by 2 offers the next two, and cutting it below the
+	 * held spots is a 409 that saves nothing.
 	 */
 	@Test
 	void testFirstComeFirstServed() throws Exception {
@@ -231,9 +231,9 @@ class RsvpConcurrencyIntegrationTest {
 	}
 
 	/**
-	 * Tests accepts racing the expiry job across their deadline: 30 offers that
-	 * run out in half a second, each accepted at a random moment in the second
-	 * around it while two tasks run the job. Nothing deadlocks, each accept is
+	 * Tests accepts racing the expiry job across their deadline: 30 offers that run
+	 * out in half a second, each accepted at a random moment in the second around
+	 * it while two tasks run the job. Nothing deadlocks, each accept is
 	 * {@code CONFIRMED} or {@code OFFER_EXPIRED} and its row agrees, the count
 	 * matches the held spots and never exceeds the capacity, and every expired
 	 * offer's spot went to the next person in line.
@@ -248,8 +248,8 @@ class RsvpConcurrencyIntegrationTest {
 		for (var row : queue.subList(0, 30))
 			rsvpService.leave(row.userId(), event.publicId());
 		var offered = queue.subList(40, 70).stream().map(Row::userId).toList();
-		assertThat(statuses(event, queue.subList(40, 71))).containsExactlyElementsOf(nCopiesThen(30, "OFFERED", 1,
-				"WAITLISTED"));
+		assertThat(statuses(event, queue.subList(40, 71)))
+				.containsExactlyElementsOf(nCopiesThen(30, "OFFERED", 1, "WAITLISTED"));
 		jdbcTemplate.update("UPDATE rsvp SET offer_expires_at = now() + interval '500 milliseconds' "
 				+ "WHERE event_id = ? AND status = 'OFFERED'", event.id());
 
@@ -283,8 +283,8 @@ class RsvpConcurrencyIntegrationTest {
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(held).isEqualTo(41);
 		// Each expired offer's spot was offered to the next person in line, in order.
 		var expired = (int) results.stream().filter("OFFER_EXPIRED"::equals).count();
-		assertThat(statuses(event, queue.subList(70, 100))).containsExactlyElementsOf(
-				nCopiesThen(expired, "OFFERED", 30 - expired, "WAITLISTED"));
+		assertThat(statuses(event, queue.subList(70, 100)))
+				.containsExactlyElementsOf(nCopiesThen(expired, "OFFERED", 30 - expired, "WAITLISTED"));
 	}
 
 	/**
@@ -330,8 +330,8 @@ class RsvpConcurrencyIntegrationTest {
 		parallel(tasks);
 
 		var active = jdbcTemplate.queryForList(
-				"SELECT user_id FROM rsvp WHERE event_id = ? AND status IN ('CONFIRMED', 'WAITLISTED', 'OFFERED')", UUID.class,
-				event.id());
+				"SELECT user_id FROM rsvp WHERE event_id = ? AND status IN ('CONFIRMED', 'WAITLISTED', 'OFFERED')",
+				UUID.class, event.id());
 		assertThat(active).doesNotContainAnyElementsOf(blocked).hasSize(80 - 20 - blocked.size() + 1);
 		var held = count(event, "CONFIRMED") + count(event, "OFFERED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(held);

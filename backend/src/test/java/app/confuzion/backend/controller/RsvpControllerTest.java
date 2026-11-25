@@ -150,7 +150,8 @@ class RsvpControllerTest {
 	 */
 	@Test
 	void testAcceptMapsToTheService() throws Exception {
-		when(rsvpService.accept(USER_ID, EVENT_ID)).thenReturn(new RsvpResponse(RsvpResponse.Status.CONFIRMED, null, null))
+		when(rsvpService.accept(USER_ID, EVENT_ID))
+				.thenReturn(new RsvpResponse(RsvpResponse.Status.CONFIRMED, null, null))
 				.thenThrow(new ConflictException(Conflict.OFFER_EXPIRED));
 
 		mockMvc.perform(post(EVENT + "/rsvp/accept").principal(AUTHENTICATION)).andExpect(status().isOk())

@@ -311,8 +311,7 @@ class RsvpControllerIntegrationTest {
 	/**
 	 * Tests that a block between the host and an attendee ends the attendee's RSVP
 	 * as {@code LEFT} and offers the spot to the next person, whichever of them
-	 * blocks, and
-	 * that after an unblock they may join again.
+	 * blocks, and that after an unblock they may join again.
 	 */
 	@Test
 	void testBlockEndsTheRsvp() throws Exception {
