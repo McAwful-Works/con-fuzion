@@ -43,6 +43,8 @@ import app.confuzion.backend.model.entity.Event;
 import app.confuzion.backend.repository.EventRepository;
 import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.RsvpRepository.LockedEvent;
+import io.github.bucket4j.distributed.BucketProxy;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 
 /**
  * Unit tests for {@link RsvpService} paths that only a race reaches.
@@ -75,7 +77,12 @@ class RsvpServiceTest {
 		when(rsvpRepository.findMine(7L, userId)).thenReturn(Optional.empty());
 		when(rsvpRepository.lock(7L)).thenReturn(new LockedEvent(hostId, "CANCELLED", 5, 1));
 
-		var service = new RsvpService(eventRepository, rsvpRepository, transactionTemplate);
+		var proxyManager = mock(ProxyManager.class);
+		var bucket = mock(BucketProxy.class);
+		when(proxyManager.getProxy(any(), any())).thenReturn(bucket);
+		when(bucket.tryConsume(1)).thenReturn(true);
+
+		var service = new RsvpService(eventRepository, rsvpRepository, transactionTemplate, proxyManager, 1);
 
 		assertThatThrownBy(() -> service.join(userId, event.getPublicId())).isInstanceOf(NoSuchElementException.class);
 		verify(rsvpRepository, never()).insert(anyLong(), any(), any(), anyBoolean());

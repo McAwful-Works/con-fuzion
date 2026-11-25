@@ -18,10 +18,17 @@
  */
 package app.confuzion.backend.controller;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
+import java.util.Objects;
 import java.util.UUID;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,7 +37,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.AttendeesResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
@@ -49,9 +55,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * The {@link RestController} for joining events, the waitlist, attendee lists
- * and spot counts (D-013). Spot counts are a contract stub that answers 501
- * until a later part of #54. An event the caller can't see is a 404 (D-012),
- * and the user ID always comes from the session, never from the request.
+ * and spot counts (D-013). An event the caller can't see is a 404 (D-012), and
+ * the user ID always comes from the session, never from the request.
  *
  * @author mcawful
  */
@@ -70,6 +75,12 @@ public class RsvpController {
 	 */
 	private static final String HOST_CANNOT_LEAVE = "errorType HOST_CANNOT_LEAVE: the host always holds a spot. They "
 			+ "cancel the event instead.";
+
+	/**
+	 * {@code /spots} may be kept only by the caller's own browser, which must
+	 * revalidate it every time (D-013 rule 16).
+	 */
+	private static final CacheControl SPOTS_CACHE_CONTROL = CacheControl.noCache().cachePrivate();
 
 	/**
 	 * The {@link RsvpService}.
@@ -175,10 +186,12 @@ public class RsvpController {
 
 	/**
 	 * Returns an event's spot counts and the caller's own place, for polling.
+	 * Spring answers a matching {@code If-None-Match} with a bodiless 304 that
+	 * keeps these headers.
 	 *
 	 * @param authentication the session's {@link Authentication}
 	 * @param eventId        the event's public ID
-	 * @return the {@link SpotsResponse} envelope
+	 * @return the {@link SpotsResponse} envelope, with its {@code ETag}
 	 */
 	@GetMapping("/spots")
 	@Operation(summary = "Get spot counts", description = "A small response for polling: about every 3 seconds in "
@@ -192,8 +205,30 @@ public class RsvpController {
 			+ "tag for this response, which is specific to the caller. Send it back in If-None-Match.", schema = @Schema(type = "string")))
 	@ApiResponse(responseCode = "304", description = "Not modified: If-None-Match matches. No body.", content = @Content)
 	@ApiResponse(responseCode = "404", description = NOT_VISIBLE)
-	public ResponseRecord<SpotsResponse> getSpots(@Parameter(hidden = true) Authentication authentication,
+	public ResponseEntity<ResponseRecord<SpotsResponse>> getSpots(
+			@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		var spots = rsvpService.getSpots(HttpUtil.userId(authentication), eventId);
+		return ResponseEntity.ok().eTag(etag(spots)).cacheControl(SPOTS_CACHE_CONTROL)
+				.body(new ResponseRecord<>(spots));
+	}
+
+	/**
+	 * Returns a tag for a {@code /spots} body: a hash of every field, so it changes
+	 * whenever anything the caller sees does, and is the same on every task.
+	 *
+	 * @param spots the {@link SpotsResponse}
+	 * @return the tag, without quotes
+	 */
+	static String etag(SpotsResponse spots) {
+		var fields = String.join(",", Objects.toString(spots.capacity()), Integer.toString(spots.confirmed()),
+				Integer.toString(spots.waitlisted()), Objects.toString(spots.spotsLeft()), spots.myStatus().name(),
+				Objects.toString(spots.myPosition()));
+		try {
+			var digest = MessageDigest.getInstance("SHA-256").digest(fields.getBytes(StandardCharsets.US_ASCII));
+			return Base64.getUrlEncoder().withoutPadding().encodeToString(digest).substring(0, 22);
+		} catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException(e);
+		}
 	}
 }

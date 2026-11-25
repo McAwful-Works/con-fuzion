@@ -20,6 +20,7 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.EventFixtures.login;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -55,19 +57,24 @@ import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.controller.EventFixtures.SeededEvent;
+import app.confuzion.backend.exception.RateLimitException;
+import app.confuzion.backend.repository.EventRepository;
 import app.confuzion.backend.repository.RsvpRepository;
+import app.confuzion.backend.service.RsvpService;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The RSVP endpoints end to end, through the security filter chain: the
  * authorization matrix, the sign-up window, the after-start rules, removal,
- * blocks, capacity edits, the visibility an active RSVP grants and My schedule
- * (D-013).
+ * blocks, capacity edits, the visibility an active RSVP grants, My schedule,
+ * {@code /spots} caching and the join limit (D-013).
  *
  * @author mcawful
  */
 @Tag("integration")
-@SpringBootTest(properties = "con-fuzion.rate-limiter.token.capacity=10000")
+@SpringBootTest(properties = { "con-fuzion.rate-limiter.token.capacity=10000",
+		"con-fuzion.rate-limiter.join.capacity=10000" })
 @Import(TestcontainersConfiguration.class)
 class RsvpControllerIntegrationTest {
 	/**
@@ -134,14 +141,14 @@ class RsvpControllerIntegrationTest {
 		// Signed out (with a CSRF token, which is checked first), and writes without
 		// one.
 		for (var request : List.of(post(base + "/rsvp"), delete(base + "/rsvp"), get(base + "/attendees"),
-				delete(base + target), get("/api/events?scope=attending")))
+				delete(base + target), get(base + "/spots"), get("/api/events?scope=attending")))
 			assertThat(status(request.with(csrf()))).isEqualTo(401);
 		for (var request : List.of(post(base + "/rsvp"), delete(base + "/rsvp"), delete(base + target)))
 			assertThat(status(request.with(login(confirmed)))).isEqualTo(403);
 
 		// Someone who can't see the event: 404 everywhere, nothing written.
 		for (var request : List.of(post(base + "/rsvp"), delete(base + "/rsvp"), get(base + "/attendees"),
-				delete(base + target)))
+				delete(base + target), get(base + "/spots")))
 			assertThat(status(request.with(login(stranger)).with(csrf()))).isEqualTo(404);
 		assertThat(fixtures.rsvpStatus(event.id(), stranger)).isNull();
 		assertThat(fixtures.rsvpStatus(event.id(), confirmed)).isEqualTo("CONFIRMED");
@@ -160,6 +167,14 @@ class RsvpControllerIntegrationTest {
 		// 404.
 		assertThat(status(delete(base + "/rsvps/" + waitlisted).with(login(confirmed)).with(csrf()))).isEqualTo(404);
 		assertThat(fixtures.rsvpStatus(event.id(), waitlisted)).isEqualTo("WAITLISTED");
+
+		// /spots: anyone who can see the event, with their own status and position.
+		var spots = content(get(base + "/spots").with(login(waitlisted)), 200);
+		assertThat(JsonPath.<Map<String, Object>>read(spots, "$.body")).containsEntry("capacity", 2)
+				.containsEntry("confirmed", 2).containsEntry("waitlisted", 1).containsEntry("spotsLeft", 0)
+				.containsEntry("myStatus", "WAITLISTED").containsEntry("myPosition", 1);
+		assertThat(JsonPath.<String>read(content(get(base + "/spots").with(login(viewer)), 200), "$.body.myStatus"))
+				.isEqualTo("NONE");
 
 		// My schedule is the caller's own, and seeing an event doesn't put it there.
 		assertThat(attending(stranger)).isEmpty();
@@ -231,6 +246,9 @@ class RsvpControllerIntegrationTest {
 		assertThat(status(delete(path(event) + "/rsvp").with(login(first)).with(csrf()))).isEqualTo(204);
 		assertThat(status(delete(path(event) + "/rsvps/" + second).with(login(host)).with(csrf()))).isEqualTo(204);
 		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("WAITLISTED");
+		var spots = content(get(path(event) + "/spots").with(login(waiting)), 200);
+		assertThat(JsonPath.<Integer>read(spots, "$.body.spotsLeft")).isEqualTo(2);
+		assertThat(JsonPath.<Integer>read(spots, "$.body.waitlisted")).isEqualTo(1);
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(1);
 		assertThat(status(edit(event, 5))).isEqualTo(200);
 		assertThat(fixtures.rsvpStatus(event.id(), waiting)).isEqualTo("WAITLISTED");
@@ -371,6 +389,68 @@ class RsvpControllerIntegrationTest {
 		var feed = content(get("/api/events").param("limit", "50").with(login(guest)), 200);
 		assertThat(JsonPath.<List<String>>read(feed, "$.body.events[?(@.id == '" + event.publicId() + "')].myStatus"))
 				.containsExactly("CONFIRMED");
+	}
+
+	/**
+	 * Tests {@code /spots} caching: a caller-specific {@code ETag} with
+	 * {@code Cache-Control: private, no-cache}, a bodiless 304 for a matching
+	 * {@code If-None-Match}, and a new tag once the caller's own status changes.
+	 */
+	@Test
+	void testSpotsEtag() throws Exception {
+		var event = event(2);
+		var guest = guest(event);
+		var first = response(get(path(event) + "/spots").with(login(guest)));
+		var etag = first.getHeader(HttpHeaders.ETAG);
+		assertThat(first.getStatus()).isEqualTo(200);
+		assertThat(etag).matches("\"[A-Za-z0-9_-]{22}\"");
+		assertThat(first.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-cache, private");
+
+		var notModified = response(
+				get(path(event) + "/spots").header(HttpHeaders.IF_NONE_MATCH, etag).with(login(guest)));
+		assertThat(notModified.getStatus()).isEqualTo(304);
+		assertThat(notModified.getContentAsByteArray()).isEmpty();
+		assertThat(notModified.getHeader(HttpHeaders.ETAG)).isEqualTo(etag);
+		assertThat(notModified.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-cache, private");
+
+		join(guest, event, "CONFIRMED");
+		var changed = response(get(path(event) + "/spots").header(HttpHeaders.IF_NONE_MATCH, etag).with(login(guest)));
+		assertThat(changed.getStatus()).isEqualTo(200);
+		assertThat(changed.getHeader(HttpHeaders.ETAG)).isNotEqualTo(etag);
+		assertThat(JsonPath.<String>read(changed.getContentAsString(), "$.body.myStatus")).isEqualTo("CONFIRMED");
+	}
+
+	/**
+	 * Tests the join limit: about one attempt per second per user, whatever the
+	 * outcome of the first. Uses a service with the production limit, sharing this
+	 * context's Valkey.
+	 */
+	@Test
+	void testJoinIsRateLimited() {
+		var limited = new RsvpService(webApplicationContext.getBean(EventRepository.class),
+				webApplicationContext.getBean(RsvpRepository.class),
+				webApplicationContext.getBean(TransactionTemplate.class), proxyManager(), 1);
+		var event = event(5);
+		var guest = guest(event);
+		limited.join(guest, event.publicId());
+		// A repeat is answered from the checks, so it's never limited (rule 5).
+		limited.join(guest, event.publicId());
+		var second = event(5);
+		fixtures.audience(second.id(), "USER", null, null, guest);
+		assertThatThrownBy(() -> limited.join(guest, second.publicId())).isInstanceOf(RateLimitException.class);
+		assertThat(fixtures.rsvpStatus(second.id(), guest)).isNull();
+		var other = guest(event);
+		limited.join(other, event.publicId());
+	}
+
+	/**
+	 * Returns the context's rate-limit {@link ProxyManager}.
+	 *
+	 * @return the {@link ProxyManager}
+	 */
+	@SuppressWarnings("unchecked")
+	private ProxyManager<String> proxyManager() {
+		return webApplicationContext.getBean(ProxyManager.class);
 	}
 
 	/**
