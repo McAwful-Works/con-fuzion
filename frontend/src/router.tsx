@@ -10,6 +10,7 @@ import { Friends } from './routes/Friends';
 import { Home } from './routes/Home';
 import { Invite } from './routes/Invite';
 import { Landing } from './routes/Landing';
+import { Notifications } from './routes/Notifications';
 import { Onboarding } from './routes/Onboarding';
 import { Schedule } from './routes/Schedule';
 import { Settings } from './routes/Settings';
@@ -27,6 +28,7 @@ export const routes: RouteObject[] = [
           { index: true, element: <Home /> },
           { path: '/onboarding', element: <Onboarding /> },
           { path: '/schedule', element: <Schedule /> },
+          { path: '/notifications', element: <Notifications /> },
           { path: '/events/new', element: <EventNew /> },
           { path: '/events/:eventId', element: <EventDetail /> },
           { path: '/events/:eventId/edit', element: <EventEdit /> },
