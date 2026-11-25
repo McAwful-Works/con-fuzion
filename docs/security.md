@@ -63,7 +63,8 @@ tests make throwaway pairs at run time, so no key or key-shaped fixture is ever 
   Put both values in Secrets Manager, then delete `vapid.pem` and clear the terminal. Never paste the private key into
   chat, an issue, a commit or a log. `npx web-push generate-vapid-keys` prints the same format, if Node is at hand.
 - **Rotating:** see [the incident runbook](runbooks/incident.md#2-rotate-secrets). Browsers subscribed with the old
-  public key can't receive pushes signed by the new one, so each must subscribe again.
+  public key can't receive pushes signed by the new one, so each must subscribe again. Until the client notices a
+  changed key (`docs/backlog.md`), that means the user turning push off and on again in Settings.
 
 ## Data minimization & retention
 - OAuth scopes are `identify guilds` only. No email. Discord tokens aren't stored after the login sync.
