@@ -22,8 +22,11 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | | Frontend events: feed + Hosting, create/edit with audience picker, event detail | done | #39 → #48 |
 | | End-to-end tests for M2 flows (block break check) | done | #40 → #51 |
 | | Fixes found along the way: e2e rate limits; session-ID race on sign-in (500s for up to 14 days) | done | #43, #44 → #46 |
-| **M3** FCFS RSVP | atomic claim, waitlist, offers + expiry, `/spots` polling, My schedule | todo | — |
-| **M4** Notifications | inbox, Web Push sender, reminders, PWA install flow | todo | — |
+| **M3** FCFS RSVP | API contract: joining, the waitlist, attendees, spots, My schedule (D-013) | done | #53 → #57 |
+| | Backend: atomic claim, waitlist, auto-promotion, block cutoff, capacity edits, My schedule, `/spots`, join limit (split in three) | done | #54 → #59, #60, #61 |
+| | Frontend: join/leave, waitlist, live spots, host attendee list, My schedule | done | #55 → #58 |
+| | End-to-end tests for M3 flows (capacity-guard break check) | done | #56 → #62 |
+| **M4** Notifications | offers with a deadline + expiry (replacing M3's auto-confirm), inbox, Web Push sender, reminders, PWA install flow | todo | — |
 | **M5** Safety & admin | reports, admin area, roles + MFA gate, suspend/ban, audit log, maintenance mode | todo | — |
 | **M6** AWS deploy | Terraform (VPC, Aurora Serverless v2, ElastiCache Serverless, ECS, ALB, CloudFront+WAF), CD, staging/prod, client IP behind CloudFront | todo | — |
 | **M7** Polish + launch gates | accessibility, account deletion, donation links, artist assets, legal pages, load test, security pass | todo | — |

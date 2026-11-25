@@ -303,6 +303,19 @@ Context · Decision · Consequences · Trigger to revisit
     `confirmed_count`.
   - **#55:** the event form's capacity minimum becomes 2 (`frontend/src/features/events/validation.ts` says 1), and
     `npm run gen:api` picks up the new types.
+- **As built (#59, #60, #61):**
+  - **The claim** uses the second form above. `RsvpRepository.lock` reads the event row `FOR NO KEY UPDATE`, and
+    `LockedEvent.hasFreeSpot()` decides `CONFIRMED` or `WAITLISTED` under that lock.
+  - One statement then inserts the RSVP and, when it's confirmed, raises `confirmed_count`. The same statement
+    re-checks for a block with the host and for a `REMOVED` row, and `ON CONFLICT … DO NOTHING` on `rsvp_active_key`
+    absorbs a double tap.
+  - Promotion needs no `SKIP LOCKED`, because the event row lock already serialises every writer.
+  - **A block** locks both users, then their affected events in ID order. All of these locks are `NO KEY UPDATE`, so
+    the `KEY SHARE` locks that the RSVP and audience inserts take on their foreign keys never wait on them.
+  - **Delivery:** #54 shipped as three PRs at the owner's request, to fit the PR budget:
+    - #59: the claim, leaving, removal, attendees, promotion and the block cutoff;
+    - #60: capacity edits and My schedule;
+    - #61: `/spots` and the join limit.
 - **Consequences:** overbooking fails loudly at the database even if the code is wrong. Clients can tell every 409
   apart, and only the caller ever sees their own waitlist position.
 - **Revisit:** in M4, when offers replace auto-confirming. If the M7 load test misses its target, add the Valkey
