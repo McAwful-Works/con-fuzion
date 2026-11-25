@@ -1,5 +1,8 @@
 import {
   AUDIENCE_MAX,
+  CONFIRM_WINDOW_DEFAULT,
+  CONFIRM_WINDOW_MAX,
+  CONFIRM_WINDOW_MIN,
   EVENT_CAPACITY_MAX,
   EVENT_CAPACITY_MIN,
   EVENT_DESCRIPTION_MAX,
@@ -26,6 +29,8 @@ export interface EventFormValues {
   endsAt: string;
   signupOpensAt: string;
   capacity: string;
+  /** The offer window in minutes (D-014). */
+  confirmWindowMinutes: string;
   audience: AudienceEntry[];
 }
 
@@ -48,6 +53,7 @@ export function emptyValues(timeZone: string): EventFormValues {
     endsAt: '',
     signupOpensAt: '',
     capacity: '',
+    confirmWindowMinutes: String(CONFIRM_WINDOW_DEFAULT),
     audience: [],
   };
 }
@@ -67,6 +73,7 @@ export function valuesFromEvent(event: Event): EventFormValues {
     endsAt: event.endsAt ? utcToZonedLocal(event.endsAt, zone) : '',
     signupOpensAt: event.signupOpensAt ? utcToZonedLocal(event.signupOpensAt, zone) : '',
     capacity: event.capacity === null ? '' : String(event.capacity),
+    confirmWindowMinutes: String(event.confirmWindowMinutes),
     // The whole audience goes back (D-012: entries already on the event are kept).
     audience: event.audience ?? [],
   };
@@ -178,6 +185,22 @@ export function validateEvent(
     }
   }
 
+  // Never left empty: on an edit that would quietly reset the host's window.
+  let confirmWindowMinutes = CONFIRM_WINDOW_DEFAULT;
+  const windowText = values.confirmWindowMinutes.trim();
+  if (!windowText) {
+    errors.confirmWindowMinutes = 'Enter the offer window in minutes, such as 30.';
+  } else {
+    confirmWindowMinutes = Number(windowText);
+    if (
+      !/^\d+$/.test(windowText) ||
+      confirmWindowMinutes < CONFIRM_WINDOW_MIN ||
+      confirmWindowMinutes > CONFIRM_WINDOW_MAX
+    ) {
+      errors.confirmWindowMinutes = `The offer window must be a whole number of minutes from ${CONFIRM_WINDOW_MIN} to ${CONFIRM_WINDOW_MAX}.`;
+    }
+  }
+
   if (values.audience.length === 0) errors.audience = 'Choose at least one audience.';
   else if (values.audience.length > AUDIENCE_MAX)
     errors.audience = `Choose at most ${AUDIENCE_MAX} audience entries.`;
@@ -198,6 +221,7 @@ export function validateEvent(
       endsAt: iso(endMs),
       signupOpensAt: iso(signupMs),
       capacity,
+      confirmWindowMinutes,
       audience: values.audience.map(toRequestEntry),
     },
   };

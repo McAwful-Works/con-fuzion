@@ -6,6 +6,7 @@ import { EventTimes } from './EventTimes';
 const STATUS_TEXT: Partial<Record<Event['myStatus'], string>> = {
   CONFIRMED: 'Joined',
   WAITLISTED: 'Waitlisted',
+  OFFERED: 'Spot offered',
   REMOVED: 'Removed',
 };
 

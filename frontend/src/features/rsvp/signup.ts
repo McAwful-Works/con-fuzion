@@ -54,3 +54,15 @@ export function formatCountdown(ms: number): string {
   if (m > 0) return `${m}m ${two(s)}s`;
   return `${s}s`;
 }
+
+/** "Tue, Nov 25, 3:45 PM CST": a deadline in the viewer's own zone. */
+export function formatDeadline(iso: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(new Date(iso));
+}

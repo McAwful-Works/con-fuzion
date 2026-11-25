@@ -34,7 +34,7 @@ function ConfirmedRow({ event, person }: { event: Event; person: Person }) {
           >
             <p>
               They lose their spot and can’t rejoin this event. This can’t be undone. The next
-              person on the waitlist, if there is one, is confirmed automatically.
+              person on the waitlist, if there is one, is offered the spot.
             </p>
           </ConfirmPanel>
         )
@@ -83,7 +83,7 @@ export function AttendeeList({ event }: { event: Event }) {
     return <ErrorState error={attendees.error} onRetry={() => void attendees.refetch()} />;
   }
 
-  const { confirmed, waitlist } = attendees.data;
+  const { confirmed, waitlist, offered } = attendees.data;
   return (
     <section aria-labelledby="attendees-heading" className="space-y-6">
       <div className="space-y-3">
@@ -96,6 +96,22 @@ export function AttendeeList({ event }: { event: Event }) {
           ))}
         </ul>
       </div>
+      {offered && offered.length > 0 && (
+        <div className="space-y-3">
+          <h2 id="offered-heading" className="text-xl font-semibold">
+            Offered a spot ({offered.length})
+          </h2>
+          <p className="text-ink-muted text-sm">
+            Each has a spot held until their deadline. If they don’t accept in time, the next person
+            in line is offered it.
+          </p>
+          <ol aria-labelledby="offered-heading" className="space-y-3">
+            {offered.map((person) => (
+              <PersonRow key={person.id} person={person} />
+            ))}
+          </ol>
+        </div>
+      )}
       {waitlist && (
         <div className="space-y-3">
           <h2 id="waitlist-heading" className="text-xl font-semibold">
