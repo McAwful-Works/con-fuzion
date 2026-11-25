@@ -7,8 +7,8 @@ export function Landing() {
   const me = useMe();
   const [params, setParams] = useSearchParams();
   const [hasInvite] = useState(() => pendingInvite.get() !== null);
-  // Remember the failure, then drop `?login=failed` so a reload doesn't show it again.
-  const [failed] = useState(() => params.get('login') === 'failed');
+  // Remember the outcome, then drop `?login=...` so a reload doesn't show it again.
+  const [login] = useState(() => params.get('login'));
   useEffect(() => {
     if (!params.has('login')) return;
     const rest = new URLSearchParams(params);
@@ -21,9 +21,15 @@ export function Landing() {
   return (
     <section className="space-y-6 py-8">
       <h1 className="text-3xl font-semibold tracking-tight">Con-Fuzion</h1>
-      {failed && (
+      {login === 'failed' && (
         <p role="alert" className="border-line bg-surface-raised rounded-card border p-4">
           Sign-in didn’t complete. Please try again.
+        </p>
+      )}
+      {/* D-015 rule 5: the same for a ban and a suspension, and it never mentions reports. */}
+      {login === 'refused' && (
+        <p role="alert" className="border-line bg-surface-raised rounded-card border p-4">
+          This account can’t sign in right now.
         </p>
       )}
       {hasInvite && (

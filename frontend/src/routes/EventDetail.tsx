@@ -10,6 +10,7 @@ import { entryKey, entryLabel } from '../features/events/audience';
 import { HIDDEN_LOCATION_TEXT } from '../features/events/EventCard';
 import { EventTimes } from '../features/events/EventTimes';
 import { AttendeeList } from '../features/rsvp/AttendeeList';
+import { ReportSheet } from '../features/reports/ReportSheet';
 import { RsvpPanel } from '../features/rsvp/RsvpPanel';
 
 export function EventNotFound() {
@@ -53,6 +54,27 @@ function CancelEvent({ event }: { event: Event }) {
   );
 }
 
+/** "Report event", for anyone but the host (D-015 rule 6: you can't report your own event). */
+function ReportEvent({ event }: { event: Event }) {
+  const [open, setOpen] = useState(false);
+  if (open) {
+    return (
+      <ReportSheet
+        targetType="EVENT"
+        targetId={event.id}
+        label={`“${event.title}”`}
+        blockable={event.host}
+        onDone={() => setOpen(false)}
+      />
+    );
+  }
+  return (
+    <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
+      Report event
+    </button>
+  );
+}
+
 export function EventDetail() {
   const { eventId = '' } = useParams();
   const query = useEvent(eventId);
@@ -80,6 +102,19 @@ export function EventDetail() {
       {cancelled && (
         <div role="status" className="border-line bg-surface-raised rounded-card border p-4">
           <p className="font-semibold">This event was cancelled.</p>
+        </div>
+      )}
+      {event.isHost && event.hiddenReason && (
+        <div
+          role="status"
+          className="border-line bg-surface-raised rounded-card space-y-1 border p-4"
+        >
+          <p className="font-semibold">The moderators hid this event.</p>
+          <p className="text-sm">
+            Only you and the moderators can see it. People who were going can’t open it, and no one
+            new can join. You can still edit or cancel it.
+          </p>
+          <p className="text-sm break-words">Reason: {event.hiddenReason}</p>
         </div>
       )}
       <header className="space-y-2">
@@ -137,6 +172,8 @@ export function EventDetail() {
           <CancelEvent event={event} />
         </section>
       )}
+
+      {!event.isHost && <ReportEvent event={event} />}
     </article>
   );
 }

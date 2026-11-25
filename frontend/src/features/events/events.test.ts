@@ -62,6 +62,7 @@ const base: Event = {
     displayName: 'Ada',
     avatarUrl: 'https://cdn.discordapp.com/embed/avatars/1.png',
   },
+  hiddenReason: null,
   isHost: false,
   myStatus: 'NONE',
   status: 'PUBLISHED',

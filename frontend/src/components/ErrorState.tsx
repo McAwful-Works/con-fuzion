@@ -18,6 +18,9 @@ function describe(error: unknown): string {
   if (error instanceof ApiError && error.code === 'INVITE_LIMIT') {
     return 'You have a lot of invite links that nobody has used yet. They expire after 24 hours, so try again later.';
   }
+  if (error instanceof ApiError && error.code === 'REPORT_LIMIT') {
+    return 'You’ve sent 10 reports in the last 24 hours, which is the most we allow. Try again later.';
+  }
   if (error instanceof ApiError && error.code === 'EVENT_LIMIT') {
     return 'You’ve created 20 events in the last 24 hours, which is the most we allow. Try again later.';
   }

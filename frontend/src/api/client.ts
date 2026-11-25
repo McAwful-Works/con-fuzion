@@ -1,3 +1,4 @@
+import { markUnavailable } from './maintenance';
 import type { components, paths } from './schema';
 
 /** An API path relative to the `/api` root, checked against the generated contract paths. */
@@ -82,6 +83,7 @@ async function send(path: string, options: ApiOptions, allow304 = false): Promis
 
   if (allow304 && response.status === 304) return response;
   if (!response.ok) {
+    if (response.status === 503) markUnavailable();
     let code: string | undefined;
     let correlationId: string | undefined;
     try {

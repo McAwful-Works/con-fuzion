@@ -14,16 +14,31 @@ import { ErrorState } from '../components/ErrorState';
 import { Skeleton } from '../components/Skeleton';
 import { CircleForm } from '../features/social/CircleForm';
 import { CirclePeopleSearch } from '../features/social/PeopleSearch';
+import { ReportSheet } from '../features/reports/ReportSheet';
 import { BlockConfirm } from '../features/social/PersonActions';
 import { PersonRow } from '../features/social/PersonRow';
 
 function MemberRow({ circle, person }: { circle: Circle; person: Person }) {
   const remove = useRemoveCircleMember(circle.id);
-  const [blocking, setBlocking] = useState(false);
+  const [asking, setAsking] = useState<'block' | 'report' | null>(null);
+  const done = () => setAsking(null);
   return (
     <PersonRow
       person={person}
-      below={blocking && <BlockConfirm person={person} onDone={() => setBlocking(false)} />}
+      below={
+        <>
+          {asking === 'block' && <BlockConfirm person={person} onDone={done} />}
+          {asking === 'report' && (
+            <ReportSheet
+              targetType="USER"
+              targetId={person.id}
+              label={person.displayName}
+              blockable={person}
+              onDone={done}
+            />
+          )}
+        </>
+      }
     >
       <button
         type="button"
@@ -38,9 +53,17 @@ function MemberRow({ circle, person }: { circle: Circle; person: Person }) {
         type="button"
         className="btn btn-secondary"
         aria-label={`Block ${person.displayName}`}
-        onClick={() => setBlocking(true)}
+        onClick={() => setAsking('block')}
       >
         Block
+      </button>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        aria-label={`Report ${person.displayName}`}
+        onClick={() => setAsking('report')}
+      >
+        Report
       </button>
     </PersonRow>
   );
