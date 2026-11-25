@@ -20,16 +20,14 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -54,8 +52,8 @@ import app.confuzion.backend.service.ReportService;
  * Unit tests for {@link ModerationController}: valid requests reach the
  * services with the caller's ID, and bad ones are 400s.
  * {@code SecurityConfig}'s role checks are in
- * {@code SecurityConfigIntegrationTest}, and the behaviour in
- * {@code ModerationControllerIntegrationTest}.
+ * {@code SecurityConfigIntegrationTest}, and the queue's behaviour in
+ * {@code ReportControllerIntegrationTest}.
  *
  * @author mcawful
  */

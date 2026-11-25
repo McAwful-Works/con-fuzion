@@ -69,8 +69,7 @@ public class ReportController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Operation(summary = "Report an event or a user", description = "Every moderator and admin is notified, except the "
 			+ "reported user (or the event's host), who never learns of the report or who made it. The reporter "
-			+ "later gets a "
-			+ "REPORT_REVIEWED notification with no details. A block in either direction doesn't stop a report. "
+			+ "later gets a REPORT_REVIEWED notification with no details. A block in either direction doesn't stop a report. "
 			+ "Reporting the same target again while the caller's report on it is open is a 204 that changes "
 			+ "nothing and doesn't count towards the daily limit (D-015).")
 	@ApiResponse(responseCode = "204", description = "Reported, or already reported and still open.")

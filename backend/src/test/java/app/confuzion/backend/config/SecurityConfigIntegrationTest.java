@@ -152,7 +152,8 @@ class SecurityConfigIntegrationTest {
 	 * others are 501 stubs until #84, #85's second part and #86.
 	 */
 	private static final Map<String, Integer> BUILT_ADMIN_ROUTES = Map.of("GET /api/admin/reports?status=OPEN", 200,
-			"GET /api/admin/reports/7", 404, "POST /api/admin/reports/7/resolve", 404);
+			"GET /api/admin/reports/9223372036854775807", 404, "POST /api/admin/reports/9223372036854775807/resolve",
+			404);
 
 	/**
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
@@ -161,8 +162,9 @@ class SecurityConfigIntegrationTest {
 	 */
 	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
 			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR"),
-			new AdminEndpoint("GET", "/api/admin/reports/7", null, "MODERATOR"),
-			new AdminEndpoint("POST", "/api/admin/reports/7/resolve", "{\"resolution\":\"DISMISSED\"}", "MODERATOR"),
+			new AdminEndpoint("GET", "/api/admin/reports/9223372036854775807", null, "MODERATOR"),
+			new AdminEndpoint("POST", "/api/admin/reports/9223372036854775807/resolve",
+					"{\"resolution\":\"DISMISSED\"}", "MODERATOR"),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/hide",
 					"{\"reason\":\"Unsafe\"}", "MODERATOR"),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/unhide", null,
