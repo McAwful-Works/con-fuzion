@@ -5180,8 +5180,11 @@
         "type" : "object",
         "properties" : {
           "ban" : {
-            "type" : "null",
-            "$ref" : "#/components/schemas/AdminUserBanResponse",
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/AdminUserBanResponse"
+            }, {
+              "type" : "null"
+            } ],
             "description" : "Null when the Discord ID isn't banned."
           },
           "createdAt" : {
