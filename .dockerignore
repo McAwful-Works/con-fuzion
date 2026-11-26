@@ -1,0 +1,25 @@
+# Allowlist: only backend/ and frontend/ reach the build, so .git, .claude, infra and the rest never do.
+*
+!backend
+!frontend
+
+# Build output and installed packages. The image makes its own.
+backend/.gradle
+backend/build
+backend/logs
+**/node_modules
+frontend/dist
+frontend/dev-dist
+frontend/coverage
+
+# Secrets and local config (the same list as .gitignore), in case one is lying around in a working copy.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/application-local.*
+**/application-secret.*
+**/*.log

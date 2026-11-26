@@ -12,9 +12,10 @@ auto-promoting waitlist. Discord is the only login.
 ```
 backend/    Spring Boot 4.x and Java 25 (after #7), Gradle. Serves the REST API at /api and the built SPA at /   → backend/CLAUDE.md
 frontend/   React + Vite + TypeScript PWA                                                      → frontend/CLAUDE.md
-infra/      Terraform (AWS) and docker-compose for local Postgres + Valkey (added in M0/M6)
+infra/      Terraform (AWS) and docker-compose for local Postgres + Valkey (added in M0/M6)   → infra/CLAUDE.md
 docs/       plan, roadmap, decisions, security, runbooks, research
 ```
+The `Dockerfile` at the root builds the one deployable image.
 
 ## How work happens
 - **Coordinator session** plans, writes issues and session briefs, and verifies PRs. It doesn't write feature code.
@@ -81,6 +82,10 @@ docs/       plan, roadmap, decisions, security, runbooks, research
 | Export the OpenAPI contract | `cd backend && ./gradlew test --tests '*OpenApiConfigIntegrationTest'` → `docs/api/openapi.json` |
 | Frontend (after M0) | `cd frontend && npm run check` |
 | Local services (after M0) | `docker compose -f infra/docker-compose.yml up -d` |
+| Build the container image | `docker build -t confuzion .` |
+| Terraform format check | `terraform fmt -check -recursive infra` |
+| Terraform validate (run `init` first) | `terraform -chdir=infra/<root> validate` |
+| Terraform plan (the owner applies) | `terraform -chdir=infra/<root> plan` |
 
 ## Hooks (`.claude/settings.json`)
 These run automatically. Don't work around them; if one is wrong, say so.
