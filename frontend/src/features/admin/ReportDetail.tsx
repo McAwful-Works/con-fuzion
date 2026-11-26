@@ -15,18 +15,8 @@ import { Skeleton } from '../../components/Skeleton';
 import { Fact, When } from './Fact';
 import { reasonLabel, STATUS_LABELS, targetName } from './labels';
 import { ModAction } from './ModAction';
-import { SuspendAction } from './SuspendAction';
 
 const link = 'inline-flex min-h-11 items-center underline';
-
-/** User search matches an exact ID, which is how a report's people are looked up (D-015 rule 14). */
-function LookUp({ userId, label }: { userId: string; label: string }) {
-  return (
-    <Link to={`/admin/users?${new URLSearchParams({ q: userId })}`} className={link}>
-      {label}
-    </Link>
-  );
-}
 
 function EventActions({ eventId }: { eventId: string }) {
   const hide = useEventAction(eventId, 'hide');
@@ -160,53 +150,34 @@ function ReportView({ reportId }: { reportId: string }) {
         <Fact label="Reason">{reasonLabel(report.reason)}</Fact>
         <Fact label="Reported">
           {targetName(report)}
-          {report.targetLabel !== null && (
+          {report.targetType === 'EVENT' && report.targetLabel !== null && (
             <span className="block">
-              {report.targetType === 'EVENT' ? (
-                <Link to={`/events/${report.targetId}`} className={link}>
-                  Open event
-                </Link>
-              ) : (
-                <LookUp userId={report.targetId} label="Look up this person" />
-              )}
+              <Link to={`/events/${report.targetId}`} className={link}>
+                Open event
+              </Link>
             </span>
           )}
         </Fact>
         <Fact label="Sent">
           <When iso={report.createdAt} />
         </Fact>
-        <Fact label="Reporter">
-          {report.reporterId ? (
-            <LookUp userId={report.reporterId} label="Look up the reporter" />
-          ) : (
-            'Account deleted'
-          )}
-        </Fact>
+        <Fact label="Reporter">{report.reporterId ?? 'Account deleted'}</Fact>
         <Fact label="Reporter’s note">{report.note ?? 'None'}</Fact>
         {report.handledAt && (
           <>
             <Fact label="Resolved">
               <When iso={report.handledAt} />
-              {report.handledBy && (
-                <span className="block">
-                  <LookUp userId={report.handledBy} label="Look up the moderator" />
-                </span>
-              )}
+              {report.handledBy && <span className="block">By {report.handledBy}</span>}
             </Fact>
             <Fact label="Resolution note">{report.resolutionNote ?? 'None'}</Fact>
           </>
         )}
       </dl>
-      <section aria-labelledby="actions-heading" className="space-y-3">
-        <h2 id="actions-heading" className="text-xl font-semibold">
-          Actions
-        </h2>
+      <section aria-label="Actions" className="space-y-3">
         {report.targetLabel === null ? (
           <p className="text-ink-muted">What was reported is gone, so there’s only the report.</p>
-        ) : report.targetType === 'EVENT' ? (
-          <EventActions eventId={report.targetId} />
         ) : (
-          <SuspendAction userId={report.targetId} name={report.targetLabel} />
+          report.targetType === 'EVENT' && <EventActions eventId={report.targetId} />
         )}
         <Resolve report={report} />
       </section>

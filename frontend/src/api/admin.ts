@@ -6,37 +6,23 @@ type Schemas = components['schemas'];
 export type Report = Schemas['ReportResponse'];
 export type ReportStatus = Report['status'];
 export type Resolution = Schemas['ResolveReportRequest']['resolution'];
-/**
- * `ban` is null for someone who isn't banned. Contract bug: `openapi.json` emits
- * `{"type":"null","$ref":…}` for it, so openapi-typescript drops the null. Remove this override once the
- * backend emits `anyOf: [$ref, null]` (#86, which owns `AdminUserResponse`).
- */
-export type AdminUser = Omit<Schemas['AdminUserResponse'], 'ban'> & {
-  ban: Schemas['AdminUserBanResponse'] | null;
-};
 export type EventAction = 'hide' | 'unhide' | 'cancel';
 
 const REPORTS = '/admin/reports' satisfies ContractPath;
 const REPORT = '/admin/reports/{reportId}' satisfies ContractPath;
 const RESOLVE = '/admin/reports/{reportId}/resolve' satisfies ContractPath;
-const USERS = '/admin/users' satisfies ContractPath;
-const SUSPEND = '/admin/users/{userId}/suspend' satisfies ContractPath;
 const EVENT_ACTIONS = {
   hide: '/admin/events/{eventId}/hide',
   unhide: '/admin/events/{eventId}/unhide',
   cancel: '/admin/events/{eventId}/cancel',
 } satisfies Record<EventAction, ContractPath>;
 
-/** D-015 rules 4 and 13. The server checks them again. */
+/** D-015 rule 13. The server checks them again. */
 export const RESOLUTION_NOTE_MAX = 1000;
 export const REASON_MAX = 500;
-export const USER_QUERY_MIN = 2;
-export const USER_QUERY_MAX = 100;
-export const SUSPEND_MAX_DAYS = 365;
 export const REPORT_PAGE_SIZE = 20;
 
 const reportsKey = ['admin', 'reports'] as const;
-const usersKey = ['admin', 'users'] as const;
 
 // Every call here throws a 403 or 404 to the route's error element, which shows the not-found page
 // (a report about the viewer is a 404, for one). Other failures show where they happened.
@@ -87,31 +73,6 @@ export function useEventAction(eventId: string, action: EventAction) {
           reason === undefined ? undefined : ({ reason } satisfies Schemas['ModerationRequest']),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
-    throwOnError: isNotThere,
-  });
-}
-
-/** `GET /api/admin/users?q`: at most 20 people. Nothing is sent for a query that's too short. */
-export function useUserSearch(q: string) {
-  return useQuery({
-    queryKey: [...usersKey, q],
-    enabled: q.length >= USER_QUERY_MIN,
-    queryFn: async (): Promise<AdminUser[]> =>
-      (
-        await api<Schemas['ResponseRecordAdminUserListResponse']>(
-          `${USERS}?${new URLSearchParams({ q })}`,
-        )
-      ).body.items,
-    throwOnError: isNotThere,
-  });
-}
-
-export function useSuspend(userId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: Schemas['SuspendRequest']) =>
-      api<void>(fillPath(SUSPEND, { userId }), { method: 'POST', body }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: usersKey }),
     throwOnError: isNotThere,
   });
 }
