@@ -18,7 +18,8 @@ noted.
   - a monthly cost budget that alerts that topic.
 
 It costs very little on its own:
-- IAM, the OIDC provider and the first trail of management events are free, and so is SNS email at this volume.
+- IAM, the OIDC provider and the account's first trail of management events are free, and so is SNS email at this
+  volume.
 - S3 storage is cents.
 - GuardDuty has a 30-day free trial, then is priced by the volume of events it analyses, which is small for a quiet
   account. Its console shows an estimate during the trial.
@@ -113,6 +114,14 @@ the bucket.
    ```powershell
    terraform import aws_iam_openid_connect_provider.github <provider-arn>
    ```
+   Check for an earlier experiment's GuardDuty detector or CloudTrail trail too:
+   ```powershell
+   aws guardduty list-detectors
+   aws cloudtrail describe-trails --query "trailList[].Name"
+   ```
+   If it lists a detector ID, import it as above:
+   `terraform import aws_guardduty_detector.main <detector-id>`. If it lists a trail, it isn't managed here. Delete it
+   in the CloudTrail console if you don't need it, because only the first copy of management events is free.
 2. **Plan, and read it:**
    ```powershell
    terraform plan -out bootstrap.tfplan
@@ -126,7 +135,7 @@ the bucket.
      `sts.amazonaws.com`, and `:sub` = one of the three subjects in section 7, with `StringEquals`;
    - the plan role is `confuzion-github-plan` with `ReadOnlyAccess`, and the deploy roles are
      `confuzion-staging-github-deploy` and `confuzion-prod-github-deploy`;
-   - the baseline looks as step 9.3 describes.
+   - the baseline passes the checks listed after the count in step 9.3.
 3. **Apply it:**
    ```powershell
    terraform apply bootstrap.tfplan
@@ -276,8 +285,8 @@ first time the workflows in #107 run: a job with the wrong subject fails at *Con
 
 ## 9. The account baseline (the second apply)
 The baseline (CloudTrail, GuardDuty, the alarm topic and the budget) came after the first part of the bootstrap.
-- **Not applied yet?** Do steps 9.1 and 9.2 before step 5. Step 5 then applies everything at once, and you can skip
-  9.3 and 9.4.
+- **Not applied yet?** Do step 9.1 before step 5. Step 5.1 covers 9.2's checks, and step 5 then applies
+  everything at once, so skip 9.2 to 9.4.
 - **Applied step 5 before the baseline existed** (14 resources)? Do all of 9.1 to 9.4.
 
 1. **Choose the budget.** Create `infra/bootstrap/terraform.tfvars` (git ignores `*.tfvars`) with your monthly limit
@@ -285,37 +294,42 @@ The baseline (CloudTrail, GuardDuty, the alarm topic and the budget) came after 
    ```hcl
    monthly_budget_usd = 50
    ```
-   You get an email when actual spend passes 80% of it, or the forecast for the month passes 100%.
+   You get an email when actual spend passes 80% of it, or the forecast for the month passes 100%. The forecast
+   alert can't fire until AWS has a few weeks of spend to forecast from.
    - Once M6 is built, most of the bill is the always-on pieces: NAT gateways (three), load balancers, Valkey nodes
      and prod's Aurora minimum.
    - Price them in the [AWS Pricing Calculator](https://calculator.aws/) and set the budget to what you're willing
      to spend.
    - You can change it any time and re-apply.
 
-   A PR plan of this root needs the number too, so store it as a GitHub variable as well. The workflow passes it as
-   `TF_VAR_monthly_budget_usd`:
+   A PR plan of this root needs the number too, so store it as a GitHub variable as well. #107's plan workflow has
+   to pass it as `TF_VAR_monthly_budget_usd`, or every PR plan of this root fails for want of the variable:
    ```powershell
    gh variable set MONTHLY_BUDGET_USD --body <your number>
    ```
-2. **Check for an existing GuardDuty detector**, from an earlier experiment:
+2. **Initialize against the state bucket, and check for an earlier experiment's detector or trail:**
    ```powershell
+   cd infra/bootstrap
+   terraform init -backend-config="bucket=<state_bucket output>"
    aws guardduty list-detectors
+   aws cloudtrail describe-trails --query "trailList[].Name"
    ```
    If it lists a detector ID, bring it under Terraform instead of creating a second, which would fail at apply:
    ```powershell
    terraform import aws_guardduty_detector.main <detector-id>
    ```
-3. **Plan, and read it.** This is a normal run against the state bucket:
+   If it lists a trail, it isn't managed here. Delete it in the CloudTrail console if you don't need it, because
+   only the first copy of management events is free.
+3. **Plan, and read it:**
    ```powershell
-   cd infra/bootstrap
-   terraform init -backend-config="bucket=<state_bucket output>"
    terraform plan -out bootstrap.tfplan
    ```
    Check that:
-   - it says **`Plan: 10 to add, 0 to change, 0 to destroy`** (9 if you imported the detector);
+   - it says **`Plan: 10 to add, 0 to change, 0 to destroy`** (or 9 to add and 1 to change, the detector's tags, if
+     you imported it);
    - the new bucket is `confuzion-cloudtrail-<your account ID>`, with an expiry of 365 days;
    - its bucket policy lets only `cloudtrail.amazonaws.com` write, with your trail's ARN as `aws:SourceArn`, and
-     denies every delete and every other write;
+     denies every delete and every other object write;
    - the trail `confuzion-account` is multi-region with log file validation on;
    - the budget's `limit_amount` is your number.
 4. **Apply it:**

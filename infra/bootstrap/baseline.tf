@@ -6,7 +6,8 @@ locals {
 }
 
 # --- CloudTrail: every region's management events, kept for 365 days in a bucket only the trail can write to and
-# nobody can delete from. An admin could still rewrite the bucket policy itself; CloudTrail records that change. ---
+# nobody can delete from. An admin could still change the bucket policy or the lifecycle rule (Terraform needs that
+# permission), and CloudTrail records either change. ---
 
 resource "aws_s3_bucket" "trail" {
   bucket = "confuzion-cloudtrail-${local.account_id}"
@@ -163,7 +164,8 @@ resource "aws_sns_topic" "alarms" {
 }
 
 data "aws_iam_policy_document" "alarms" {
-  # The same statement SNS writes for a new topic: anything in this account (including CloudWatch alarms) may use it.
+  # The account root, not "*": each principal in the account then needs its own IAM permission, so the read-only plan
+  # role can't change or delete the topic.
   statement {
     sid = "AccountOwner"
     actions = [
@@ -180,12 +182,27 @@ data "aws_iam_policy_document" "alarms" {
 
     principals {
       type        = "AWS"
-      identifiers = ["*"]
+      identifiers = ["arn:${local.partition}:iam::${local.account_id}:root"]
+    }
+  }
+  statement {
+    sid       = "CloudWatchAlarmsPublish"
+    actions   = ["SNS:Publish"]
+    resources = [aws_sns_topic.alarms.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
     }
     condition {
       test     = "StringEquals"
-      variable = "AWS:SourceOwner"
+      variable = "aws:SourceAccount"
       values   = [local.account_id]
+    }
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:${local.partition}:cloudwatch:${local.region}:${local.account_id}:alarm:*"]
     }
   }
   statement {
