@@ -18,6 +18,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      TRIVY_VERSION: 0.76.2
+      # SHA-256 of trivy_0.76.2_Linux-64bit.tar.gz, pinned so a tampered release (and its checksums file) fails.
+      # Nothing updates these two for you. To bump, change both, taking the hash from the new release's
+      # trivy_<version>_checksums.txt.
+      TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,3 +34,18 @@ jobs:
 
       - name: Build the image (not pushed)
         run: docker build --tag confuzion:ci .
+
+      - name: Install Trivy (pinned version and SHA-256)
+        run: |
+          cd "$RUNNER_TEMP"
+          tarball="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSLO "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${tarball}"
+          echo "${TRIVY_SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" trivy
+
+      # Fails on a HIGH or CRITICAL vulnerability that has a fixed version. The vulnerability database is fetched on
+      # each run, so a new advisory can fail a pull request that didn't cause it.
+      - name: Scan the image for vulnerabilities
+        run: >-
+          "$RUNNER_TEMP/trivy" image --image-src docker --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed
+          --exit-code 1 --no-progress --disable-telemetry --skip-version-check confuzion:ci
