@@ -84,6 +84,9 @@ ALB ──► ECS Fargate service: Spring Boot container × N    (min 2 across 2
           ├─► ElastiCache Serverless (Valkey)   (Spring Session + bucket4j distributed rate limits)
           └─► Discord API                       (OAuth, /users/@me/guilds)
 ```
+> **M6 update (D-016):** Valkey is node-based ElastiCache with cluster mode off, not Serverless. D-016 also records
+> the region, DNS, account, capacity, deploy and logging decisions.
+
 **Why each piece is there (and nothing more):**
 - **Stateless app tasks.** Any task can serve any request, so scaling is just a change to the ECS desired count, made by the autoscaler.
 - **Valkey for sessions.** At thousands of requests per second, Spring Session JDBC would write `last_access_time` to the hot database on every request. Valkey takes that load. The code uses the Spring Session abstraction, so this is a dependency choice, not custom code.
@@ -232,7 +235,7 @@ Each change inserts a `notification` row in the same transaction. A `@Scheduled`
 - **M3** FCFS RSVP + waitlist + schedule.
 - **M4** Notifications + Web Push + PWA install.
 - **M5** Safety & admin: reporting, the admin area, roles with the MFA gate, suspensions and bans, audit log, maintenance mode.
-- **M6** AWS deploy with Terraform:
+- **M6** AWS deploy with Terraform (the decisions are in D-016, which replaces ElastiCache Serverless below):
   - VPC across 2 AZs.
   - Aurora Serverless v2 and ElastiCache Serverless.
   - ECS service with autoscaling, ALB, and CloudFront + WAF. The container uses a JRE 25 base image.
