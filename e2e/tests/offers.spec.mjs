@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { expect, test } from './hooks.mjs';
-import { createEvent } from './social.mjs';
+import { bell, createEvent, openInbox } from './social.mjs';
 import {
   apiWrite,
   crowd,
@@ -20,17 +20,8 @@ import { expireOffer, pushEndpoints } from './db.mjs';
 // several users, so the default 30 seconds is tight on a slow runner.
 test.describe.configure({ timeout: 90_000 });
 
-/** The bell in the header: its name carries the unread count, "Notifications, 2 unread" (or "99+ unread"). */
-const bell = ({ page }) => page.getByRole('link', { name: /^Notifications/ });
-
 /** The "offered a spot" wording of the inbox for an event. */
 const offeredText = (title) => new RegExp(`You were offered a spot in “${title}”`);
-
-/** Opens the inbox. */
-async function openInbox({ page }) {
-  await page.goto('/notifications');
-  await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible();
-}
 
 /** The offer card on the event page: the held-spot text, the countdown and the two buttons. */
 async function expectOffer(player, eventId) {
