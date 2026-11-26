@@ -27,14 +27,7 @@ function ActionForm({ title, confirm, children, note, ready = true, ...props }: 
   const [text, setText] = useState('');
   const ids = { title: useId(), note: useId(), count: useId() };
   const titleRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    // Move focus into the form, and give it back to whatever opened it when it closes.
-    const opener = document.activeElement;
-    titleRef.current?.focus();
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    };
-  }, []);
+  useEffect(() => titleRef.current?.focus(), []);
 
   const valid = ready && (!note?.required || text.trim() !== '');
   const submit = (e: FormEvent) => {
@@ -89,25 +82,35 @@ function ActionForm({ title, confirm, children, note, ready = true, ...props }: 
 interface Props extends Pick<FormProps, 'confirm' | 'children' | 'note' | 'ready'> {
   /** The opening button, and the form's heading. */
   label: string;
-  /** Said once it has worked. */
-  success: string;
+  /** Said once it has worked, if the action stays on screen. */
+  success?: string;
+  /** Clears any extra fields, so a choice made last time isn't sent by accident. */
+  onOpen?: () => void;
   mutation: { isPending: boolean; error: unknown; reset: () => void };
   /** Run the mutation, and call `done` when it succeeds. */
   onSubmit: (note: string, done: () => void) => void;
 }
 
 /** A moderator action: a button that opens a form saying what will happen, with the note it needs. */
-export function ModAction({ label, success, mutation, onSubmit, ...form }: Props) {
+export function ModAction({ label, success, mutation, onOpen, onSubmit, ...form }: Props) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
-  // The button stays mounted, so focus has somewhere to return to when the form closes.
+  const openerRef = useRef<HTMLButtonElement>(null);
+  // The button stays mounted, so focus has somewhere to return to. It's named here because Safari
+  // doesn't focus a button that's clicked, so `document.activeElement` wouldn't find it.
+  const close = () => {
+    openerRef.current?.focus();
+    setOpen(false);
+  };
   return (
     <div className="space-y-3">
       <button
         type="button"
+        ref={openerRef}
         className="btn btn-secondary"
         aria-expanded={open}
         onClick={() => {
+          onOpen?.();
           mutation.reset();
           setDone(false);
           setOpen(true);
@@ -126,10 +129,10 @@ export function ModAction({ label, success, mutation, onSubmit, ...form }: Props
           title={label}
           pending={mutation.isPending}
           error={mutation.error}
-          onClose={() => setOpen(false)}
+          onClose={close}
           onSubmit={(note) =>
             onSubmit(note, () => {
-              setOpen(false);
+              close();
               setDone(true);
             })
           }

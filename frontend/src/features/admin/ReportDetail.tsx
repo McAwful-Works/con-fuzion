@@ -101,8 +101,8 @@ function Resolve({ report }: { report: Report }) {
     <ModAction
       label="Resolve report"
       confirm="Resolve"
-      success="Report resolved."
       mutation={resolve}
+      onOpen={() => setResolution(null)}
       ready={resolution !== null}
       note={{ label: 'Note for moderators (optional)', max: RESOLUTION_NOTE_MAX }}
       onSubmit={(note, done) =>

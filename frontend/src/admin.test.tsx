@@ -284,14 +284,31 @@ describe('a report', () => {
 
   it('sends nothing when a form is dismissed, and returns focus to its button', async () => {
     const calls = await openReport(eventReport);
+    // Not focused first: Safari doesn't focus a clicked button, and neither does fireEvent.
     const opener = screen.getByRole('button', { name: 'Cancel event' });
-    opener.focus(); // a real click focuses the button; fireEvent doesn't
     fireEvent.click(opener);
     fireEvent.click(screen.getByRole('button', { name: 'Never mind' }));
 
     expect(screen.queryByRole('form')).toBeNull();
     expect(opener).toHaveFocus();
     expect(writes(calls)).toEqual([]);
+  });
+
+  it('forgets the choices of a dismissed form', async () => {
+    await openReport(userReport);
+    const reopen = (name: string) => {
+      fireEvent.click(screen.getByRole('button', { name: 'Never mind' }));
+      fireEvent.click(screen.getByRole('button', { name }));
+    };
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve report' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Dismissed' }));
+    reopen('Resolve report');
+    expect(screen.getByRole('radio', { name: 'Dismissed' })).not.toBeChecked();
+
+    reopen('Suspend Rowdy');
+    fireEvent.change(screen.getByLabelText('Suspended until'), { target: { value: localDay(7) } });
+    reopen('Suspend Rowdy');
+    expect(screen.getByLabelText('Suspended until')).toHaveValue('');
   });
 
   it('answers a 403 from an action with the not-found page', async () => {

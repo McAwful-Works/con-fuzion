@@ -26,6 +26,7 @@ export function SuspendAction({ userId, name }: { userId: string; name: string }
       confirm="Suspend"
       success={`${name} is suspended.`}
       mutation={suspend}
+      onOpen={() => setDate('')}
       ready={date >= first && date <= last}
       note={{ label: 'Reason (the person never sees it)', max: REASON_MAX, required: true }}
       onSubmit={(reason, done) =>
