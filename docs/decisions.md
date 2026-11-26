@@ -722,8 +722,8 @@ Context · Decision · Consequences · Trigger to revisit
     `confuzion-app`: staging pushes to it, and prod, which deploys the same digest, can only look images up.
   - **The account baseline** (#103's second part):
     - **CloudTrail** keeps management events from every region for 365 days, with log file validation, in a bucket
-      whose policy denies every delete and every write but the trail's. That stops accidents and anything short of
-      a policy change. An admin could still rewrite the policy, which CloudTrail records; only Object Lock would
+      (SSE-S3) whose policy denies every delete and every write but the trail's. That stops accidents and anything
+      short of a policy or lifecycle change. An admin could still rewrite the policy, which CloudTrail records; only Object Lock would
       stop it.
     - **GuardDuty** runs in `us-east-1`.
     - **The SNS topic** `confuzion-alarms` isn't encrypted, because Budgets and CloudWatch can't publish under the

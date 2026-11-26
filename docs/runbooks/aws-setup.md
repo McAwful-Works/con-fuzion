@@ -10,10 +10,19 @@ noted.
 
 **What it creates** (all in `us-east-1`):
 - the Terraform state bucket `confuzion-tfstate-<account-id>`;
-- the GitHub OIDC identity provider, a read-only plan role, and a deploy role for staging and one for prod.
+- the GitHub OIDC identity provider, a read-only plan role, and a deploy role for staging and one for prod;
+- the account baseline (section 9):
+  - a CloudTrail trail (every region) into `confuzion-cloudtrail-<account-id>`;
+  - GuardDuty;
+  - the SNS topic `confuzion-alarms`;
+  - a monthly cost budget that alerts that topic.
 
-It costs almost nothing: IAM and the OIDC provider are free, and S3 storage for state is cents. The account baseline
-(CloudTrail, GuardDuty, the alarm topic and a budget) comes with the second part of #103.
+It costs very little on its own:
+- IAM, the OIDC provider and the account's first trail of management events are free, and so is SNS email at this
+  volume.
+- S3 storage is cents.
+- GuardDuty has a 30-day free trial, then is priced by the volume of events it analyses, which is small for a quiet
+  account. Its console shows an estimate during the trial.
 
 ## 1. Lock down the root user
 The root user (the email address you signed up with) can do anything, including close the account.
@@ -94,6 +103,8 @@ the bucket.
    mv backend.tf backend.tf.off
    terraform init
    ```
+   Every plan of this root needs your monthly budget, so set it first (step 9.1).
+
    Check whether a GitHub OIDC provider is already set up, from an earlier experiment:
    ```powershell
    aws iam list-open-id-connect-providers
@@ -103,24 +114,34 @@ the bucket.
    ```powershell
    terraform import aws_iam_openid_connect_provider.github <provider-arn>
    ```
+   Check for an earlier experiment's GuardDuty detector or CloudTrail trail too:
+   ```powershell
+   aws guardduty list-detectors
+   aws cloudtrail describe-trails --query "trailList[].Name"
+   ```
+   If it lists a detector ID, import it as above:
+   `terraform import aws_guardduty_detector.main <detector-id>`. If it lists a trail, it isn't managed here. Delete it
+   in the CloudTrail console if you don't need it, because only the first copy of management events is free.
 2. **Plan, and read it:**
    ```powershell
    terraform plan -out bootstrap.tfplan
    ```
    Check that:
-   - it says **`Plan: 14 to add, 0 to change, 0 to destroy`** (13 if you imported the provider in step 5.1, and then
-     a change to it is fine), and nothing is destroyed;
+   - it says **`Plan: 24 to add, 0 to change, 0 to destroy`**, which includes the baseline from section 9, and
+     nothing is destroyed. It's one fewer for each resource you import (here or in step 9.2), and then a change to
+     an imported resource is fine;
    - the bucket is `confuzion-tfstate-<your account ID>`;
    - each `aws_iam_role`'s `assume_role_policy` has `token.actions.githubusercontent.com:aud` =
      `sts.amazonaws.com`, and `:sub` = one of the three subjects in section 7, with `StringEquals`;
    - the plan role is `confuzion-github-plan` with `ReadOnlyAccess`, and the deploy roles are
-     `confuzion-staging-github-deploy` and `confuzion-prod-github-deploy`.
+     `confuzion-staging-github-deploy` and `confuzion-prod-github-deploy`;
+   - the baseline passes the checks listed after the count in step 9.3.
 3. **Apply it:**
    ```powershell
    terraform apply bootstrap.tfplan
    terraform output
    ```
-   Keep the outputs. You need them in steps 5.4 and 6. If the apply stops partway with an error, fix the cause,
+   Keep the outputs. You need them in steps 5.4, 6 and 10. If the apply stops partway with an error, fix the cause,
    then run `terraform plan -out bootstrap.tfplan` again and apply that new plan: a saved plan is stale once
    anything changed.
 4. **Move the state into the bucket:**
@@ -261,3 +282,73 @@ aws iam simulate-principal-policy --policy-source-arn "$role/confuzion-github-pl
 The simulator checks the roles' permission policies, not who may assume them. The trust side is tested for real the
 first time the workflows in #107 run: a job with the wrong subject fails at *Configure AWS credentials* with
 `Not authorized to perform sts:AssumeRoleWithWebIdentity`.
+
+## 9. The account baseline (the second apply)
+The baseline (CloudTrail, GuardDuty, the alarm topic and the budget) came after the first part of the bootstrap.
+- **Not applied yet?** Do step 9.1 before step 5. Step 5.1 covers 9.2's checks, and step 5 then applies
+  everything at once, so skip 9.2 to 9.4.
+- **Applied step 5 before the baseline existed** (14 resources)? Do all of 9.1 to 9.4.
+
+1. **Choose the budget.** Create `infra/bootstrap/terraform.tfvars` (git ignores `*.tfvars`) with your monthly limit
+   in US dollars:
+   ```hcl
+   monthly_budget_usd = 50
+   ```
+   You get an email when actual spend passes 80% of it, or the forecast for the month passes 100%. The forecast
+   alert can't fire until AWS has a few weeks of spend to forecast from.
+   - Once M6 is built, most of the bill is the always-on pieces: NAT gateways (three), load balancers, Valkey nodes
+     and prod's Aurora minimum.
+   - Price them in the [AWS Pricing Calculator](https://calculator.aws/) and set the budget to what you're willing
+     to spend.
+   - You can change it any time and re-apply.
+
+   A PR plan of this root needs the number too, so store it as a GitHub variable as well. #107's plan workflow has
+   to pass it as `TF_VAR_monthly_budget_usd`, or every PR plan of this root fails for want of the variable:
+   ```powershell
+   gh variable set MONTHLY_BUDGET_USD --body <your number>
+   ```
+2. **Initialize against the state bucket, and check for an earlier experiment's detector or trail:**
+   ```powershell
+   cd infra/bootstrap
+   terraform init -backend-config="bucket=<state_bucket output>"
+   aws guardduty list-detectors
+   aws cloudtrail describe-trails --query "trailList[].Name"
+   ```
+   If it lists a detector ID, bring it under Terraform instead of creating a second, which would fail at apply:
+   ```powershell
+   terraform import aws_guardduty_detector.main <detector-id>
+   ```
+   If it lists a trail, it isn't managed here. Delete it in the CloudTrail console if you don't need it, because
+   only the first copy of management events is free.
+3. **Plan, and read it:**
+   ```powershell
+   terraform plan -out bootstrap.tfplan
+   ```
+   Check that:
+   - it says **`Plan: 10 to add, 0 to change, 0 to destroy`** (or 9 to add and 1 to change, the detector's tags, if
+     you imported it);
+   - the new bucket is `confuzion-cloudtrail-<your account ID>`, with an expiry of 365 days;
+   - its bucket policy lets only `cloudtrail.amazonaws.com` write, with your trail's ARN as `aws:SourceArn`, and
+     denies every delete and every other object write;
+   - the trail `confuzion-account` is multi-region with log file validation on;
+   - the budget's `limit_amount` is your number.
+4. **Apply it:**
+   ```powershell
+   terraform apply bootstrap.tfplan
+   terraform output alarm_topic_arn
+   rm bootstrap.tfplan
+   ```
+
+## 10. Subscribe your email to the alarm topic
+Terraform doesn't hold your email address. Subscribe it yourself:
+```powershell
+aws sns subscribe --topic-arn <alarm_topic_arn output> --protocol email --notification-endpoint <your email>
+```
+Or use the console: **SNS → Topics → confuzion-alarms → Create subscription → Email**.
+
+AWS sends a confirmation email: click **Confirm subscription**. Until you do, alarms and budget alerts go nowhere.
+To check:
+```powershell
+aws sns list-subscriptions-by-topic --topic-arn <alarm_topic_arn output>
+```
+The `SubscriptionArn` should be a full ARN, not `PendingConfirmation`.
