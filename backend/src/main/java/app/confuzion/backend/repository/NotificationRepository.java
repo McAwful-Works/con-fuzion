@@ -124,6 +124,33 @@ public class NotificationRepository {
 	}
 
 	/**
+	 * Notifies, in one statement, every user who may act on a new report: those
+	 * with a granted role ({@code user_role}) whose Discord MFA was on at their
+	 * last sign-in, the closest stored match to MODERATOR or ADMIN in effect (D-015
+	 * rule 12). The reported user, or the reported event's host, is left out, so
+	 * they never learn of the report. Each row's {@code push_status} is set as in
+	 * {@link #insert}.
+	 *
+	 * @param type    what happened
+	 * @param exclude the reported user, or the reported event's host, who gets
+	 *                nothing
+	 * @param payload what the notification says
+	 * @return how many notifications were written
+	 */
+	public int insertForModerators(NotificationResponse.Type type, UUID exclude, NotificationPayload payload) {
+		return jdbc.sql("""
+				INSERT INTO notification (user_id, type, payload, push_status)
+				SELECT u.id, :type, CAST(:payload AS jsonb),
+					""" + PUSH_STATUS
+				+ """
+
+						FROM app_user u
+						WHERE u.mfa_enabled AND u.id <> :exclude AND EXISTS (SELECT 1 FROM user_role ur WHERE ur.user_id = u.id)""")
+				.param("type", type.name()).param("exclude", exclude)
+				.param("payload", jsonMapper.writeValueAsString(payload)).update();
+	}
+
+	/**
 	 * Returns a page of a user's notifications, newest first.
 	 *
 	 * @param userId   the user's ID

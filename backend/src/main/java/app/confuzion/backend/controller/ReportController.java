@@ -25,9 +25,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.ReportRequest;
+import app.confuzion.backend.service.ReportService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -36,7 +37,7 @@ import jakarta.validation.Valid;
 
 /**
  * The {@link RestController} for reporting an event or a user to the moderators
- * (D-015). A stub until #85.
+ * (D-015).
  *
  * @author mcawful
  */
@@ -45,6 +46,20 @@ import jakarta.validation.Valid;
 @Tag(name = "reports", description = "Reporting an event or a user to the moderators")
 public class ReportController {
 	/**
+	 * The {@link ReportService}.
+	 */
+	private final ReportService reportService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param reportService the {@link ReportService}
+	 */
+	public ReportController(ReportService reportService) {
+		this.reportService = reportService;
+	}
+
+	/**
 	 * Reports an event or a user.
 	 *
 	 * @param authentication the session's {@link Authentication}
@@ -52,9 +67,9 @@ public class ReportController {
 	 */
 	@PostMapping
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@Operation(summary = "Report an event or a user", description = "Every moderator and admin is notified. The "
-			+ "reported user never learns of the report or who made it, and the reporter later gets a "
-			+ "REPORT_REVIEWED notification with no details. A block in either direction doesn't stop a report. "
+	@Operation(summary = "Report an event or a user", description = "Every moderator and admin is notified, except the "
+			+ "reported user (or the event's host), who never learns of the report or who made it. The reporter "
+			+ "later gets a REPORT_REVIEWED notification with no details. A block in either direction doesn't stop a report. "
 			+ "Reporting the same target again while the caller's report on it is open is a 204 that changes "
 			+ "nothing and doesn't count towards the daily limit (D-015).")
 	@ApiResponse(responseCode = "204", description = "Reported, or already reported and still open.")
@@ -66,6 +81,6 @@ public class ReportController {
 			+ "(errorType REPORT_LIMIT), or is rate limited (errorType TOO_MANY_REQUESTS).")
 	public void report(@Parameter(hidden = true) Authentication authentication,
 			@Valid @RequestBody ReportRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		reportService.report(HttpUtil.userId(authentication), request);
 	}
 }

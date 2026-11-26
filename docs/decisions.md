@@ -615,6 +615,28 @@ Context · Decision · Consequences · Trigger to revisit
     change, so a change that rolls back leaves no row. The one exception is `SIGN_IN_REFUSED`, which records no change:
     it commits on its own before the sign-in is refused, since the refusal rolls the login back. Nothing else writes
     `audit_log`, and M7's account deletion never touches it, the bans, or the reports' target IDs.
+- **As built (owner-confirmed 2026-11-25, #85):**
+  - **Reports about the viewer are invisible to them, whatever their role.** A moderator or admin who is the reported
+    user, or hosts the reported event, gets no `REPORT_RECEIVED`, and the queue, read and resolve answer as if the
+    report didn't exist (404). This goes past rule 12's "every user with MODERATOR or ADMIN in effect", so that the
+    reported user never learns of a report. One residual signal is accepted: report IDs are sequential, so a reported
+    moderator may notice a gap in the IDs they see. That says a report they can't see exists, never what it says or
+    who made it, and gaps have other causes too.
+  - **The `REPORT_RECEIVED` fan-out reads stored roles** (`user_role` rows whose user had MFA on at their last
+    sign-in), the same rows and flag that #84 grants the roles in effect from, since it reaches users other than the
+    caller. A bootstrap ADMIN is reached once a sign-in has stored its `user_role` row.
+  - **Whether the caller is a moderator** for anything they do or see (the queue, and rule 8's view of events) comes
+    only from the session's authorities (`ROLE_MODERATOR` or `ROLE_ADMIN`), never from `user_role`, so it always
+    matches what `SecurityConfig` lets them do.
+  - **Delivery:** reports and the queue land first. Hiding, unhiding, the moderator cancel and the `VISIBLE` change
+    follow in a second PR for #85, which builds these confirmed calls too:
+    - rule 8's moderator view applies to the event detail and `/spots` only. Joining, accepting, leaving, the attendee
+      list, the feed and My schedule never use it, so a moderator can review a reported event but not join it or list
+      its attendees;
+    - a moderator's own report doesn't open an event to them (rule 8 reads "reported by someone else"), so reporting
+      an event can't get them past a host's block or a CONFIRMED-only location;
+    - unhiding hands the spots freed while hidden to the waitlist in queue order, with the usual `SPOT_OFFERED`, so a
+      new join can't take them first (D-013). Nobody is told about the unhide itself.
 - **Consequences:** moderators can act without seeing anything a user hasn't made public, and attendees are told only
   when an event is really off. The audit log can't be edited from the app, even by a bug, and outlives every account it
   names. Reports and audit rows keep the IDs of deleted accounts and purged events, which name nobody once those are

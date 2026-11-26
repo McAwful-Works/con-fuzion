@@ -99,6 +99,19 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	Optional<Event> findVisible(@Param("publicId") UUID publicId, @Param("viewer") UUID viewer);
 
 	/**
+	 * Returns an event a user may report (D-015 rule 6): one they can see, or one
+	 * they have ever had an RSVP on, in any status, so a block or a hide never
+	 * stops someone who was there. The caller checks that they don't host it.
+	 *
+	 * @param publicId the event's public ID
+	 * @param viewer   the reporter's user ID
+	 * @return the event, or empty when they may not report it
+	 */
+	@Query(value = "SELECT e.* FROM event e WHERE e.public_id = :publicId AND (" + VISIBLE
+			+ " OR EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id AND r.user_id = :viewer))", nativeQuery = true)
+	Optional<Event> findReportable(@Param("publicId") UUID publicId, @Param("viewer") UUID viewer);
+
+	/**
 	 * Returns a page of the viewer's feed: upcoming published events they may see,
 	 * their own included. The candidates come from the viewer's audience keys (plan
 	 * B2): entries naming them, entries for circles they are in or servers where

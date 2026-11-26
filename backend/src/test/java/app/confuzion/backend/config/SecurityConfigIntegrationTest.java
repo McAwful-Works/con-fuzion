@@ -138,22 +138,22 @@ class SecurityConfigIntegrationTest {
 					204),
 			new Endpoint("DELETE", "/api/push/subscriptions",
 					"{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\"}", 204),
-			// Reports (D-015): a 501 stub until #85.
+			// Reports (D-015): a user that doesn't exist is a 404.
 			new Endpoint("POST", "/api/reports", "{\"targetType\":\"USER\",\"targetId\":"
-					+ "\"5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20\",\"reason\":\"SPAM\"}", 501));
+					+ "\"5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20\",\"reason\":\"SPAM\"}", 404));
 
 	/**
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
 	 * needs: {@code MODERATOR} for the moderator routes (which ADMIN also passes)
 	 * and {@code ADMIN} for the rest, and the status a caller with the role gets.
-	 * The user is unknown. Reports, moderation, suspensions and bans are 501 stubs
-	 * until #85 and #86.
+	 * The user and the report are unknown. Event moderation, suspensions and bans
+	 * are 501 stubs until #85's second part and #86.
 	 */
 	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
-			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR", 501),
-			new AdminEndpoint("GET", "/api/admin/reports/7", null, "MODERATOR", 501),
-			new AdminEndpoint("POST", "/api/admin/reports/7/resolve", "{\"resolution\":\"DISMISSED\"}", "MODERATOR",
-					501),
+			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR", 200),
+			new AdminEndpoint("GET", "/api/admin/reports/9223372036854775807", null, "MODERATOR", 404),
+			new AdminEndpoint("POST", "/api/admin/reports/9223372036854775807/resolve",
+					"{\"resolution\":\"DISMISSED\"}", "MODERATOR", 404),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/hide",
 					"{\"reason\":\"Unsafe\"}", "MODERATOR", 501),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/unhide", null,
