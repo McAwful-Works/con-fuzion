@@ -12,7 +12,7 @@ const port = Number(process.env.E2E_MAINTENANCE_PORT ?? 8090);
 const test = base.extend({
   /** The base URL of a second jar in maintenance mode. It is stopped when the test ends, pass or fail. */
   maintenanceUrl: [
-    async ({}, use) => {
+    async ({}, use, testInfo) => {
       await assertPortFree(port);
       const jar = spawnBackend({
         port,
@@ -24,6 +24,10 @@ const test = base.extend({
         await use(`http://localhost:${port}`);
       } finally {
         await stopBackend(jar);
+        // CI uploads the report but not this jar's log, so a failure carries it.
+        if (testInfo.status !== testInfo.expectedStatus) {
+          await testInfo.attach('maintenance-backend.log', { path: jar.logFile });
+        }
       }
     },
     { timeout: 180_000 },

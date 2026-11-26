@@ -120,8 +120,10 @@ export async function waitForHealth(child, port, timeoutMs = 120_000) {
   while (Date.now() < deadline) {
     if (child.spawnError)
       throw new Error(`Could not start Java (${javaCommand()}): ${child.spawnError.message}`);
-    if (child.exitCode !== null)
-      throw new Error(`The backend exited with code ${child.exitCode}.\n${logTail(child.logFile)}`);
+    if (child.exitCode !== null || child.signalCode !== null) {
+      const how = child.signalCode ?? `code ${child.exitCode}`;
+      throw new Error(`The backend exited with ${how}.\n${logTail(child.logFile)}`);
+    }
     try {
       const response = await fetch(`http://localhost:${port}/api/actuator/health`);
       if (response.ok) return;

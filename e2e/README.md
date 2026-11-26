@@ -44,7 +44,7 @@ terms forbid scripting it. Nothing here touches the real Discord, and no credent
   - **2FA:** the fake reports `mfa_enabled` from the scenario's user, false unless set (`newUser`'s `mfaEnabled`, or
     `signInAgain`'s). The backend reads it at sign-in only.
 - `tests/maintenance.spec.mjs` (M5) starts a second jar with `con-fuzion.maintenance=true` (the flag is read at
-  startup), checks it and stops it. Its log is `e2e/.run/maintenance/backend.log`.
+  startup), checks it and stops it. Its log is `e2e/.run/maintenance/backend.log`, attached to the report on failure.
 
 ## Run it locally
 

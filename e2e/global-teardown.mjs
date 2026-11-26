@@ -2,7 +2,9 @@
 
 /** Stops one jar and resolves once it has exited. Safe with nothing, or with a jar that never started or has gone. */
 export async function stopBackend(backend) {
-  if (!backend || backend.spawnError || backend.exitCode !== null) return;
+  // A process killed by a signal has a signalCode and no exitCode, and its 'exit' event has already fired.
+  if (!backend || backend.spawnError || backend.exitCode !== null || backend.signalCode !== null)
+    return;
   const exited = new Promise((done) => backend.once('exit', done));
   backend.kill('SIGTERM');
   const timedOut = await Promise.race([
