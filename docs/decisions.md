@@ -699,7 +699,7 @@ Context · Decision · Consequences · Trigger to revisit
   - **WAF:** the AWS common rule set, known bad inputs, and a per-IP rate rule.
   - **Account baseline:** a multi-region CloudTrail and GuardDuty. The owner handles root MFA and subscribes the
     alarm email.
-- **As built (#103, the bootstrap root `infra/bootstrap/`):**
+- **As built (#103, the bootstrap root `infra/bootstrap/`, for the owner to confirm):**
   - **State:** one S3 bucket (versioned, SSE-S3, public access blocked, TLS only), one key per root, with S3's native
     lock files (Terraform 1.10 or later), so no DynamoDB table. The bootstrap root applies once with local state and
     then moves into the bucket under `bootstrap/terraform.tfstate`. Its state then has the same protection as every
