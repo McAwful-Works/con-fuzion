@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AdminUser } from './api/admin';
 import type { components } from './api/schema';
 import { localDay } from './features/admin/SuspendAction';
 import {
@@ -51,7 +52,7 @@ const userReport: Schemas['ReportResponse'] = {
   targetLabel: 'Rowdy',
   reason: 'HARASSMENT',
 };
-const rowdy: Schemas['AdminUserResponse'] = {
+const rowdy: AdminUser = {
   id: USER_ID,
   username: 'rowdy_one',
   globalName: 'Rowdy',
@@ -405,8 +406,7 @@ describe('a report', () => {
 });
 
 describe('user search', () => {
-  const found = (users: Schemas['AdminUserResponse'][]) =>
-    envelope('ADMIN_USER_LIST', { items: users });
+  const found = (users: AdminUser[]) => envelope('ADMIN_USER_LIST', { items: users });
 
   it('searches on submit and shows what a moderator may see', async () => {
     const calls = signedIn(moderator, ({ path }) =>

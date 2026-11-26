@@ -6,7 +6,14 @@ type Schemas = components['schemas'];
 export type Report = Schemas['ReportResponse'];
 export type ReportStatus = Report['status'];
 export type Resolution = Schemas['ResolveReportRequest']['resolution'];
-export type AdminUser = Schemas['AdminUserResponse'];
+/**
+ * `ban` is null for someone who isn't banned. Contract bug: `openapi.json` emits
+ * `{"type":"null","$ref":…}` for it, so openapi-typescript drops the null. Remove this override once the
+ * backend emits `anyOf: [$ref, null]` (#86, which owns `AdminUserResponse`).
+ */
+export type AdminUser = Omit<Schemas['AdminUserResponse'], 'ban'> & {
+  ban: Schemas['AdminUserBanResponse'] | null;
+};
 export type EventAction = 'hide' | 'unhide' | 'cancel';
 
 const REPORTS = '/admin/reports' satisfies ContractPath;
@@ -89,7 +96,7 @@ export function useUserSearch(q: string) {
   return useQuery({
     queryKey: [...usersKey, q],
     enabled: q.length >= USER_QUERY_MIN,
-    queryFn: async () =>
+    queryFn: async (): Promise<AdminUser[]> =>
       (
         await api<Schemas['ResponseRecordAdminUserListResponse']>(
           `${USERS}?${new URLSearchParams({ q })}`,
