@@ -1,5 +1,7 @@
 import type { RouteObject } from 'react-router';
 import { AppShell } from './components/AppShell';
+import { NotFound } from './components/NotFound';
+import { AdminError, AdminRoute } from './features/admin/AdminRoute';
 import { RequireAuth } from './features/auth/RequireAuth';
 import { CircleDetail } from './routes/CircleDetail';
 import { Circles } from './routes/Circles';
@@ -36,8 +38,10 @@ export const routes: RouteObject[] = [
           { path: '/circles', element: <Circles /> },
           { path: '/circles/:circleId', element: <CircleDetail /> },
           { path: '/settings', element: <Settings /> },
+          { path: '/admin/*', element: <AdminRoute />, errorElement: <AdminError /> },
         ],
       },
+      { path: '*', element: <NotFound /> },
     ],
   },
 ];

@@ -35,6 +35,11 @@ export class ApiError extends Error {
   }
 }
 
+/** A 403 or 404: for this viewer there's nothing there, and the UI says no more than that. */
+export function isNotThere(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 403 || error.status === 404);
+}
+
 /** Retry server hiccups a couple of times, but never a 4xx (a 401 must reach the sign-in redirect). */
 export function shouldRetry(failureCount: number, error: unknown): boolean {
   if (error instanceof ApiError && error.status < 500) return false;

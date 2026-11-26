@@ -1,7 +1,7 @@
-import { Bell, X } from 'lucide-react';
+import { Bell, Shield, X } from 'lucide-react';
 import { Link, Outlet } from 'react-router';
 import { useState } from 'react';
-import { useMe } from '../api/me';
+import { isModerator, useMe } from '../api/me';
 import { useUnavailable } from '../api/maintenance';
 import { formatUnread, useUnreadCount } from '../api/notifications';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
@@ -18,11 +18,20 @@ export function AppShell() {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-line flex items-center justify-between gap-3 border-b px-4 py-2">
-        <Link to="/" className="text-lg font-semibold tracking-tight">
+        <Link to="/" className="text-lg font-semibold tracking-tight whitespace-nowrap">
           Con-Fuzion
         </Link>
         {user && (
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1">
+            {isModerator(user) && (
+              <Link
+                to="/admin"
+                aria-label="Moderation"
+                className="focus-visible:outline-accent rounded-control flex min-h-11 min-w-11 items-center justify-center focus-visible:outline-2"
+              >
+                <Shield aria-hidden="true" className="size-5" />
+              </Link>
+            )}
             <Link
               to="/notifications"
               aria-label={
@@ -42,9 +51,9 @@ export function AppShell() {
             </Link>
             <Link
               to="/settings"
-              className="focus-visible:outline-accent rounded-control flex min-h-11 items-center gap-2 focus-visible:outline-2"
+              className="focus-visible:outline-accent rounded-control flex min-h-11 min-w-0 items-center gap-2 focus-visible:outline-2"
             >
-              <img src={user.avatarUrl} alt="" className="size-8 rounded-full" />
+              <img src={user.avatarUrl} alt="" className="size-8 shrink-0 rounded-full" />
               <span className="max-w-40 truncate text-sm font-medium">
                 {user.globalName ?? user.username}
               </span>

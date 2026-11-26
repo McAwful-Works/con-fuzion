@@ -853,7 +853,7 @@ export interface paths {
         put?: never;
         /**
          * Report an event or a user
-         * @description Every moderator and admin is notified. The reported user never learns of the report or who made it, and the reporter later gets a REPORT_REVIEWED notification with no details. A block in either direction doesn't stop a report. Reporting the same target again while the caller's report on it is open is a 204 that changes nothing and doesn't count towards the daily limit (D-015).
+         * @description Every moderator and admin is notified, except the reported user (or the event's host), who never learns of the report or who made it. The reporter later gets a REPORT_REVIEWED notification with no details. A block in either direction doesn't stop a report. Reporting the same target again while the caller's report on it is open is a 204 that changes nothing and doesn't count towards the daily limit (D-015).
          */
         post: operations["report"];
         delete?: never;
@@ -2181,7 +2181,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
                 };
             };
-            /** @description No such report. */
+            /** @description No such report, or it's about the caller or an event they host: the reported user never sees a report, whatever their role. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2271,7 +2271,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResponseRecordErrorResponseBodyRecord"];
                 };
             };
-            /** @description No such report. */
+            /** @description No such report, or it's about the caller or an event they host: the reported user never sees a report, whatever their role. */
             404: {
                 headers: {
                     [name: string]: unknown;
