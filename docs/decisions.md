@@ -665,7 +665,7 @@ Context · Decision · Consequences · Trigger to revisit
 - **Revisit:** if the audit log or the report table gets slow without a retention limit (a measured p95), add one in a
   contract PR. If moderators need several reports on one target closed together, add a bulk resolve.
 
-## D-016 M6: AWS deploy (2026-11-25) — Accepted
+## D-016 M6: AWS deploy (2026-11-26) — Accepted
 - **Context:** M6 puts the app on AWS with Terraform (#102–#108). The owner confirmed the four choices marked
   *(owner)*. The rest come from the M6 issues. Claude never runs `terraform apply`: the owner applies every root with
   their own credentials.
@@ -699,7 +699,7 @@ Context · Decision · Consequences · Trigger to revisit
   - **WAF:** the AWS common rule set, known bad inputs, and a per-IP rate rule.
   - **Account baseline:** a multi-region CloudTrail and GuardDuty. The owner handles root MFA and subscribes the
     alarm email.
-- **As built (#103, the bootstrap root `infra/bootstrap/`, for the owner to confirm):**
+- **As built (#103, the bootstrap root `infra/bootstrap/`; owner-confirmed 2026-11-26):**
   - **State:** one S3 bucket (versioned, SSE-S3, public access blocked, TLS only), one key per root, with S3's native
     lock files (Terraform 1.10 or later), so no DynamoDB table. The bootstrap root applies once with local state and
     then moves into the bucket under `bootstrap/terraform.tfstate`. Its state then has the same protection as every
@@ -720,11 +720,14 @@ Context · Decision · Consequences · Trigger to revisit
   - **The deploy roles** deploy the app, not Terraform. Each registers its own task-definition family, rolls its own
     ECS service, and passes only its own task and execution roles to ECS. There is one shared image repository,
     `confuzion-app`: staging pushes to it, and prod, which deploys the same digest, can only look images up.
-  - **CloudTrail** keeps management events from every region for 365 days, with log file validation, in a bucket
-    whose policy denies every delete and every write but the trail's. That stops accidents and anything short of a
-    policy change. An admin could still rewrite the policy, which CloudTrail records; only Object Lock would stop it. **GuardDuty** runs in `us-east-1`. **The SNS topic** `confuzion-alarms` isn't
-    encrypted, because Budgets and CloudWatch can't publish under the AWS-managed SNS key, and alarms hold no user
-    data.
+  - **The account baseline** (#103's second part):
+    - **CloudTrail** keeps management events from every region for 365 days, with log file validation, in a bucket
+      whose policy denies every delete and every write but the trail's. That stops accidents and anything short of
+      a policy change. An admin could still rewrite the policy, which CloudTrail records; only Object Lock would
+      stop it.
+    - **GuardDuty** runs in `us-east-1`.
+    - **The SNS topic** `confuzion-alarms` isn't encrypted, because Budgets and CloudWatch can't publish under the
+      AWS-managed SNS key, and alarms hold no user data.
 - **Consequences:** every root after this one depends on the bootstrap. Changing a deploy job's GitHub environment,
   or turning on GitHub's immutable OIDC subjects, breaks its role's trust until the subject here changes to match.
   One account keeps cost and setup small, but an admin there can reach both environments. The repo is public, so

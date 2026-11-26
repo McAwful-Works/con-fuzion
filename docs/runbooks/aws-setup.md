@@ -11,14 +11,9 @@ noted.
 **What it creates** (all in `us-east-1`):
 - the Terraform state bucket `confuzion-tfstate-<account-id>`;
 - the GitHub OIDC identity provider, a read-only plan role, and a deploy role for staging and one for prod;
-- a CloudTrail trail (every region) into `confuzion-cloudtrail-<account-id>`;
-- GuardDuty;
-- the SNS topic `confuzion-alarms`;
-- a monthly cost budget that alerts that topic.
 
-It costs very little on its own. The first trail of management events is free, and so are IAM, the OIDC provider and
-SNS email at this volume. S3 storage is cents. GuardDuty has a 30-day free trial and is then priced by the volume
-of events it analyses, which is small for a quiet account: its console shows an estimate during the trial.
+It costs almost nothing: IAM and the OIDC provider are free, and S3 storage for state is cents. The account baseline
+(CloudTrail, GuardDuty, the alarm topic and a budget) comes with the second part of #103.
 
 ## 1. Lock down the root user
 The root user (the email address you signed up with) can do anything, including close the account.
@@ -89,18 +84,8 @@ The last command should show your account and an `AWSReservedSSO_AdministratorAc
 
 *IAM user instead:* `aws configure --profile confuzion-admin`, then paste the access key when asked.
 
-## 5. Choose the budget
-Create `infra/bootstrap/terraform.tfvars` (git ignores `*.tfvars`) with your monthly limit in US dollars:
-```hcl
-monthly_budget_usd = 50
-```
-You get an email when actual spend passes 80% of it, or the forecast for the month passes 100%. Once M6 is built,
-most of the bill is the always-on pieces: NAT gateways (three), load balancers, Valkey nodes and prod's Aurora
-minimum. Price them in the [AWS Pricing Calculator](https://calculator.aws/) and set the budget to what you're
-willing to spend. You can change it any time and re-apply.
-
-## 6. Apply the bootstrap root
-The state bucket doesn't exist yet, so the first apply keeps its state on your machine, and step 6.4 moves it into
+## 5. Apply the bootstrap root
+The state bucket doesn't exist yet, so the first apply keeps its state on your machine, and step 5.4 moves it into
 the bucket.
 
 1. **Set the S3 backend aside for this first run:**
@@ -109,15 +94,13 @@ the bucket.
    mv backend.tf backend.tf.off
    terraform init
    ```
-   Check whether GuardDuty or a GitHub OIDC provider is already set up, from an earlier experiment:
+   Check whether a GitHub OIDC provider is already set up, from an earlier experiment:
    ```powershell
-   aws guardduty list-detectors
    aws iam list-open-id-connect-providers
    ```
-   If either lists one (a detector ID, or a provider ARN ending in `token.actions.githubusercontent.com`), bring it
-   under Terraform instead of creating a second, which would fail at apply:
+   If it lists a provider ARN ending in `token.actions.githubusercontent.com`, bring it under Terraform instead of
+   creating a second, which would fail at apply:
    ```powershell
-   terraform import aws_guardduty_detector.main <detector-id>
    terraform import aws_iam_openid_connect_provider.github <provider-arn>
    ```
 2. **Plan, and read it:**
@@ -125,20 +108,19 @@ the bucket.
    terraform plan -out bootstrap.tfplan
    ```
    Check that:
-   - it says **`Plan: 24 to add, 0 to change, 0 to destroy`** (fewer if you imported something in step 1, and then
-     a change or two to the imported resource is fine), and nothing is destroyed;
-   - the two buckets are `confuzion-tfstate-<your account ID>` and `confuzion-cloudtrail-<your account ID>`;
+   - it says **`Plan: 14 to add, 0 to change, 0 to destroy`** (13 if you imported the provider in step 1, and then
+     a change to it is fine), and nothing is destroyed;
+   - the bucket is `confuzion-tfstate-<your account ID>`;
    - each `aws_iam_role`'s `assume_role_policy` has `token.actions.githubusercontent.com:aud` =
-     `sts.amazonaws.com`, and `:sub` = one of the three subjects in section 9, with `StringEquals`;
+     `sts.amazonaws.com`, and `:sub` = one of the three subjects in section 7, with `StringEquals`;
    - the plan role is `confuzion-github-plan` with `ReadOnlyAccess`, and the deploy roles are
-     `confuzion-staging-github-deploy` and `confuzion-prod-github-deploy`;
-   - the budget's `limit_amount` is your number.
+     `confuzion-staging-github-deploy` and `confuzion-prod-github-deploy`.
 3. **Apply it:**
    ```powershell
    terraform apply bootstrap.tfplan
    terraform output
    ```
-   Keep the outputs. You need them in steps 6.4, 7 and 8. If the apply stops partway with an error, fix the cause,
+   Keep the outputs. You need them in steps 5.4 and 6. If the apply stops partway with an error, fix the cause,
    then run `terraform plan -out bootstrap.tfplan` again and apply that new plan: a saved plan is stale once
    anything changed.
 4. **Move the state into the bucket:**
@@ -169,28 +151,14 @@ terraform plan -out bootstrap.tfplan
 terraform apply bootstrap.tfplan
 ```
 
-## 7. Subscribe your email to the alarm topic
-Terraform doesn't hold your email address. Subscribe it yourself:
-```powershell
-aws sns subscribe --topic-arn <alarm_topic_arn output> --protocol email --notification-endpoint <your email>
-```
-Or in the console: **SNS → Topics → confuzion-alarms → Create subscription → Email**. AWS sends a confirmation
-email: click **Confirm subscription**. Until you do, alarms and budget alerts go nowhere. To check:
-```powershell
-aws sns list-subscriptions-by-topic --topic-arn <alarm_topic_arn output>
-```
-The `SubscriptionArn` should be a full ARN, not `PendingConfirmation`.
-
-## 8. Set the GitHub variables and environments
+## 6. Set the GitHub variables and environments
 These values are identifiers, not secrets, so they go in GitHub **variables** (not secrets). Use the repo settings
 (**Settings → Secrets and variables → Actions → Variables**), or `gh`:
 ```powershell
 gh variable set AWS_REGION --body us-east-1
 gh variable set TF_STATE_BUCKET --body <state_bucket output>
 gh variable set AWS_PLAN_ROLE_ARN --body <plan_role_arn output>
-gh variable set MONTHLY_BUDGET_USD --body <your number from step 5>
 ```
-(A PR plan of this root needs the budget too: the workflow passes it as `TF_VAR_monthly_budget_usd`.)
 Then create the two GitHub environments under **Settings → Environments → New environment**:
 
 | Environment | Deployment branches and tags | Protection | Variable `AWS_DEPLOY_ROLE_ARN` |
@@ -207,7 +175,7 @@ gh variable set AWS_DEPLOY_ROLE_ARN --env production --body <prod_deploy_role_ar
 On `production`, leave **Prevent self-review** off: you're its only reviewer. The repo's `v*` tag ruleset (D-009)
 already limits who can create a release tag, which is the other half of what keeps prod deploys yours.
 
-## 9. The OIDC subjects (for the CI and CD workflows, #107)
+## 7. The OIDC subjects (for the CI and CD workflows, #107)
 GitHub puts a `sub` claim in each job's OIDC token, and each role trusts exactly one. This repo uses GitHub's
 default subject format (checked: `use_default: true`).
 
@@ -230,7 +198,7 @@ What the workflows must do to match:
   `id-token: write`, so it can't get an OIDC token. Plans run only for branches in this repo, and pushing one needs
   write access.
 - The deploy jobs get an `environment:` subject however they were triggered, so the environment's deployment rules
-  (step 8) are what limit staging to `main` and prod to `v*` tags with your approval. Keep those rules in place.
+  (step 6) are what limit staging to `main` and prod to `v*` tags with your approval. Keep those rules in place.
 - If the org or repo ever switches on GitHub's **immutable OIDC subjects** (`repo:Owner@id/Repo@id:…`), every role
   stops trusting its jobs until `infra/bootstrap/github.tf` changes to match.
 
@@ -244,7 +212,7 @@ What each role may do:
   staging pushes each build to it, and prod deploys that same digest, so prod may only describe images. The names are in
   `infra/bootstrap/github.tf` (`TODO(#105)`: the compute root confirms them). It can't run Terraform.
 
-## 10. Check the policies (after the first apply)
+## 8. Check the policies (after the first apply)
 Run these in PowerShell 7 (`pwsh`, step 3), which passes the JSON argument through intact. Windows PowerShell 5.1
 doesn't.
 
@@ -268,10 +236,10 @@ aws iam simulate-principal-policy --policy-source-arn "$role/confuzion-prod-gith
   --resource-arns "arn:aws:ecs:us-east-1:${acct}:service/confuzion-prod/confuzion-prod-app" `
                   "arn:aws:ecs:us-east-1:${acct}:service/confuzion-staging/confuzion-staging-app" `
   --query "EvaluationResults[].[EvalResourceName,EvalDecision]" --output text
-# The plan role can read the state (allowed) but not CloudTrail's logs (explicitDeny), and can't write (implicitDeny)
+# The plan role can read the state (allowed) but no other bucket's objects (explicitDeny), and can't write (implicitDeny)
 aws iam simulate-principal-policy --policy-source-arn "$role/confuzion-github-plan" --action-names s3:GetObject s3:PutObject `
   --resource-arns "arn:aws:s3:::confuzion-tfstate-${acct}/bootstrap/terraform.tfstate" `
-                  "arn:aws:s3:::confuzion-cloudtrail-${acct}/AWSLogs/x" `
+                  "arn:aws:s3:::any-other-bucket/x" `
   --query "EvaluationResults[].[EvalActionName,EvalResourceName,EvalDecision]" --output text
 ```
 The simulator checks the roles' permission policies, not who may assume them. The trust side is tested for real the
