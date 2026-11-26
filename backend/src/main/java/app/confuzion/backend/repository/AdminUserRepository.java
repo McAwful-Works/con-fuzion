@@ -33,9 +33,10 @@ import org.springframework.stereotype.Repository;
 import app.confuzion.backend.model.record.AdminUserResponse;
 
 /**
- * Native SQL for user search, suspensions and bans (D-015). The writes lock the
- * user's {@code app_user} row first, in the order {@link UserRoleRepository}
- * describes, so they serialize with role changes and sign-ins of that user.
+ * Native SQL for user search, suspensions and bans (D-015). The user row locks
+ * ({@link #lockForSuspension}, {@link #lockByDiscordId}) are the ones
+ * {@link UserRoleRepository} describes, so suspensions and bans serialize with
+ * role changes and sign-ins of that user. The ban rows themselves need no lock.
  *
  * @author mcawful
  */

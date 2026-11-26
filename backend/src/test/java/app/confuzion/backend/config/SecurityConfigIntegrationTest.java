@@ -795,8 +795,12 @@ class SecurityConfigIntegrationTest {
 		assertThat(again.location()).isEqualTo("/");
 		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(200);
 
+		jdbcTemplate.update("INSERT INTO push_subscription (user_id, endpoint, p256dh, auth) VALUES (?, "
+				+ "'https://fcm.googleapis.com/fcm/send/ban-me', 'key', 'auth')", UUID.fromString(targetId));
 		var ban = "{\"discordId\":\"" + target + "\",\"reason\":\"Spam\"}";
 		assertThat(sendWithCsrf("POST", "/api/admin/bans", admin, ban).statusCode()).isEqualTo(204);
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM push_subscription WHERE user_id = ?", Long.class,
+				UUID.fromString(targetId))).isZero();
 		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(401);
 		assertThat(auditDetails("SESSIONS_PURGED", targetId, false)).last()
 				.isEqualTo("{\"cause\": \"ACCOUNT_BANNED\", \"sessions\": 1}");

@@ -121,7 +121,8 @@ class RsvpConcurrencyIntegrationTest {
 	private RsvpRepository rsvpRepository;
 
 	/**
-	 * The {@link TransactionTemplate}, to hold a join's, a ban's or a suspension's locks open.
+	 * The {@link TransactionTemplate}, to hold a join's, a ban's or a suspension's
+	 * locks open.
 	 */
 	@Autowired
 	private TransactionTemplate transactionTemplate;
@@ -593,8 +594,8 @@ class RsvpConcurrencyIntegrationTest {
 	}
 
 	/**
-	 * Waits until this many other database sessions are waiting for a lock taken
-	 * by a statement on {@code app_user} (a join's, a ban's or a create's), so an
+	 * Waits until this many other database sessions are waiting for a lock taken by
+	 * a statement on {@code app_user} (a join's, a ban's or a create's), so an
 	 * unrelated waiter can't end the wait early.
 	 *
 	 * @param waiters the number of waiters
@@ -604,7 +605,7 @@ class RsvpConcurrencyIntegrationTest {
 		while (jdbcTemplate.queryForObject("""
 				SELECT count(*) FROM pg_stat_activity
 				WHERE datname = current_database() AND wait_event_type = 'Lock'
-					AND query ILIKE '%FROM app_user%'""", Long.class) < waiters) {
+					AND query ILIKE '%FROM app_user WHERE%'""", Long.class) < waiters) {
 			assertThat(Instant.now()).as("lock waiters").isBefore(deadline);
 			Thread.sleep(10);
 		}

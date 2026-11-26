@@ -262,6 +262,17 @@ class AdminUserControllerIntegrationTest {
 		join(full.id(), banned, "CONFIRMED");
 		var waiting = fixtures.user("Waiting");
 		join(full.id(), waiting, "WAITLISTED");
+		// Offered a spot (it's held), with someone behind; and waitlisted (no spot
+		// held).
+		var offered = fixtures.rsvpEvent(host, 2, "now() + interval '1 day'", "NULL");
+		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status, offer_expires_at) "
+				+ "VALUES (?, ?, 'OFFERED', now() + interval '1 hour')", offered.id(), banned);
+		jdbcTemplate.update("UPDATE event SET confirmed_count = 2 WHERE id = ?", offered.id());
+		var next = fixtures.user("Next");
+		join(offered.id(), next, "WAITLISTED");
+		var queued = fixtures.rsvpEvent(host, 2, "now() + interval '1 day'", "NULL");
+		join(queued.id(), fixtures.user("Holder"), "CONFIRMED");
+		join(queued.id(), banned, "WAITLISTED");
 		var open = fixtures.rsvpEvent(host, 5, "now() + interval '1 day'", "NULL");
 		fixtures.audience(open.id(), "USER", null, null, banned);
 		var past = fixtures.event(host, "now() - interval '1 day'", "now() - interval '20 hours'");
@@ -278,6 +289,11 @@ class AdminUserControllerIntegrationTest {
 		assertThat(fixtures.rsvpStatus(full.id(), banned)).isEqualTo("LEFT");
 		assertThat(fixtures.rsvpStatus(full.id(), waiting)).isEqualTo("OFFERED");
 		assertThat(fixtures.confirmedCount(full.id())).isEqualTo(2);
+		assertThat(fixtures.rsvpStatus(offered.id(), banned)).isEqualTo("LEFT");
+		assertThat(fixtures.rsvpStatus(offered.id(), next)).isEqualTo("OFFERED");
+		assertThat(fixtures.confirmedCount(offered.id())).isEqualTo(2);
+		assertThat(fixtures.rsvpStatus(queued.id(), banned)).isEqualTo("LEFT");
+		assertThat(fixtures.confirmedCount(queued.id())).isEqualTo(2);
 		assertThat(fixtures.rsvpStatus(past.id(), banned)).as("history").isEqualTo("CONFIRMED");
 		assertThatThrownBy(() -> rsvpService.join(banned, open.publicId())).isInstanceOf(NoSuchElementException.class);
 		assertThat(fixtures.rsvpStatus(open.id(), banned)).isNull();

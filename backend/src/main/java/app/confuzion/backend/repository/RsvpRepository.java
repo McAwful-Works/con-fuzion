@@ -144,9 +144,10 @@ public class RsvpRepository {
 	/**
 	 * Takes a share lock on a joining user's {@code app_user} row until the
 	 * transaction ends, before the event row lock. It doesn't conflict with other
-	 * joins, but a ban of the user ({@link #lockForBan}) waits for the join to
-	 * commit and then sees its RSVP, and a join that comes second waits for the ban
-	 * to commit, so {@link #insert} then sees the ban (D-015).
+	 * joins, but a ban of the user waits for the join to commit (at
+	 * {@code AdminUserRepository.lockByDiscordId}) and then sees its RSVP in
+	 * {@link #lockForBan}, and a join that comes second waits for the ban to
+	 * commit, so {@link #insert} then sees the ban (D-015).
 	 *
 	 * @param userId the joining user's ID
 	 */

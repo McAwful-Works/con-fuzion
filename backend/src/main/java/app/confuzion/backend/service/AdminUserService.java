@@ -46,9 +46,10 @@ import app.confuzion.backend.repository.UserRoleRepository;
 /**
  * User search, suspensions and bans (D-015). {@code SecurityConfig} lets only
  * MODERATOR or ADMIN in effect reach search and suspensions, and only ADMIN
- * reach bans. Every write locks the target's {@code app_user} row and then
- * re-checks the actor's stored roles, as a role change does, since a revoke may
- * have committed while the request waited.
+ * reach bans. Every write that changes something re-checks the actor's stored
+ * roles under a share lock, after the target's {@code app_user} row lock where
+ * there is a target, as a role change does, since a revoke may have committed
+ * while the request waited. A repeat that writes nothing returns first.
  *
  * @author mcawful
  */
@@ -249,6 +250,8 @@ public class AdminUserService {
 		var userId = adminUserRepository.lockByDiscordId(id);
 		if (!userRoleRepository.lockRoles(actorId).contains(GrantedRole.ADMIN))
 			throw new AccessDeniedException("The actor no longer holds ADMIN");
+		if (userId.isPresent() && userRoleRepository.findRoles(userId.get()).contains(GrantedRole.ADMIN))
+			throw new ConflictException(Conflict.TARGET_HAS_ROLE);
 		userId.ifPresent(this::cleanUp);
 		auditLogRepository.insert(actorId, Action.ACCOUNT_BANNED, TargetType.DISCORD_ACCOUNT, Long.toString(id),
 				new AuditDetails(reason, null, null, null, null, null, null));
@@ -280,12 +283,8 @@ public class AdminUserService {
 	 * user's row lock.
 	 *
 	 * @param userId the banned user's ID
-	 * @throws ConflictException with {@link Conflict#TARGET_HAS_ROLE} when the user
-	 *                           holds ADMIN
 	 */
 	private void cleanUp(UUID userId) {
-		if (userRoleRepository.findRoles(userId).contains(GrantedRole.ADMIN))
-			throw new ConflictException(Conflict.TARGET_HAS_ROLE);
 		for (var event : rsvpRepository.lockForBan(userId)) {
 			if (event.hosted())
 				eventService.cancelEvent(userId, event.publicId());
