@@ -202,7 +202,8 @@ public class NotificationRepository {
 	/**
 	 * Returns the published events that start within the lead time, and still
 	 * haven't, and have a confirmed attendee without a reminder yet. The host holds
-	 * a confirmed RSVP from the start (D-013).
+	 * a confirmed RSVP from the start (D-013). An event hidden by moderators gets
+	 * no reminders (D-015 rule 10).
 	 *
 	 * @param lead how long before the start a reminder goes out
 	 * @return the events' internal IDs, soonest first
@@ -211,7 +212,7 @@ public class NotificationRepository {
 		return jdbc
 				.sql("""
 						SELECT e.id FROM event e
-						WHERE e.status = 'PUBLISHED' AND e.starts_at > now() AND e.starts_at <= now() + CAST(:leadSeconds AS bigint) * interval '1 second'
+						WHERE e.status = 'PUBLISHED' AND NOT e.hidden_by_moderation AND e.starts_at > now() AND e.starts_at <= now() + CAST(:leadSeconds AS bigint) * interval '1 second'
 							AND EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id AND r.status = 'CONFIRMED'
 								AND NOT EXISTS (SELECT 1 FROM notification n WHERE n.user_id = r.user_id AND n.event_id = e.id
 									AND n.type = 'EVENT_REMINDER'))
@@ -220,10 +221,11 @@ public class NotificationRepository {
 	}
 
 	/**
-	 * Locks an event if it is still due a reminder: published, not started, and
-	 * within the lead time. The lock lasts until the transaction ends, so a cancel,
-	 * an edit or a block can't interleave with the reminders. An event that
-	 * something else holds locked is skipped, and the next run picks it up.
+	 * Locks an event if it is still due a reminder: published, not hidden by
+	 * moderators, not started, and within the lead time. The lock lasts until the
+	 * transaction ends, so a cancel, an edit or a block can't interleave with the
+	 * reminders. An event that something else holds locked is skipped, and the next
+	 * run picks it up.
 	 *
 	 * @param eventId the event's internal ID
 	 * @param lead    how long before the start a reminder goes out
@@ -232,7 +234,8 @@ public class NotificationRepository {
 	public Optional<DueEvent> lockDueEvent(long eventId, Duration lead) {
 		return jdbc.sql("""
 					SELECT title, starts_at FROM event
-					WHERE id = :eventId AND status = 'PUBLISHED' AND starts_at > statement_timestamp()
+					WHERE id = :eventId AND status = 'PUBLISHED' AND NOT hidden_by_moderation
+						AND starts_at > statement_timestamp()
 				AND starts_at <= statement_timestamp() + CAST(:leadSeconds AS bigint) * interval '1 second'
 					FOR NO KEY UPDATE""").param("eventId", eventId).param("leadSeconds", lead.toSeconds())
 				.query((rs, row) -> new DueEvent(rs.getString("title"), rs.getTimestamp("starts_at").toInstant()))

@@ -152,7 +152,7 @@ class EventControllerTest {
 	@MethodSource("operations")
 	void testValidRequestsReachService(RequestBuilder request) throws Exception {
 		when(eventService.createEvent(eq(USER_ID), any())).thenReturn(RESPONSE);
-		when(eventService.getEvent(eq(USER_ID), any())).thenReturn(RESPONSE);
+		when(eventService.getEvent(eq(USER_ID), any(), eq(false))).thenReturn(RESPONSE);
 		when(eventService.updateEvent(eq(USER_ID), any(), any())).thenReturn(RESPONSE);
 		when(eventService.getEvents(eq(USER_ID), any(), any(), anyInt()))
 				.thenReturn(new EventPageResponse(List.of(RESPONSE), null));
