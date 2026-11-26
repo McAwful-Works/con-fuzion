@@ -10,7 +10,7 @@ noted.
 
 **What it creates** (all in `us-east-1`):
 - the Terraform state bucket `confuzion-tfstate-<account-id>`;
-- the GitHub OIDC identity provider, a read-only plan role, and a deploy role for staging and one for prod;
+- the GitHub OIDC identity provider, a read-only plan role, and a deploy role for staging and one for prod.
 
 It costs almost nothing: IAM and the OIDC provider are free, and S3 storage for state is cents. The account baseline
 (CloudTrail, GuardDuty, the alarm topic and a budget) comes with the second part of #103.
@@ -31,7 +31,7 @@ Use **IAM Identity Center** (recommended): you sign in through a web page and ge
 are no long-lived keys on your machine.
 1. Still as root, open **IAM Identity Center** in `us-east-1` and choose **Enable**. When asked, enable it **with
    AWS Organizations** (an *organization instance*), which makes this account an organization of one. Don't pick
-   an *account instance*: it can't assign permission sets to an AWS account, so steps 4 and 5 wouldn't work.
+   an *account instance*: it can't assign permission sets to an AWS account, so steps 2.4 and 2.5 wouldn't work.
 2. **Users → Add user**: your name and email. Accept the invitation email and set a password.
 3. **Settings → Authentication → Multi-factor authentication**: require MFA *every time they sign in*, and register
    your MFA device on first sign-in.
@@ -108,7 +108,7 @@ the bucket.
    terraform plan -out bootstrap.tfplan
    ```
    Check that:
-   - it says **`Plan: 14 to add, 0 to change, 0 to destroy`** (13 if you imported the provider in step 1, and then
+   - it says **`Plan: 14 to add, 0 to change, 0 to destroy`** (13 if you imported the provider in step 5.1, and then
      a change to it is fine), and nothing is destroyed;
    - the bucket is `confuzion-tfstate-<your account ID>`;
    - each `aws_iam_role`'s `assume_role_policy` has `token.actions.githubusercontent.com:aud` =
@@ -155,7 +155,7 @@ terraform apply bootstrap.tfplan
 These values are identifiers, not secrets, so they go in GitHub **variables** (not secrets). Use the repo settings
 (**Settings → Secrets and variables → Actions → Variables**), or `gh`:
 ```powershell
-gh variable set AWS_REGION --body us-east-1
+gh variable set AWS_REGION --body <aws_region output>
 gh variable set TF_STATE_BUCKET --body <state_bucket output>
 gh variable set AWS_PLAN_ROLE_ARN --body <plan_role_arn output>
 ```
@@ -206,7 +206,9 @@ What each role may do:
 - **Plan:** read everything a plan needs (`ReadOnlyAccess`), plus the state files. It's explicitly denied reading
   objects in any other bucket, log events, secret and parameter values, and `kms:Decrypt`. So a later root must
   not manage a secret's *value* in Terraform (for example an `aws_secretsmanager_secret_version`), or the PR plan
-  can't refresh it. Secret values are entered by you, outside Terraform.
+  can't refresh it. Secret values are entered by you, outside Terraform. The same denials mean a PR plan can't
+  refresh any SSM parameter (even a plain `String`) or any S3 object outside the state bucket, whether it's a
+  resource or a data source, so later roots should avoid both.
 - **Deploy (each environment):** register its own task-definition family, describe and update its own ECS service,
   and pass only its own task and execution roles to ECS. Both use the one image repository, `confuzion-app`:
   staging pushes each build to it, and prod deploys that same digest, so prod may only describe images. The names are in
@@ -226,6 +228,20 @@ foreach ($r in "confuzion-github-plan", "confuzion-staging-github-deploy", "conf
 }
 ```
 No `ERROR` or `SECURITY_WARNING` lines should appear.
+
+**Permission policies, with IAM Access Analyzer** (it also flags an action paired with a resource type it doesn't
+support):
+```powershell
+$policies = @{ "confuzion-github-plan" = "read-state-deny-data"
+               "confuzion-staging-github-deploy" = "deploy-staging"
+               "confuzion-prod-github-deploy" = "deploy-prod" }
+foreach ($r in $policies.Keys) {
+  $doc = aws iam get-role-policy --role-name $r --policy-name $policies[$r] --query PolicyDocument --output json
+  aws accessanalyzer validate-policy --policy-type IDENTITY_POLICY --policy-document "$doc" `
+    --query "findings[].[findingType,issueCode]" --output text
+}
+```
+Again, no `ERROR` or `SECURITY_WARNING` lines should appear.
 
 **Permissions, with the IAM policy simulator.** Each check should print the decision shown:
 ```powershell

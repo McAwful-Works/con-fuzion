@@ -71,9 +71,9 @@ data "aws_iam_policy_document" "plan" {
     resources = ["${aws_s3_bucket.state.arn}/*"]
   }
 
-  # ReadOnlyAccess can also read data that a plan never needs: objects in other buckets (CloudTrail and ALB logs,
-  # which hold invite tokens), log events (including database logs), and anything a KMS decrypt would reveal. A PR's code runs with this role,
-  # so those reads are denied outright.
+  # ReadOnlyAccess can also read data that a plan never needs: objects in other buckets (such as ALB access logs,
+  # which hold invite tokens in their URLs), log events (including database logs), and anything a KMS decrypt would
+  # reveal. A PR's code runs with this role, so those reads are denied outright.
   statement {
     sid           = "DenyObjectReadsOutsideState"
     effect        = "Deny"
@@ -142,10 +142,14 @@ locals {
 data "aws_iam_policy_document" "deploy" {
   for_each = local.deploy_targets
 
-  statement {
-    sid       = "EcrLogin"
-    actions   = ["ecr:GetAuthorizationToken"]
-    resources = ["*"] # GetAuthorizationToken has no resource-level permissions
+  # Only staging pushes, so only staging logs in to the registry.
+  dynamic "statement" {
+    for_each = each.key == "staging" ? [1] : []
+    content {
+      sid       = "EcrLogin"
+      actions   = ["ecr:GetAuthorizationToken"]
+      resources = ["*"] # GetAuthorizationToken has no resource-level permissions
+    }
   }
   statement {
     sid       = "EcrImages"
