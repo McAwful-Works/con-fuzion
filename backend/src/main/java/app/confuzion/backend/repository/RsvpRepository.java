@@ -46,9 +46,9 @@ import app.confuzion.backend.model.record.RsvpResponse;
 /**
  * Native SQL for RSVPs (plan B4, D-013). Every write that changes who holds a
  * spot runs in a transaction that first locks the event row ({@link #lock} or
- * {@link #lockForBlock} or {@link #lockForBan}, or the {@code PATCH} lock), so
- * writes to one event run one after another and can't deadlock. The methods
- * that write assume the caller holds that lock.
+ * {@link #lockForBlock}, or the {@code PATCH} lock), so writes to one event run
+ * one after another and can't deadlock. The methods that write assume the
+ * caller holds that lock.
  * <p>
  * A freed or added spot goes to the next person in line as an offer with a
  * deadline (D-014), or confirms them at once when the event starts within its
@@ -142,27 +142,12 @@ public class RsvpRepository {
 	}
 
 	/**
-	 * Takes a share lock on a joining user's {@code app_user} row until the
-	 * transaction ends, before the event row lock. It doesn't conflict with other
-	 * joins, but a ban of the user ({@link #lockForBan}) waits for the join to
-	 * commit and then sees its RSVP, and a join that comes second waits for the ban
-	 * to commit, so {@link #insert} then sees the ban (D-015).
-	 *
-	 * @param userId the joining user's ID
-	 */
-	public void lockJoiner(UUID userId) {
-		jdbc.sql("SELECT id FROM app_user WHERE id = :userId FOR SHARE").param("userId", userId).query(UUID.class)
-				.list();
-	}
-
-	/**
 	 * Adds a join's RSVP and, when it is confirmed, takes the spot, in one
 	 * statement under the event row lock. Nothing is written when either person has
 	 * blocked the other (a block that committed while the claim waited for the
 	 * lock), when the host removed the user (a double tap's twin, removed after
-	 * this join's checks ran), when the user's Discord ID is banned (a ban that
-	 * committed while {@link #lockJoiner} waited), or when the user already holds
-	 * an active RSVP ({@code rsvp_active_key} absorbs a double tap).
+	 * this join's checks ran), or when the user already holds an active RSVP
+	 * ({@code rsvp_active_key} absorbs a double tap).
 	 *
 	 * @param eventId   the event's internal ID
 	 * @param hostId    the event's host
@@ -179,8 +164,6 @@ public class RsvpRepository {
 						OR (b.blocker_id = :userId AND b.blocked_id = :hostId))
 					AND NOT EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = :eventId AND r.user_id = :userId
 						AND r.status = 'REMOVED')
-					AND NOT EXISTS (SELECT 1 FROM app_user u JOIN banned_account ba ON ba.discord_id = u.discord_id
-						WHERE u.id = :userId)
 					ON CONFLICT (event_id, user_id) WHERE status IN ('CONFIRMED', 'WAITLISTED') DO NOTHING
 					RETURNING id, status),
 				claim AS (
@@ -460,31 +443,6 @@ public class RsvpRepository {
 	}
 
 	/**
-	 * Locks, in ID order, every event a ban must clean up (D-015) among those that
-	 * haven't ended: the user's published hosted events, to cancel, and the other
-	 * events where they hold an active RSVP, to end it. Ended events are history
-	 * and stay as they are. The caller must hold the user's {@code app_user} row
-	 * lock, which a join takes a share of first ({@link #lockJoiner}), so no RSVP
-	 * of theirs can still be on its way in.
-	 *
-	 * @param userId the banned user's ID
-	 * @return the events
-	 */
-	public List<BannedEvent> lockForBan(UUID userId) {
-		return jdbc.sql("""
-				SELECT e.id, e.public_id, e.host_id = :userId AS hosted FROM event e
-				WHERE coalesce(e.ends_at, e.starts_at + interval '3 hours') > now()
-					AND ((e.host_id = :userId AND e.status = 'PUBLISHED')
-						OR (e.host_id <> :userId AND EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id
-							AND r.user_id = :userId AND\s""" + ACTIVE + """
-							)))
-				ORDER BY e.id FOR NO KEY UPDATE OF e""").param("userId", userId)
-				.query((rs, row) -> new BannedEvent(rs.getLong("id"), rs.getObject("public_id", UUID.class),
-						rs.getBoolean("hosted")))
-				.list();
-	}
-
-	/**
 	 * Returns an event's shared spot counts.
 	 *
 	 * @param eventId the event's internal ID
@@ -546,17 +504,6 @@ public class RsvpRepository {
 	 * @author mcawful
 	 */
 	public record BlockedEvent(long id, UUID hostId) {
-	}
-
-	/**
-	 * An event that {@link #lockForBan} locked.
-	 *
-	 * @param id       the internal ID
-	 * @param publicId the public ID
-	 * @param hosted   whether the banned user hosts it
-	 * @author mcawful
-	 */
-	public record BannedEvent(long id, UUID publicId, boolean hosted) {
 	}
 
 	/**

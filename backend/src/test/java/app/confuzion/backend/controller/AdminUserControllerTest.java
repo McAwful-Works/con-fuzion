@@ -122,12 +122,21 @@ class AdminUserControllerTest {
 		verify(adminUserService).suspend(eq(admin), eq(true), eq(USER_ID), eq(NEXT_WEEK), eq("Spam"));
 		mockMvc.perform(post(USER + "/unsuspend").principal(MODERATOR)).andExpect(status().isNoContent());
 		verify(adminUserService).unsuspend(moderator, USER_ID);
-		mockMvc.perform(json(post("/api/admin/bans"), "{\"discordId\":\"80351110224678912\",\"reason\":\"Harassment\"}")
-				.principal(AUTHENTICATION)).andExpect(status().isNoContent());
-		verify(adminUserService).ban(admin, "80351110224678912", "Harassment");
-		mockMvc.perform(delete("/api/admin/bans/80351110224678912").principal(AUTHENTICATION))
-				.andExpect(status().isNoContent());
-		verify(adminUserService).unban(admin, "80351110224678912");
+	}
+
+	/**
+	 * Tests that a valid ban or unban is a 501 in the error envelope until the
+	 * second part of #86.
+	 */
+	@Test
+	void testBansAreNotImplementedYet() throws Exception {
+		assertError(mockMvc,
+				json(post("/api/admin/bans"), "{\"discordId\":\"80351110224678912\",\"reason\":\"Harassment\"}")
+						.principal(AUTHENTICATION),
+				HttpStatus.NOT_IMPLEMENTED);
+		assertError(mockMvc, delete("/api/admin/bans/80351110224678912").principal(AUTHENTICATION),
+				HttpStatus.NOT_IMPLEMENTED);
+		verifyNoInteractions(adminUserService);
 	}
 
 	/**

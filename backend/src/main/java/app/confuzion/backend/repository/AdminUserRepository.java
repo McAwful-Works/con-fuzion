@@ -33,7 +33,7 @@ import org.springframework.stereotype.Repository;
 import app.confuzion.backend.model.record.AdminUserResponse;
 
 /**
- * Native SQL for user search, suspensions and bans (D-015). The writes lock the
+ * Native SQL for user search and suspensions (D-015). The writes lock the
  * user's {@code app_user} row first, in the order {@link UserRoleRepository}
  * describes, so they serialize with role changes and sign-ins of that user.
  *
@@ -106,44 +106,6 @@ public class AdminUserRepository {
 	public void setSuspendedUntil(UUID userId, Instant until) {
 		jdbc.sql("UPDATE app_user SET suspended_until = :until WHERE id = :userId").param("userId", userId)
 				.param("until", until == null ? null : OffsetDateTime.ofInstant(until, ZoneOffset.UTC)).update();
-	}
-
-	/**
-	 * Locks the {@code app_user} row of a Discord ID, if it has an account, as
-	 * {@link UserRoleRepository#lockUser} does.
-	 *
-	 * @param discordId the Discord user ID
-	 * @return the user's ID, or empty when the ID has no account
-	 */
-	public Optional<UUID> lockByDiscordId(long discordId) {
-		return jdbc.sql("SELECT id FROM app_user WHERE discord_id = :discordId FOR NO KEY UPDATE")
-				.param("discordId", discordId).query(UUID.class).optional();
-	}
-
-	/**
-	 * Bans a Discord ID. A ban already there is left as it is, reason and all.
-	 *
-	 * @param discordId the Discord user ID
-	 * @param reason    the admin's reason
-	 * @param bannedBy  the admin
-	 * @return {@code true} when the ban is new
-	 */
-	public boolean insertBan(long discordId, String reason, UUID bannedBy) {
-		return jdbc.sql("""
-				INSERT INTO banned_account (discord_id, reason, banned_by) VALUES (:discordId, :reason, :bannedBy)
-				ON CONFLICT (discord_id) DO NOTHING""").param("discordId", discordId).param("reason", reason)
-				.param("bannedBy", bannedBy).update() == 1;
-	}
-
-	/**
-	 * Lifts a ban.
-	 *
-	 * @param discordId the Discord user ID
-	 * @return {@code true} when there was a ban to lift
-	 */
-	public boolean deleteBan(long discordId) {
-		return jdbc.sql("DELETE FROM banned_account WHERE discord_id = :discordId").param("discordId", discordId)
-				.update() == 1;
 	}
 
 	/**

@@ -53,8 +53,6 @@ import app.confuzion.backend.model.record.EventRequest;
 import app.confuzion.backend.model.record.EventResponse.AudienceType;
 import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.RsvpResponse;
-import app.confuzion.backend.repository.RsvpRepository;
-import app.confuzion.backend.service.AdminUserService;
 import app.confuzion.backend.service.BlockService;
 import app.confuzion.backend.service.EventService;
 import app.confuzion.backend.service.OfferExpiryJob;
@@ -109,19 +107,7 @@ class RsvpConcurrencyIntegrationTest {
 	private BlockService blockService;
 
 	/**
-	 * The {@link AdminUserService}, for a ban racing joins.
-	 */
-	@Autowired
-	private AdminUserService adminUserService;
-
-	/**
-	 * The {@link RsvpRepository}, to hold a join's locks open.
-	 */
-	@Autowired
-	private RsvpRepository rsvpRepository;
-
-	/**
-	 * The {@link TransactionTemplate}, to hold a join's or a ban's locks open.
+	 * The {@link TransactionTemplate}, to hold a ban's or a suspension's lock open.
 	 */
 	@Autowired
 	private TransactionTemplate transactionTemplate;
@@ -361,149 +347,6 @@ class RsvpConcurrencyIntegrationTest {
 	}
 
 	/**
-	 * Tests a ban racing joins and leaves (D-015): the banned user keeps joining
-	 * and leaving one event while others join and leave it and an event the banned
-	 * user hosts, and the ban lands once 20 joins are done. Nothing deadlocks; the
-	 * banned user ends with no active RSVP on either event, their own host RSVP
-	 * aside; their event is cancelled; and on each event the count matches the held
-	 * spots, never exceeds the capacity, and nobody is left waitlisted while a spot
-	 * is free.
-	 */
-	@Test
-	void testBanRacingJoinsAndLeaves() throws Exception {
-		var event = event(5);
-		var banned = guests(1).getFirst();
-		var hosted = fixtures.rsvpEvent(banned, 5, "now() + interval '1 day'", "NULL");
-		fixtures.audience(hosted.id(), "GUILD", guildId, null, null);
-		var admin = admin();
-		var guests = guests(60);
-		var joined = new CountDownLatch(20);
-		var tasks = new ArrayList<Callable<Object>>();
-		for (var i = 0; i < guests.size(); i++) {
-			var guest = guests.get(i);
-			var leaves = i % 4 == 0;
-			tasks.add(() -> {
-				rsvpService.join(guest, event.publicId());
-				joined.countDown();
-				try {
-					rsvpService.join(guest, hosted.publicId());
-					if (leaves)
-						rsvpService.leave(guest, hosted.publicId());
-				} catch (NoSuchElementException e) {
-					// The ban cancelled the event first.
-				}
-				if (leaves)
-					rsvpService.leave(guest, event.publicId());
-				return guest;
-			});
-		}
-		for (var i = 0; i < 10; i++)
-			tasks.add(() -> {
-				try {
-					rsvpService.join(banned, event.publicId());
-					rsvpService.leave(banned, event.publicId());
-					rsvpService.join(banned, event.publicId());
-				} catch (NoSuchElementException e) {
-					// The ban landed first.
-				}
-				return banned;
-			});
-		Collections.shuffle(tasks);
-		// Submitted first, so it holds a thread from the start.
-		tasks.addFirst(() -> {
-			joined.await();
-			adminUserService.ban(admin, discordId(banned), "Spam");
-			return admin;
-		});
-
-		parallel(tasks);
-
-		assertThat(jdbcTemplate.queryForObject("""
-				SELECT count(*) FROM rsvp WHERE user_id = ? AND event_id = ?
-					AND status IN ('CONFIRMED', 'WAITLISTED', 'OFFERED')""", Integer.class, banned, event.id()))
-				.isZero();
-		assertThat(jdbcTemplate.queryForObject("SELECT status FROM event WHERE id = ?", String.class, hosted.id()))
-				.isEqualTo("CANCELLED");
-		assertThat(fixtures.rsvpStatus(hosted.id(), banned)).isEqualTo("CONFIRMED");
-		for (var seeded : List.of(event, hosted)) {
-			var held = count(seeded, "CONFIRMED") + count(seeded, "OFFERED");
-			assertThat(fixtures.confirmedCount(seeded.id())).as("count").isEqualTo(held);
-			assertThat(held).isLessThanOrEqualTo(5);
-		}
-		var held = count(event, "CONFIRMED") + count(event, "OFFERED");
-		assertThat(count(event, "WAITLISTED") == 0 || held == 5).as("no free spot while waitlisted").isTrue();
-		assertThat(held).isEqualTo(5);
-	}
-
-	/**
-	 * Tests a join of the banned user that has written its RSVP but not committed
-	 * when the ban starts: the ban waits for it (the join holds a share of the
-	 * user's row) and then ends that RSVP as {@code LEFT}, freeing the spot.
-	 */
-	@Test
-	void testBanWaitsForAJoinInFlightAndEndsIt() throws Exception {
-		var event = event(2);
-		var banned = guests(1).getFirst();
-		var admin = admin();
-		var inserted = new CountDownLatch(1);
-		var release = new CountDownLatch(1);
-
-		try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-			var join = executor.submit(() -> transactionTemplate.executeWithoutResult(tx -> {
-				rsvpRepository.lockJoiner(banned);
-				var locked = rsvpRepository.lock(event.id());
-				assertThat(rsvpRepository.insert(event.id(), locked.hostId(), banned, locked.hasFreeSpot()))
-						.isPresent();
-				inserted.countDown();
-				await(release);
-			}));
-			await(inserted);
-			var ban = executor.submit(() -> adminUserService.ban(admin, discordId(banned), "Spam"));
-			awaitLockWaiters(1);
-			assertThat(ban.isDone()).isFalse();
-			release.countDown();
-			join.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-			ban.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-		}
-		assertThat(fixtures.rsvpStatus(event.id(), banned)).isEqualTo("LEFT");
-		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(1);
-	}
-
-	/**
-	 * Tests a join of the banned user that starts while the ban holds the user's
-	 * row and hasn't committed: the join waits for the ban, then writes nothing and
-	 * is a not-found.
-	 */
-	@Test
-	void testJoinWaitingForABanWritesNothing() throws Exception {
-		var event = event(5);
-		var banned = guests(1).getFirst();
-		var locked = new CountDownLatch(1);
-		var release = new CountDownLatch(1);
-
-		try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-			// What a ban holds before it commits: the ban row and the user's row lock.
-			var ban = executor.submit(() -> transactionTemplate.executeWithoutResult(tx -> {
-				jdbcTemplate.update("INSERT INTO banned_account (discord_id, reason) VALUES (?, 'Spam')",
-						Long.parseLong(discordId(banned)));
-				jdbcTemplate.queryForList("SELECT id FROM app_user WHERE id = ? FOR NO KEY UPDATE", banned);
-				locked.countDown();
-				await(release);
-			}));
-			await(locked);
-			var join = executor.submit(() -> rsvpService.join(banned, event.publicId()));
-			awaitLockWaiters(1);
-			assertThat(join.isDone()).isFalse();
-			release.countDown();
-			ban.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-			assertThatThrownBy(() -> join.get(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-					.hasCauseInstanceOf(NoSuchElementException.class);
-		}
-		assertThat(fixtures.rsvpStatus(event.id(), banned)).isNull();
-		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(1);
-	}
-
-	/**
 	 * Tests an event create that starts while a ban or a suspension holds the
 	 * host's row and hasn't committed: the create waits on the same lock, then is
 	 * refused with a plain 403 and creates nothing.
@@ -557,28 +400,6 @@ class RsvpConcurrencyIntegrationTest {
 	}
 
 	/**
-	 * Seeds a user holding ADMIN.
-	 *
-	 * @return the user ID
-	 */
-	private UUID admin() {
-		var admin = fixtures.user("Admin");
-		jdbcTemplate.update("INSERT INTO user_role (user_id, role) VALUES (?, 'ADMIN')", admin);
-		return admin;
-	}
-
-	/**
-	 * Returns a user's Discord ID, as a ban names it.
-	 *
-	 * @param userId the user ID
-	 * @return the Discord ID
-	 */
-	private String discordId(UUID userId) {
-		return jdbcTemplate.queryForObject("SELECT discord_id FROM app_user WHERE id = ?", Long.class, userId)
-				.toString();
-	}
-
-	/**
 	 * Waits for a latch, failing the test if it takes too long.
 	 *
 	 * @param latch the latch
@@ -593,7 +414,8 @@ class RsvpConcurrencyIntegrationTest {
 	}
 
 	/**
-	 * Waits until this many other database sessions are waiting for a lock.
+	 * Waits until this many other database sessions are waiting for a lock on an
+	 * {@code app_user} row, so an unrelated waiter can't end the wait early.
 	 *
 	 * @param waiters the number of waiters
 	 */
@@ -601,7 +423,8 @@ class RsvpConcurrencyIntegrationTest {
 		var deadline = Instant.now().plusSeconds(TIMEOUT_SECONDS);
 		while (jdbcTemplate.queryForObject("""
 				SELECT count(*) FROM pg_stat_activity
-				WHERE datname = current_database() AND wait_event_type = 'Lock'""", Long.class) < waiters) {
+				WHERE datname = current_database() AND wait_event_type = 'Lock'
+					AND query ILIKE '%FROM app_user%FOR NO KEY UPDATE%'""", Long.class) < waiters) {
 			assertThat(Instant.now()).as("lock waiters").isBefore(deadline);
 			Thread.sleep(10);
 		}

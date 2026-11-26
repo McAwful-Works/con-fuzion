@@ -104,7 +104,7 @@ public class UserRoleRepository {
 	/**
 	 * Returns a user's granted roles and share-locks their rows until the
 	 * transaction ends, so a revoke waiting for the lock lands after this
-	 * transaction, and one that committed first is seen. A suspension or ban takes
+	 * transaction, and one that committed first is seen. A suspension takes
 	 * it on the actor's rows after the target's {@link #lockUser}, the same order
 	 * as a role change, to re-check that the actor still holds the role the session
 	 * says (D-015).
