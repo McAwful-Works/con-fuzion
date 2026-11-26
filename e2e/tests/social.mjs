@@ -18,15 +18,23 @@ function localInput(days, hour) {
 /**
  * Signs `name` in through the real UI in a fresh browser context and returns the player. Pass `discoverable` (guild
  * names, or `'all'`) to switch discoverability on in those servers the way a person does, on the onboarding page.
- * `close()` ends the context; the `join` fixture in hooks.mjs calls it when the test ends.
+ * `mfaEnabled` is what Discord reports for 2FA. A Discord account that may have signed in before passes its `user`
+ * and where it may `landing`; everyone else is new. `close()` ends the context; the `join` fixture in hooks.mjs calls
+ * it when the test ends.
  */
-export async function joinAs(browser, baseURL, name, guilds, { discoverable = [] } = {}) {
-  const user = newUser(name);
+export async function joinAs(
+  browser,
+  baseURL,
+  name,
+  guilds,
+  { discoverable = [], mfaEnabled = false, user = newUser(name, { mfaEnabled }), landing } = {},
+) {
   const context = await browser.newContext({ baseURL, timezoneId: 'UTC' });
   const page = await context.newPage();
-  await signIn(page, user, guilds);
+  await signIn(page, user, guilds, landing);
   const player = {
     user,
+    guilds,
     page,
     context,
     name: user.username, // the display name: global_name is null
@@ -168,6 +176,31 @@ export async function expectFeed(viewer, { sees = [], hidden = [] }) {
   for (const title of hidden) {
     await expect(viewer.page.getByRole('link', { name: literal(title) })).toHaveCount(0);
   }
+}
+
+/** Asserts what the viewer's My schedule shows, once it has loaded, like `expectFeed`. */
+export async function expectSchedule({ page }, { sees = [], hidden = [] }) {
+  await page.goto('/schedule');
+  await expect(page.getByRole('heading', { level: 1, name: 'My schedule' })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Loading events' })).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  const cards = page.locator('main a[href^="/events/"]');
+  await expect(cards.first().or(page.getByText(/Nothing on your schedule yet/))).toBeVisible();
+  for (const title of sees) {
+    await expect(page.getByRole('link', { name: literal(title) })).toBeVisible();
+  }
+  for (const title of hidden) {
+    await expect(page.getByRole('link', { name: literal(title) })).toHaveCount(0);
+  }
+}
+
+/** The bell in the header: its name carries the unread count, "Notifications, 2 unread" (or "99+ unread"). */
+export const bell = ({ page }) => page.getByRole('link', { name: /^Notifications/ });
+
+/** Opens the inbox. */
+export async function openInbox({ page }) {
+  await page.goto('/notifications');
+  await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible();
 }
 
 /** The status of `GET /api/events/{id}` as the viewer (a 404 for everything they can't see). */

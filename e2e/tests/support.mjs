@@ -78,13 +78,16 @@ export const useScenario = (user, guilds = mixedGuilds()) => control('scenario',
 
 /**
  * Sign in through the real UI: the landing page, the button, the fake Discord, the callback. Resolves once the
- * app has landed on `landing` (a path), which is where the backend sends a first or returning login.
+ * app has landed on `landing` (a path, or a pattern for the URL), which is where the backend sends a first or
+ * returning login.
  */
 export async function signIn(page, user, guilds = mixedGuilds(), landing = '/onboarding') {
   await useScenario(user, guilds);
   await page.goto('/welcome');
   await page.getByRole('link', { name: 'Sign in with Discord' }).click();
-  await expect(page).toHaveURL(new URL(landing, page.url()).toString());
+  await expect(page).toHaveURL(
+    landing instanceof RegExp ? landing : new URL(landing, page.url()).toString(),
+  );
 }
 
 /** The signed-in user's guild list straight from the API, as the SPA's own request would get it. */

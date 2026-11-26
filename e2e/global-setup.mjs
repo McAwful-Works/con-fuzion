@@ -12,8 +12,7 @@ import { stopAll } from './global-teardown.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appPort = Number(process.env.E2E_APP_PORT ?? 8089);
-const runDir = join(here, '.run');
-const logFile = join(runDir, 'backend.log');
+export const runDir = join(here, '.run');
 
 /** The Java 25 launcher: E2E_JAVA, else JAVA_HOME, else `java` on the PATH. */
 function javaCommand() {
@@ -68,13 +67,14 @@ function vapidKeys() {
 }
 
 /** Refuses to run against a port something else already serves, so a stray backend can't be tested by mistake. */
-function assertPortFree(port) {
+export function assertPortFree(port) {
   return new Promise((ok, fail) => {
     const probe = createServer();
     probe.once('error', () =>
       fail(
         new Error(
-          `Port ${port} is already in use. Stop whatever uses it, or set E2E_APP_PORT / E2E_STUB_PORT.`,
+          `Port ${port} is already in use. Stop whatever uses it, or set E2E_APP_PORT / E2E_STUB_PORT / ` +
+            'E2E_MAINTENANCE_PORT.',
         ),
       ),
     );
@@ -82,25 +82,62 @@ function assertPortFree(port) {
   });
 }
 
-async function waitForHealth(child, timeoutMs) {
+/**
+ * Starts the built jar on `port`, pointed at the fake Discord, and returns the process without waiting for it. It runs
+ * from `dir` (so its own logs/ folder lands under the ignored .run/) and writes its output to `dir/backend.log`.
+ * `args` are extra Spring arguments and `env` extra environment variables. Stop it with `stopBackend`.
+ */
+export function spawnBackend({ port, dir = runDir, args = [], env = {} }) {
+  mkdirSync(dir, { recursive: true });
+  const logFile = join(dir, 'backend.log');
+  const log = openSync(logFile, 'w');
+  const backend = spawn(
+    javaCommand(),
+    [
+      '-jar',
+      jarPath(),
+      `--server.port=${port}`,
+      `--spring.config.additional-location=file:${join(here, 'application-e2e.properties')}`,
+      ...args,
+    ],
+    {
+      cwd: dir,
+      stdio: ['ignore', log, log],
+      env: { ...process.env, E2E_STUB_PORT: String(STUB_PORT), ...env },
+    },
+  );
+  closeSync(log);
+  backend.logFile = logFile;
+  backend.once('error', (error) => {
+    backend.spawnError = error;
+  });
+  return backend;
+}
+
+/** Resolves once the jar on `port` answers its health check, and throws (with the log's tail) if it doesn't. */
+export async function waitForHealth(child, port, timeoutMs = 120_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (child.spawnError)
       throw new Error(`Could not start Java (${javaCommand()}): ${child.spawnError.message}`);
-    if (child.exitCode !== null)
-      throw new Error(`The backend exited with code ${child.exitCode}.\n${logTail()}`);
+    if (child.exitCode !== null || child.signalCode !== null) {
+      const how = child.signalCode ?? `code ${child.exitCode}`;
+      throw new Error(`The backend exited with ${how}.\n${logTail(child.logFile)}`);
+    }
     try {
-      const response = await fetch(`http://localhost:${appPort}/api/actuator/health`);
+      const response = await fetch(`http://localhost:${port}/api/actuator/health`);
       if (response.ok) return;
     } catch {
       // not up yet
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error(`The backend was not healthy after ${timeoutMs / 1000}s.\n${logTail()}`);
+  throw new Error(
+    `The backend was not healthy after ${timeoutMs / 1000}s.\n${logTail(child.logFile)}`,
+  );
 }
 
-function logTail() {
+function logTail(logFile) {
   try {
     return readFileSync(logFile, 'utf8').split('\n').slice(-40).join('\n');
   } catch {
@@ -113,36 +150,12 @@ export default async function globalSetup() {
   try {
     await assertPortFree(appPort);
     await assertPortFree(STUB_PORT);
-    mkdirSync(runDir, { recursive: true });
 
     globalThis.__e2e.stub = await startFakeDiscord(STUB_PORT);
 
-    const log = openSync(logFile, 'w');
-    const backend = spawn(
-      javaCommand(),
-      [
-        '-jar',
-        jarPath(),
-        `--server.port=${appPort}`,
-        `--spring.config.additional-location=file:${join(here, 'application-e2e.properties')}`,
-      ],
-      {
-        // Run from .run/ so the backend's own logs/ folder lands in the ignored directory.
-        cwd: runDir,
-        stdio: ['ignore', log, log],
-        env: {
-          ...process.env,
-          E2E_STUB_PORT: String(STUB_PORT),
-          ...vapidKeys(),
-        },
-      },
-    );
-    closeSync(log);
+    const backend = spawnBackend({ port: appPort, env: vapidKeys() });
     globalThis.__e2e.backend = backend;
-    backend.once('error', (error) => {
-      backend.spawnError = error;
-    });
-    await waitForHealth(backend, 120_000);
+    await waitForHealth(backend, appPort);
   } catch (error) {
     await stopAll();
     throw error;

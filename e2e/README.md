@@ -36,6 +36,15 @@ terms forbid scripting it. Nothing here touches the real Discord, and no credent
     environment, so push is on (`/api/push/key` answers) and no key is ever written to disk. Headless Chromium has no
     push service, so the test replaces the browser's `subscribe` with one that returns a fake subscription on
     `fcm.googleapis.com`. It covers the subscribe call, not delivery. The sender's interval is an hour, so it never runs.
+- `tests/moderation.spec.mjs` (M5) covers the MFA gate, role grants, a report from the event page through the queue,
+  hiding and resolving, suspensions and bans (helpers in `tests/admin.mjs`).
+  - **Roles:** `application-e2e.properties` names one bootstrap admin. Tests sign in as it and grant every other role
+    through the app, which signs that user out. Unlike every other user it is the same account in each test and run, so
+    no test changes it.
+  - **2FA:** the fake reports `mfa_enabled` from the scenario's user, false unless set (`newUser`'s `mfaEnabled`, or
+    `signInAgain`'s). The backend reads it at sign-in only.
+- `tests/maintenance.spec.mjs` (M5) starts a second jar with `con-fuzion.maintenance=true` (the flag is read at
+  startup), checks it and stops it. Its log is `e2e/.run/maintenance/backend.log`, attached to the report on failure.
 
 ## Run it locally
 
@@ -67,12 +76,13 @@ After a frontend or backend change, repeat step 2 first: the tests run the jar, 
 
 ## Settings
 
-| Variable        | Default                             | Meaning                                                               |
-| --------------- | ----------------------------------- | --------------------------------------------------------------------- |
-| `E2E_APP_PORT`  | `8089`                              | The jar's port. Not 8080, so a jar you started by hand keeps running. |
-| `E2E_STUB_PORT` | `4010`                              | The fake Discord's port.                                              |
-| `E2E_JAVA`      | `JAVA_HOME`, then `java`            | The Java 25 launcher.                                                 |
-| `E2E_JAR`       | the one jar in `backend/build/libs` | A specific jar.                                                       |
+| Variable               | Default                             | Meaning                                                               |
+| ---------------------- | ----------------------------------- | --------------------------------------------------------------------- |
+| `E2E_APP_PORT`         | `8089`                              | The jar's port. Not 8080, so a jar you started by hand keeps running. |
+| `E2E_MAINTENANCE_PORT` | `8090`                              | The maintenance test's second jar.                                    |
+| `E2E_STUB_PORT`        | `4010`                              | The fake Discord's port.                                              |
+| `E2E_JAVA`             | `JAVA_HOME`, then `java`            | The Java 25 launcher.                                                 |
+| `E2E_JAR`              | the one jar in `backend/build/libs` | A specific jar.                                                       |
 
 The backend uses the same `CONFUZION_DB_*` and `CONFUZION_REDIS_*` variables as ever (defaults match the compose
 file). The suite creates users named `e2e-…` in that database and leaves them there. Sessions end up in Valkey.

@@ -3,11 +3,12 @@
 // It implements just what the backend calls (see backend/src/test/.../DiscordStub.java for the real shapes):
 //   GET  /oauth2/authorize               redirects back with code + the same state (or error=access_denied)
 //   POST /api/oauth2/token               checks the PKCE S256 verifier and the client credentials
-//   GET  /api/v10/users/@me              the configured user
+//   GET  /api/v10/users/@me              the configured user, with mfa_enabled (false unless the user says so)
 //   GET  /api/v10/users/@me/guilds       the configured guilds (limit=200 required, like the backend sends)
 //
 // Tests steer it through /__e2e/* (never reachable from the app; the backend only knows the URIs above):
-//   POST /__e2e/scenario   { user, guilds }  who signs in next (snapshotted when /oauth2/authorize is hit)
+//   POST /__e2e/scenario   { user, guilds }  who signs in next (snapshotted when /oauth2/authorize is hit);
+//                                            user.mfa_enabled switches Discord 2FA on for that sign-in
 //   POST /__e2e/deny-next                    the next /oauth2/authorize answers error=access_denied
 //   POST /__e2e/reset                        forget scenario, pending denial, codes and tokens
 
@@ -119,7 +120,7 @@ export function startFakeDiscord(port = STUB_PORT) {
         return json(res, 400, { message: 'limit=200 expected' });
       return json(res, 200, granted.guilds);
     }
-    json(res, 200, granted.user);
+    json(res, 200, { mfa_enabled: false, ...granted.user });
   }
 
   async function control(url, req, res) {
