@@ -306,6 +306,20 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	UUID lockHost(@Param("hostId") UUID hostId);
 
 	/**
+	 * Returns whether a user is banned or suspended (D-015). A create runs it after
+	 * {@link #lockHost}, as a statement of its own, so it sees a suspension that
+	 * committed while the lock waited.
+	 *
+	 * @param hostId the user's ID
+	 * @return {@code true} when their Discord ID is banned or their suspension
+	 *         hasn't ended
+	 */
+	@Query(value = """
+			SELECT EXISTS (SELECT 1 FROM app_user u WHERE u.id = :hostId AND (u.suspended_until > now()
+				OR EXISTS (SELECT 1 FROM banned_account b WHERE b.discord_id = u.discord_id)))""", nativeQuery = true)
+	boolean isBarred(@Param("hostId") UUID hostId);
+
+	/**
 	 * Counts the events a host created in the last 24 hours, cancelled ones
 	 * included.
 	 *

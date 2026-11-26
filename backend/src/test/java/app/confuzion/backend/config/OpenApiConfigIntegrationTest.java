@@ -230,6 +230,10 @@ class OpenApiConfigIntegrationTest {
 		assertThat(document.<Map<String, Object>>read("$.components.schemas.AdminUserResponse.properties"))
 				.containsOnlyKeys("id", "discordId", "username", "globalName", "createdAt", "lastLoginAt",
 						"suspendedUntil", "ban", "reportCount");
+		// A nullable reference is an anyOf, so generated clients type it as nullable.
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.AdminUserResponse.properties.ban"))
+				.doesNotContainKeys("$ref", "type").containsEntry("anyOf",
+						List.of(Map.of("$ref", "#/components/schemas/AdminUserBanResponse"), Map.of("type", "null")));
 		assertThat(document.<Integer>read("$.components.schemas.AdminUserListResponse.properties.items.maxItems"))
 				.isEqualTo(20);
 		assertThat(document.<Map<String, Object>>read("$.components.schemas.ReportRequest.properties"))
