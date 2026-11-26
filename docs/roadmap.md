@@ -33,6 +33,12 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | | Frontend: offers with a countdown and the offer window, then the inbox and unread badge (split in two) | done | #68 → #73, #74 |
 | | Frontend: push opt-in and service worker push handler, then the install hint (split in two) | done | #69 → #77, #78 |
 | | End-to-end tests for M4 flows (expiry-job break check) | done | #70 → #81 |
-| **M5** Safety & admin | reports, admin area, roles + MFA gate, suspend/ban, audit log, maintenance mode | todo | — |
+| **M5** Safety & admin | API contract: roles, reports, moderation, the insert-only audit log (D-015) | done | #83 → #90 |
+| | Backend: roles from `user_role` behind the Discord MFA gate, refused sign-ins, the audit log reader, maintenance mode | done | #84 → #92 |
+| | Backend: reports and the moderation queue, then hide, unhide and moderator cancel (split in two) | done | #85 → #93, #94 |
+| | Backend: user search and suspensions, then bans (split in two) | done | #86 → #96, #99 |
+| | Frontend: report sheet, the 2FA note, hidden, refused and maintenance states | done | #87 → #91 |
+| | Frontend: the admin area: queue and report detail, then search and suspend, then bans, roles and the audit log (split in three) | done | #88 → #95, #97, #98 |
+| | End-to-end tests for M5 flows (hidden-event break check) | done | #89 → #100 |
 | **M6** AWS deploy | Terraform (VPC, Aurora Serverless v2, ElastiCache Serverless, ECS, ALB, CloudFront+WAF), CD, staging/prod, client IP behind CloudFront | todo | — |
 | **M7** Polish + launch gates | accessibility, account deletion, donation links, artist assets (including the 192px and 512px manifest icons, without which browsers never offer #78's Install button), legal pages, load test, security pass, a manual push check on staging (a real iPhone from the Home Screen, plus Chrome and Firefox, with the production VAPID keys) | todo | — |
