@@ -20,9 +20,16 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -30,6 +37,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
@@ -39,9 +47,14 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import app.confuzion.backend.model.record.AdminUserListResponse;
+import app.confuzion.backend.model.record.AdminUserResponse;
+import app.confuzion.backend.service.AdminUserService;
+
 /**
- * Unit tests for {@link AdminUserController}'s contract stubs: valid requests
- * are 501s until #86, and bad ones are 400s.
+ * Unit tests for {@link AdminUserController}: valid requests reach the
+ * service with the caller from the session, and bad ones are 400s that never
+ * do.
  *
  * @author mcawful
  */
@@ -54,6 +67,18 @@ class AdminUserControllerTest {
 			List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN")));
 
 	/**
+	 * A moderator.
+	 */
+	private static final Authentication MODERATOR = UsernamePasswordAuthenticationToken.authenticated(
+			UUID.randomUUID().toString(), null,
+			List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_MODERATOR")));
+
+	/**
+	 * The user in {@link #USER}.
+	 */
+	private static final UUID USER_ID = UUID.fromString("3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60");
+
+	/**
 	 * A user's admin path.
 	 */
 	private static final String USER = "/api/admin/users/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60";
@@ -64,32 +89,47 @@ class AdminUserControllerTest {
 	private static final Instant NEXT_WEEK = Instant.now().plus(Duration.ofDays(7));
 
 	/**
+	 * The mocked {@link AdminUserService}.
+	 */
+	private final AdminUserService adminUserService = mock(AdminUserService.class);
+
+	/**
 	 * The {@link MockMvc} for the controller.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new AdminUserController());
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new AdminUserController(adminUserService));
 
 	/**
-	 * Returns valid requests to every operation.
-	 *
-	 * @return the requests
+	 * Tests that each operation passes the caller from the session, whether they
+	 * are an admin, and the request on to the service, and wraps the search's
+	 * answer.
 	 */
-	static Stream<MockHttpServletRequestBuilder> validRequests() {
-		return Stream.of(get("/api/admin/users?q=co"), get("/api/admin/users?q=" + "x".repeat(100)),
-				json(post(USER + "/suspend"), "{\"until\":\"" + NEXT_WEEK + "\",\"reason\":\"Spam\"}"),
-				post(USER + "/unsuspend"),
-				json(post("/api/admin/bans"), "{\"discordId\":\"80351110224678912\",\"reason\":\"Harassment\"}"),
-				delete("/api/admin/bans/80351110224678912"));
-	}
+	@Test
+	void testDelegatesToTheService() throws Exception {
+		var admin = UUID.fromString(AUTHENTICATION.getName());
+		var moderator = UUID.fromString(MODERATOR.getName());
+		var found = new AdminUserResponse(USER_ID, "80351110224678912", "con_goer", null, NEXT_WEEK, NEXT_WEEK, null,
+				null, 2);
+		when(adminUserService.findUsers(moderator, "con")).thenReturn(new AdminUserListResponse(List.of(found)));
 
-	/**
-	 * Tests that a valid request is a 501 in the error envelope.
-	 *
-	 * @param request the request
-	 */
-	@ParameterizedTest
-	@MethodSource("validRequests")
-	void testValidRequestsAreNotImplementedYet(MockHttpServletRequestBuilder request) throws Exception {
-		assertError(mockMvc, request.principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
+		mockMvc.perform(get("/api/admin/users?q=con").principal(MODERATOR)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.responseType").value("ADMIN_USER_LIST"))
+				.andExpect(jsonPath("$.body.items[0].discordId").value("80351110224678912"))
+				.andExpect(jsonPath("$.body.items[0].reportCount").value(2));
+		var suspend = "{\"until\":\"" + NEXT_WEEK + "\",\"reason\":\"Spam\"}";
+		mockMvc.perform(json(post(USER + "/suspend"), suspend).principal(MODERATOR))
+				.andExpect(status().isNoContent());
+		verify(adminUserService).suspend(moderator, false, USER_ID, NEXT_WEEK, "Spam");
+		mockMvc.perform(json(post(USER + "/suspend"), suspend).principal(AUTHENTICATION))
+				.andExpect(status().isNoContent());
+		verify(adminUserService).suspend(eq(admin), eq(true), eq(USER_ID), eq(NEXT_WEEK), eq("Spam"));
+		mockMvc.perform(post(USER + "/unsuspend").principal(MODERATOR)).andExpect(status().isNoContent());
+		verify(adminUserService).unsuspend(moderator, USER_ID);
+		mockMvc.perform(json(post("/api/admin/bans"), "{\"discordId\":\"80351110224678912\",\"reason\":\"Harassment\"}")
+				.principal(AUTHENTICATION)).andExpect(status().isNoContent());
+		verify(adminUserService).ban(admin, "80351110224678912", "Harassment");
+		mockMvc.perform(delete("/api/admin/bans/80351110224678912").principal(AUTHENTICATION))
+				.andExpect(status().isNoContent());
+		verify(adminUserService).unban(admin, "80351110224678912");
 	}
 
 	/**
@@ -121,5 +161,6 @@ class AdminUserControllerTest {
 	@MethodSource("badRequests")
 	void testRejectsBadRequests(MockHttpServletRequestBuilder request) throws Exception {
 		assertError(mockMvc, request.principal(AUTHENTICATION), HttpStatus.BAD_REQUEST);
+		verifyNoInteractions(adminUserService);
 	}
 }

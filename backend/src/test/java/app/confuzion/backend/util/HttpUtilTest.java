@@ -24,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
 
 /**
  * Unit tests for the {@link HttpUtil} class.
@@ -66,5 +68,16 @@ class HttpUtilTest {
 	@Test
 	void testGetUserIdAnonymous() {
 		assertThat(HttpUtil.getUserId(new MockHttpServletRequest())).isEmpty();
+	}
+
+	/**
+	 * Tests that only {@code ROLE_ADMIN} makes a session an admin's.
+	 */
+	@Test
+	void testIsAdmin() {
+		assertThat(HttpUtil.isAdmin(UsernamePasswordAuthenticationToken.authenticated("user", null,
+				AuthorityUtils.createAuthorityList("ROLE_USER", "ROLE_ADMIN")))).isTrue();
+		assertThat(HttpUtil.isAdmin(UsernamePasswordAuthenticationToken.authenticated("user", null,
+				AuthorityUtils.createAuthorityList("ROLE_USER", "ROLE_MODERATOR", "ADMIN")))).isFalse();
 	}
 }

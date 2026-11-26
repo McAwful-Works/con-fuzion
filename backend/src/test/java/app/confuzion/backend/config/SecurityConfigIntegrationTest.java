@@ -146,8 +146,9 @@ class SecurityConfigIntegrationTest {
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
 	 * needs: {@code MODERATOR} for the moderator routes (which ADMIN also passes)
 	 * and {@code ADMIN} for the rest, and the status a caller with the role gets.
-	 * The user and the report are unknown. Event moderation, suspensions and bans
-	 * are 501 stubs until #85's second part and #86.
+	 * The user and the report are unknown, and the banned Discord ID has no
+	 * account (and is unbanned again). Event moderation is a 501 stub until #85's
+	 * second part.
 	 */
 	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
 			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR", 200),
@@ -160,15 +161,15 @@ class SecurityConfigIntegrationTest {
 					"MODERATOR", 501),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/cancel",
 					"{\"reason\":\"Unsafe\"}", "MODERATOR", 501),
-			new AdminEndpoint("GET", "/api/admin/users?q=con", null, "MODERATOR", 501),
+			new AdminEndpoint("GET", "/api/admin/users?q=con", null, "MODERATOR", 200),
 			new AdminEndpoint("POST", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/suspend",
 					"{\"until\":\"" + Instant.now().plus(Duration.ofDays(7)) + "\",\"reason\":\"Spam\"}", "MODERATOR",
-					501),
+					404),
 			new AdminEndpoint("POST", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/unsuspend", null,
-					"MODERATOR", 501),
+					"MODERATOR", 404),
 			new AdminEndpoint("POST", "/api/admin/bans", "{\"discordId\":\"80351110224678912\",\"reason\":\"Spam\"}",
-					"ADMIN", 501),
-			new AdminEndpoint("DELETE", "/api/admin/bans/80351110224678912", null, "ADMIN", 501),
+					"ADMIN", 204),
+			new AdminEndpoint("DELETE", "/api/admin/bans/80351110224678912", null, "ADMIN", 204),
 			new AdminEndpoint("GET", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles", null, "ADMIN", 404),
 			new AdminEndpoint("PUT", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles",
 					"{\"roles\":[\"MODERATOR\"]}", "ADMIN", 404),
@@ -608,8 +609,8 @@ class SecurityConfigIntegrationTest {
 			assertThat(sendWithCsrf(endpoint.method(), endpoint.path(), moderator, endpoint.body()).statusCode())
 					.as(what).isEqualTo("MODERATOR".equals(endpoint.role()) ? endpoint.status() : 403);
 			var asAdmin = sendWithCsrf(endpoint.method(), endpoint.path(), admin, endpoint.body());
-			if (endpoint.status() == 200)
-				assertThat(asAdmin.statusCode()).as(what).isEqualTo(200);
+			if (endpoint.status() < 300)
+				assertThat(asAdmin.statusCode()).as(what).isEqualTo(endpoint.status());
 			else
 				assertError(asAdmin, endpoint.status(), HttpStatus.valueOf(endpoint.status()).name());
 			if (!endpoint.method().equals("GET"))
@@ -747,6 +748,60 @@ class SecurityConfigIntegrationTest {
 				.isEqualTo("{\"cause\": \"ROLES_CHANGED\", \"sessions\": 1}");
 		assertThat(sendWithCsrf("DELETE", path, admin, null).statusCode()).isEqualTo(204);
 		assertThat(auditDetails("ROLES_CHANGED", targetId, false)).hasSize(2);
+	}
+
+	/**
+	 * Tests suspensions and bans end to end (D-015): each ends every session of
+	 * the user at once and deletes their push subscriptions, the purge is
+	 * audit-logged with its count, and sign-in is refused until the suspension or
+	 * ban is lifted. Search finds the user by Discord ID with only the fields
+	 * D-015 lists, never their servers.
+	 */
+	@Test
+	void suspensionAndBanEndTheUsersSessionsAtOnce() throws Exception {
+		DISCORD.reset(ADMIN_ID, "admin", true);
+		var admin = login().session();
+		var target = "100000000000000150";
+		DISCORD.reset(target, "suspend_me", true);
+		var phone = login().session();
+		var laptop = login().session();
+		var targetId = userId(target).toString();
+		jdbcTemplate.update("INSERT INTO push_subscription (user_id, endpoint, p256dh, auth) VALUES (?, "
+				+ "'https://fcm.googleapis.com/fcm/send/suspend-me', 'key', 'auth')", UUID.fromString(targetId));
+		assertThat(send("GET", "/api/me", phone, null).statusCode()).isEqualTo(200);
+
+		var found = send("GET", "/api/admin/users?q=" + target, admin, null);
+		assertThat(found.statusCode()).isEqualTo(200);
+		assertThat(JsonPath.<Map<String, Object>>read(found.body(), "$.body.items[0]")).containsOnlyKeys("id",
+				"discordId", "username", "globalName", "createdAt", "lastLoginAt", "suspendedUntil", "ban", "reportCount")
+				.containsEntry("id", targetId);
+
+		var until = Instant.now().plus(Duration.ofDays(1));
+		assertThat(sendWithCsrf("POST", "/api/admin/users/" + targetId + "/suspend", admin,
+				"{\"until\":\"" + until + "\",\"reason\":\"Spam\"}").statusCode()).isEqualTo(204);
+		assertThat(send("GET", "/api/me", phone, null).statusCode()).isEqualTo(401);
+		assertThat(send("GET", "/api/me", laptop, null).statusCode()).isEqualTo(401);
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM push_subscription WHERE user_id = ?", Long.class,
+				UUID.fromString(targetId))).isZero();
+		assertThat(auditDetails("SESSIONS_PURGED", targetId, false))
+				.containsExactly("{\"cause\": \"USER_SUSPENDED\", \"sessions\": 2}");
+		assertThat(login().location()).isEqualTo(SecurityConfig.LOGIN_REFUSED_URL);
+
+		assertThat(sendWithCsrf("POST", "/api/admin/users/" + targetId + "/unsuspend", admin, null).statusCode())
+				.isEqualTo(204);
+		var again = login();
+		assertThat(again.location()).isEqualTo("/");
+		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(200);
+
+		var ban = "{\"discordId\":\"" + target + "\",\"reason\":\"Spam\"}";
+		assertThat(sendWithCsrf("POST", "/api/admin/bans", admin, ban).statusCode()).isEqualTo(204);
+		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(401);
+		assertThat(auditDetails("SESSIONS_PURGED", targetId, false)).last()
+				.isEqualTo("{\"cause\": \"ACCOUNT_BANNED\", \"sessions\": 1}");
+		assertThat(login().location()).isEqualTo(SecurityConfig.LOGIN_REFUSED_URL);
+
+		assertThat(sendWithCsrf("DELETE", "/api/admin/bans/" + target, admin, null).statusCode()).isEqualTo(204);
+		assertThat(login().location()).isEqualTo("/");
 	}
 
 	/**

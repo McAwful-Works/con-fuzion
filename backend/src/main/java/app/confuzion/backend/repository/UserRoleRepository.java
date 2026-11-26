@@ -102,6 +102,24 @@ public class UserRoleRepository {
 	}
 
 	/**
+	 * Returns a user's granted roles and share-locks their rows until the
+	 * transaction ends, so a revoke waiting for the lock lands after this
+	 * transaction, and one that committed first is seen. A suspension or ban takes
+	 * it on the actor's rows after the target's {@link #lockUser}, the same order
+	 * as a role change, to re-check that the actor still holds the role the
+	 * session says (D-015).
+	 *
+	 * @param userId the user's ID
+	 * @return the roles, MODERATOR before ADMIN; empty for a plain user
+	 */
+	public List<GrantedRole> lockRoles(UUID userId) {
+		var roles = EnumSet.noneOf(GrantedRole.class);
+		jdbc.sql("SELECT role FROM user_role WHERE user_id = :userId ORDER BY role FOR SHARE").param("userId", userId)
+				.query((rs, row) -> GrantedRole.valueOf(rs.getString("role"))).list().forEach(roles::add);
+		return List.copyOf(roles);
+	}
+
+	/**
 	 * Grants a role.
 	 *
 	 * @param userId    the user's ID

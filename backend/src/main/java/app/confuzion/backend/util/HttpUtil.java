@@ -23,6 +23,8 @@ import java.util.UUID;
 
 import org.springframework.security.core.Authentication;
 
+import app.confuzion.backend.config.SecurityConfig;
+
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.experimental.UtilityClass;
 
@@ -70,5 +72,16 @@ public class HttpUtil {
 	 */
 	public UUID userId(Authentication authentication) {
 		return UUID.fromString(authentication.getName());
+	}
+
+	/**
+	 * Returns whether the session has ADMIN in effect ({@code ROLE_ADMIN}).
+	 *
+	 * @param authentication the session's {@link Authentication}
+	 * @return {@code true} for an admin
+	 */
+	public boolean isAdmin(Authentication authentication) {
+		return authentication.getAuthorities().stream()
+				.anyMatch(authority -> ("ROLE_" + SecurityConfig.ADMIN).equals(authority.getAuthority()));
 	}
 }

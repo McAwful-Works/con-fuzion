@@ -31,13 +31,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.AdminUserListResponse;
 import app.confuzion.backend.model.record.BanRequest;
 import app.confuzion.backend.model.record.GuildResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
 import app.confuzion.backend.model.record.SuspendRequest;
+import app.confuzion.backend.service.AdminUserService;
+import app.confuzion.backend.util.HttpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -50,7 +51,7 @@ import jakarta.validation.constraints.Size;
 /**
  * The {@link RestController} for user search, suspensions and bans (D-015).
  * Search and suspensions need MODERATOR or ADMIN in effect, bans need ADMIN;
- * {@code SecurityConfig} checks both. Stubs until #86.
+ * {@code SecurityConfig} checks both.
  *
  * @author mcawful
  */
@@ -58,6 +59,20 @@ import jakarta.validation.constraints.Size;
 @RequestMapping("/api/admin")
 @Tag(name = "admin-users", description = "User search, suspensions (MODERATOR or ADMIN) and bans (ADMIN)")
 public class AdminUserController {
+	/**
+	 * The {@link AdminUserService}.
+	 */
+	private final AdminUserService adminUserService;
+
+	/**
+	 * Creates the controller.
+	 *
+	 * @param adminUserService the {@link AdminUserService}
+	 */
+	public AdminUserController(AdminUserService adminUserService) {
+		this.adminUserService = adminUserService;
+	}
+
 	/**
 	 * Finds users by name or Discord ID.
 	 *
@@ -72,7 +87,7 @@ public class AdminUserController {
 	@ApiResponse(responseCode = "200", description = "OK")
 	public ResponseRecord<AdminUserListResponse> findUsers(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "A user ID, a Discord ID, or 2 to 100 characters of a name") @RequestParam @NotBlank @Size(min = 2, max = 100) String q) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		return new ResponseRecord<>(adminUserService.findUsers(HttpUtil.userId(authentication), q));
 	}
 
 	/**
@@ -95,7 +110,8 @@ public class AdminUserController {
 	public void suspendUser(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The user's ID") @PathVariable UUID userId,
 			@Valid @RequestBody SuspendRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		adminUserService.suspend(HttpUtil.userId(authentication), HttpUtil.isAdmin(authentication), userId,
+				request.until(), request.reason());
 	}
 
 	/**
@@ -112,7 +128,7 @@ public class AdminUserController {
 	@ApiResponse(responseCode = "404", description = "No such user.")
 	public void unsuspendUser(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The user's ID") @PathVariable UUID userId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		adminUserService.unsuspend(HttpUtil.userId(authentication), userId);
 	}
 
 	/**
@@ -131,7 +147,7 @@ public class AdminUserController {
 	@ApiResponse(responseCode = "204", description = "Banned, or already banned.")
 	@ApiResponse(responseCode = "409", description = "The account holds ADMIN (errorType TARGET_HAS_ROLE). Remove the role first.")
 	public void ban(@Parameter(hidden = true) Authentication authentication, @Valid @RequestBody BanRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		adminUserService.ban(HttpUtil.userId(authentication), request.discordId(), request.reason());
 	}
 
 	/**
@@ -147,6 +163,6 @@ public class AdminUserController {
 	@ApiResponse(responseCode = "204", description = "Lifted, or wasn't banned.")
 	public void unban(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The Discord user ID (a snowflake, as a string)") @PathVariable @Pattern(regexp = GuildResponse.SNOWFLAKE_PATTERN) String discordId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		adminUserService.unban(HttpUtil.userId(authentication), discordId);
 	}
 }

@@ -51,6 +51,7 @@ import app.confuzion.backend.model.record.EventRequest;
 import app.confuzion.backend.model.record.EventResponse.AudienceType;
 import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.RsvpResponse;
+import app.confuzion.backend.service.AdminUserService;
 import app.confuzion.backend.service.BlockService;
 import app.confuzion.backend.service.EventService;
 import app.confuzion.backend.service.OfferExpiryJob;
@@ -103,6 +104,12 @@ class RsvpConcurrencyIntegrationTest {
 	 */
 	@Autowired
 	private BlockService blockService;
+
+	/**
+	 * The {@link AdminUserService}, for a ban racing joins.
+	 */
+	@Autowired
+	private AdminUserService adminUserService;
 
 	/**
 	 * The seeding helpers.
@@ -335,6 +342,83 @@ class RsvpConcurrencyIntegrationTest {
 		assertThat(active).doesNotContainAnyElementsOf(blocked).hasSize(80 - 20 - blocked.size() + 1);
 		var held = count(event, "CONFIRMED") + count(event, "OFFERED");
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(held);
+		assertThat(held).isEqualTo(5);
+	}
+
+	/**
+	 * Tests a ban racing joins and leaves (D-015): the banned user keeps joining
+	 * and leaving one event while others join and leave it and an event the banned
+	 * user hosts, and the ban lands once 20 joins are done. Nothing deadlocks; the
+	 * banned user ends with no active RSVP on either event, their own host RSVP
+	 * aside; their event is cancelled; and on each event the count matches the
+	 * held spots, never exceeds the capacity, and nobody is left waitlisted while
+	 * a spot is free.
+	 */
+	@Test
+	void testBanRacingJoinsAndLeaves() throws Exception {
+		var event = event(5);
+		var banned = guests(1).getFirst();
+		var hosted = fixtures.rsvpEvent(banned, 5, "now() + interval '1 day'", "NULL");
+		fixtures.audience(hosted.id(), "GUILD", guildId, null, null);
+		var admin = fixtures.user("Admin");
+		jdbcTemplate.update("INSERT INTO user_role (user_id, role) VALUES (?, 'ADMIN')", admin);
+		var discordId = jdbcTemplate.queryForObject("SELECT discord_id FROM app_user WHERE id = ?", Long.class, banned)
+				.toString();
+		var guests = guests(60);
+		var joined = new CountDownLatch(20);
+		var tasks = new ArrayList<Callable<Object>>();
+		for (var i = 0; i < guests.size(); i++) {
+			var guest = guests.get(i);
+			var leaves = i % 4 == 0;
+			tasks.add(() -> {
+				rsvpService.join(guest, event.publicId());
+				joined.countDown();
+				try {
+					rsvpService.join(guest, hosted.publicId());
+					if (leaves)
+						rsvpService.leave(guest, hosted.publicId());
+				} catch (NoSuchElementException e) {
+					// The ban cancelled the event first.
+				}
+				if (leaves)
+					rsvpService.leave(guest, event.publicId());
+				return guest;
+			});
+		}
+		for (var i = 0; i < 10; i++)
+			tasks.add(() -> {
+				try {
+					rsvpService.join(banned, event.publicId());
+					rsvpService.leave(banned, event.publicId());
+					rsvpService.join(banned, event.publicId());
+				} catch (NoSuchElementException e) {
+					// The ban landed first.
+				}
+				return banned;
+			});
+		Collections.shuffle(tasks);
+		// Submitted first, so it holds a thread from the start.
+		tasks.addFirst(() -> {
+			joined.await();
+			adminUserService.ban(admin, discordId, "Spam");
+			return admin;
+		});
+
+		parallel(tasks);
+
+		assertThat(jdbcTemplate.queryForObject("""
+				SELECT count(*) FROM rsvp WHERE user_id = ? AND event_id = ?
+					AND status IN ('CONFIRMED', 'WAITLISTED', 'OFFERED')""", Integer.class, banned, event.id())).isZero();
+		assertThat(jdbcTemplate.queryForObject("SELECT status FROM event WHERE id = ?", String.class, hosted.id()))
+				.isEqualTo("CANCELLED");
+		assertThat(fixtures.rsvpStatus(hosted.id(), banned)).isEqualTo("CONFIRMED");
+		for (var seeded : List.of(event, hosted)) {
+			var held = count(seeded, "CONFIRMED") + count(seeded, "OFFERED");
+			assertThat(fixtures.confirmedCount(seeded.id())).as("count").isEqualTo(held);
+			assertThat(held).isLessThanOrEqualTo(5);
+		}
+		var held = count(event, "CONFIRMED") + count(event, "OFFERED");
+		assertThat(count(event, "WAITLISTED") == 0 || held == 5).as("no free spot while waitlisted").isTrue();
 		assertThat(held).isEqualTo(5);
 	}
 
