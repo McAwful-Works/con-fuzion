@@ -23,16 +23,25 @@ function EventActions({ eventId }: { eventId: string }) {
   const unhide = useEventAction(eventId, 'unhide');
   const cancel = useEventAction(eventId, 'cancel');
   const reason = { label: 'Reason (the host reads it)', max: REASON_MAX, required: true };
+  // One message for all three, so an earlier "hidden" can't sit beside a later "unhidden".
+  const [done, setDone] = useState('');
+  const clear = () => setDone('');
+  const finish = (close: () => void, message: string) => ({
+    onSuccess: () => {
+      close();
+      setDone(message);
+    },
+  });
 
   return (
     <>
       <ModAction
         label="Hide event"
         confirm="Hide"
-        success="Event hidden."
         mutation={hide}
         note={reason}
-        onSubmit={(note, done) => hide.mutate(note, { onSuccess: done })}
+        onOpen={clear}
+        onSubmit={(note, close) => hide.mutate(note, finish(close, 'Event hidden.'))}
       >
         <p className="text-sm">
           Only the host and moderators will be able to open it. People who were going aren’t told.
@@ -41,9 +50,9 @@ function EventActions({ eventId }: { eventId: string }) {
       <ModAction
         label="Unhide event"
         confirm="Unhide"
-        success="Event unhidden."
         mutation={unhide}
-        onSubmit={(_, done) => unhide.mutate(undefined, { onSuccess: done })}
+        onOpen={clear}
+        onSubmit={(_, close) => unhide.mutate(undefined, finish(close, 'Event unhidden.'))}
       >
         <p className="text-sm">
           Its audience can open it again. Nobody is told, though any free spots are offered to the
@@ -53,16 +62,20 @@ function EventActions({ eventId }: { eventId: string }) {
       <ModAction
         label="Cancel event"
         confirm="Cancel it"
-        success="Event cancelled."
         mutation={cancel}
         note={reason}
-        onSubmit={(note, done) => cancel.mutate(note, { onSuccess: done })}
+        onOpen={clear}
+        onSubmit={(note, close) => cancel.mutate(note, finish(close, 'Event cancelled.'))}
       >
         <p className="text-sm">
           People who were going or waiting are told it’s cancelled, without your reason. This can’t
           be undone. An event that has already ended isn’t changed.
         </p>
       </ModAction>
+      {/* Always there, so screen readers announce the text when it arrives. */}
+      <p role="status" className="text-sm font-medium">
+        {done}
+      </p>
     </>
   );
 }

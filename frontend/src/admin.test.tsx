@@ -264,6 +264,16 @@ describe('a report', () => {
     ]);
   });
 
+  it('says only how the latest event action ended', async () => {
+    await openReport(eventReport);
+    await act('Unhide event', 'Unhide');
+    expect(await screen.findByText('Event unhidden.')).toBeInTheDocument();
+    await act('Hide event', 'Hide', { label: /Reason/, text: 'Not a public space' });
+
+    expect(await screen.findByText('Event hidden.')).toBeInTheDocument();
+    expect(screen.queryByText('Event unhidden.')).toBeNull();
+  });
+
   it('sends nothing when a form is dismissed, and returns focus to its button', async () => {
     const calls = await openReport(eventReport);
     // Not focused first: Safari doesn't focus a clicked button, and neither does fireEvent.

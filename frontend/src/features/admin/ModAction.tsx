@@ -82,8 +82,6 @@ function ActionForm({ title, confirm, children, note, ready = true, ...props }: 
 interface Props extends Pick<FormProps, 'confirm' | 'children' | 'note' | 'ready'> {
   /** The opening button, and the form's heading. */
   label: string;
-  /** Said once it has worked, if the action stays on screen. */
-  success?: string;
   /** Clears any extra fields, so a choice made last time isn't sent by accident. */
   onOpen?: () => void;
   mutation: { isPending: boolean; error: unknown; reset: () => void };
@@ -92,9 +90,8 @@ interface Props extends Pick<FormProps, 'confirm' | 'children' | 'note' | 'ready
 }
 
 /** A moderator action: a button that opens a form saying what will happen, with the note it needs. */
-export function ModAction({ label, success, mutation, onOpen, onSubmit, ...form }: Props) {
+export function ModAction({ label, mutation, onOpen, onSubmit, ...form }: Props) {
   const [open, setOpen] = useState(false);
-  const [done, setDone] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
   // The button stays mounted, so focus has somewhere to return to. It's named here because Safari
   // doesn't focus a button that's clicked, so `document.activeElement` wouldn't find it.
@@ -112,17 +109,11 @@ export function ModAction({ label, success, mutation, onOpen, onSubmit, ...form 
         onClick={() => {
           onOpen?.();
           mutation.reset();
-          setDone(false);
           setOpen(true);
         }}
       >
         {label}
       </button>
-      {done && (
-        <p role="status" className="text-sm font-medium">
-          {success}
-        </p>
-      )}
       {open && (
         <ActionForm
           {...form}
@@ -130,12 +121,7 @@ export function ModAction({ label, success, mutation, onOpen, onSubmit, ...form 
           pending={mutation.isPending}
           error={mutation.error}
           onClose={close}
-          onSubmit={(note) =>
-            onSubmit(note, () => {
-              close();
-              setDone(true);
-            })
-          }
+          onSubmit={(note) => onSubmit(note, close)}
         />
       )}
     </div>
