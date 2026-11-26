@@ -25,3 +25,8 @@ output "prod_deploy_role_arn" {
   description = "Variable AWS_DEPLOY_ROLE_ARN in the GitHub environment named production."
   value       = aws_iam_role.deploy["prod"].arn
 }
+
+output "alarm_topic_arn" {
+  description = "The SNS topic for alarms, for subscribing your email (runbook section 10). Later roots look it up by name."
+  value       = aws_sns_topic.alarms.arn
+}
