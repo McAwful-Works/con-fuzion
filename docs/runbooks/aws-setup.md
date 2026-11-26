@@ -51,7 +51,7 @@ access key → CLI**), and never share it or put it in a file in this repo. Iden
 winget install --id Amazon.AWSCLI -e
 winget install --id Hashicorp.Terraform -e
 ```
-Open a new terminal, then check: `aws --version` (2.x) and `terraform version` (1.10 or later). On macOS:
+Open a new terminal, then check: `aws --version` (2.x) and `terraform version` (1.17.x: `infra/bootstrap/versions.tf` pins that minor series). On macOS:
 `brew install awscli hashicorp/tap/terraform`.
 
 ## 4. Sign the CLI in
@@ -223,8 +223,9 @@ What each role may do:
   objects in any other bucket, log events, secret and parameter values, and `kms:Decrypt`. So a later root must
   not manage a secret's *value* in Terraform (for example an `aws_secretsmanager_secret_version`), or the PR plan
   can't refresh it. Secret values are entered by you, outside Terraform.
-- **Deploy (each environment):** push to its own ECR repository, register its own task-definition family, describe
-  and update its own ECS service, and pass only its own task and execution roles to ECS. The names are in
+- **Deploy (each environment):** register its own task-definition family, describe and update its own ECS service,
+  and pass only its own task and execution roles to ECS. Both use the one image repository, `confuzion-app`:
+  staging pushes each build to it, and prod deploys that same digest, so prod may only describe images. The names are in
   `infra/bootstrap/github.tf` (`TODO(#105)`: the compute root confirms them). It can't run Terraform.
 
 ## 10. Check the policies (after the first apply)

@@ -716,8 +716,9 @@ Context · Decision · Consequences · Trigger to revisit
     `-lock=false`. A PR's code runs with it, so it's denied the reads a plan never needs: objects in other buckets
     (such as access logs holding invite tokens), log events, secret and parameter values, and `kms:Decrypt`. Secret
     values therefore stay out of Terraform-managed resources that a plan would have to read.
-  - **The deploy roles** deploy the app, not Terraform: push to their environment's ECR repository, register their
-    task-definition family, roll their ECS service, and pass only their own task and execution roles to ECS.
+  - **The deploy roles** deploy the app, not Terraform. Each registers its own task-definition family, rolls its own
+    ECS service, and passes only its own task and execution roles to ECS. There is one shared image repository,
+    `confuzion-app`: staging pushes to it, and prod, which deploys the same digest, can only look images up.
   - **CloudTrail** keeps management events from every region for 365 days, with log file validation, in a bucket
     whose policy denies every delete. **GuardDuty** runs in `us-east-1`. **The SNS topic** `confuzion-alarms` isn't
     encrypted, because Budgets and CloudWatch can't publish under the AWS-managed SNS key, and alarms hold no user

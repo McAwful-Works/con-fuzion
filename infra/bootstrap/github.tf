@@ -109,10 +109,24 @@ resource "aws_iam_role_policy" "plan" {
 # --- The deploy roles: app deploys only (push the image, roll the ECS service), never Terraform. ---
 
 locals {
-  # TODO(#105): the compute root creates these resources. Confirm each name there and update it here if it differs.
+  # TODO(#105): the root that creates the image repository and the ECS resources confirms these names. Update them
+  # here if they differ.
+  # One image repository for both environments (infra/CLAUDE.md): staging pushes each build, and prod deploys the
+  # same digest, so prod can only look an image up, not push one.
+  ecr_repository_arn = "arn:${local.partition}:ecr:${local.region}:${local.account_id}:repository/confuzion-app"
+
   deploy_targets = {
     for env in keys(local.deploy_environments) : env => {
-      ecr_repository = "confuzion-${env}-app"
+      ecr_actions = env == "staging" ? [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:DescribeImages",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart",
+      ] : ["ecr:DescribeImages"]
       cluster        = "confuzion-${env}"
       service        = "confuzion-${env}-app"
       task_family    = "confuzion-${env}-app"
@@ -131,18 +145,9 @@ data "aws_iam_policy_document" "deploy" {
     resources = ["*"] # GetAuthorizationToken has no resource-level permissions
   }
   statement {
-    sid = "EcrPush"
-    actions = [
-      "ecr:BatchCheckLayerAvailability",
-      "ecr:BatchGetImage",
-      "ecr:CompleteLayerUpload",
-      "ecr:DescribeImages",
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:InitiateLayerUpload",
-      "ecr:PutImage",
-      "ecr:UploadLayerPart",
-    ]
-    resources = ["arn:${local.partition}:ecr:${local.region}:${local.account_id}:repository/${each.value.ecr_repository}"]
+    sid       = "EcrImages"
+    actions   = each.value.ecr_actions
+    resources = [local.ecr_repository_arn]
   }
   statement {
     sid       = "RegisterTaskDefinition"
