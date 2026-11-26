@@ -714,17 +714,21 @@ Context · Decision · Consequences · Trigger to revisit
     what pin the ref.
   - **The plan role** is `ReadOnlyAccess` plus reading the state bucket. It has no write access, so PR plans run with
     `-lock=false`. A PR's code runs with it, so it's denied the reads a plan never needs: objects in other buckets
-    (such as access logs holding invite tokens), log events, secret and parameter values, and `kms:Decrypt`. Secret
-    values therefore stay out of Terraform-managed resources that a plan would have to read.
+    (such as access logs holding invite tokens), log events and database logs, secret and parameter values, and
+    `kms:Decrypt`. So secret values stay out of Terraform wherever they can. A value that can only live in state and
+    in a readable resource (such as the CloudFront origin header) is decided per root, with the owner (`infra/CLAUDE.md`).
   - **The deploy roles** deploy the app, not Terraform. Each registers its own task-definition family, rolls its own
     ECS service, and passes only its own task and execution roles to ECS. There is one shared image repository,
     `confuzion-app`: staging pushes to it, and prod, which deploys the same digest, can only look images up.
   - **CloudTrail** keeps management events from every region for 365 days, with log file validation, in a bucket
-    whose policy denies every delete. **GuardDuty** runs in `us-east-1`. **The SNS topic** `confuzion-alarms` isn't
+    whose policy denies every delete and every write but the trail's. That stops accidents and anything short of a
+    policy change. An admin could still rewrite the policy, which CloudTrail records; only Object Lock would stop it. **GuardDuty** runs in `us-east-1`. **The SNS topic** `confuzion-alarms` isn't
     encrypted, because Budgets and CloudWatch can't publish under the AWS-managed SNS key, and alarms hold no user
     data.
 - **Consequences:** every root after this one depends on the bootstrap. Changing a deploy job's GitHub environment,
   or turning on GitHub's immutable OIDC subjects, breaks its role's trust until the subject here changes to match.
-  One account keeps cost and setup small, but an admin there can reach both environments.
+  One account keeps cost and setup small, but an admin there can reach both environments. The repo is public, so
+  Actions logs and PR plan comments are too: #107 must post a plan summary without account IDs or ARNs, not the raw
+  plan.
 - **Revisit:** split prod into its own account if a second person needs AWS access, or before storing anything more
   sensitive than today's data. Move Valkey to cluster mode if one node's memory or CPU is a measured limit.

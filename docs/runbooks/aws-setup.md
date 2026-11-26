@@ -27,12 +27,16 @@ The root user (the email address you signed up with) can do anything, including 
 3. Under **Multi-factor authentication (MFA)**, choose **Assign MFA device**. Use a passkey or security key, or an
    authenticator app. Store the recovery details somewhere safe that isn't the same device.
 4. Under **Access keys**, make sure there are **none**. If there are, delete them. Root should never have keys.
-5. From now on, use root only for the few tasks that need it (billing contacts, closing the account).
+5. Open **Account** (top-right menu), find **IAM user and role access to Billing information**, choose **Edit**, and
+   tick **Activate IAM Access**. Without it, the admin login from step 2 can't see Billing, Budgets or Cost Explorer.
+6. From now on, use root only for the few tasks that need it (billing contacts, closing the account).
 
 ## 2. Make an admin login with MFA
 Use **IAM Identity Center** (recommended): you sign in through a web page and get short-lived credentials, so there
 are no long-lived keys on your machine.
-1. Still as root, open **IAM Identity Center** and choose **Enable** (in `us-east-1`).
+1. Still as root, open **IAM Identity Center** in `us-east-1` and choose **Enable**. When asked, enable it **with
+   AWS Organizations** (an *organization instance*), which makes this account an organization of one. Don't pick
+   an *account instance*: it can't assign permission sets to an AWS account, so steps 4 and 5 wouldn't work.
 2. **Users → Add user**: your name and email. Accept the invitation email and set a password.
 3. **Settings → Authentication → Multi-factor authentication**: require MFA *every time they sign in*, and register
    your MFA device on first sign-in.
@@ -49,10 +53,15 @@ access key → CLI**), and never share it or put it in a file in this repo. Iden
 ## 3. Install the tools
 ```powershell
 winget install --id Amazon.AWSCLI -e
-winget install --id Hashicorp.Terraform -e
+winget install --id Hashicorp.Terraform -e --version 1.17.2
+winget install --id GitHub.cli -e
+winget install --id Microsoft.PowerShell -e
 ```
-Open a new terminal, then check: `aws --version` (2.x) and `terraform version` (1.17.x: `infra/bootstrap/versions.tf` pins that minor series). On macOS:
-`brew install awscli hashicorp/tap/terraform`.
+Open a new terminal (PowerShell 7, `pwsh`, from now on), then check `aws --version` (2.x) and `terraform version`
+(1.17.x). Every root pins Terraform to one minor series (`infra/bootstrap/versions.tf`), so install that series
+rather than the newest release: a newer minor stops `terraform init` with *Unsupported Terraform Core version*.
+Sign `gh` in with `gh auth login`. On macOS, install the CLI and `gh` with `brew install awscli gh`, and take
+Terraform 1.17.x from [HashiCorp's releases](https://releases.hashicorp.com/terraform/).
 
 ## 4. Sign the CLI in
 ```powershell
@@ -100,32 +109,38 @@ the bucket.
    mv backend.tf backend.tf.off
    terraform init
    ```
+   Check whether GuardDuty or a GitHub OIDC provider is already set up, from an earlier experiment:
+   ```powershell
+   aws guardduty list-detectors
+   aws iam list-open-id-connect-providers
+   ```
+   If either lists one (a detector ID, or a provider ARN ending in `token.actions.githubusercontent.com`), bring it
+   under Terraform instead of creating a second, which would fail at apply:
+   ```powershell
+   terraform import aws_guardduty_detector.main <detector-id>
+   terraform import aws_iam_openid_connect_provider.github <provider-arn>
+   ```
 2. **Plan, and read it:**
    ```powershell
    terraform plan -out bootstrap.tfplan
    ```
    Check that:
-   - it says **`Plan: 26 to add, 0 to change, 0 to destroy`**: nothing is changed or destroyed;
+   - it says **`Plan: 24 to add, 0 to change, 0 to destroy`** (fewer if you imported something in step 1, and then
+     a change or two to the imported resource is fine), and nothing is destroyed;
    - the two buckets are `confuzion-tfstate-<your account ID>` and `confuzion-cloudtrail-<your account ID>`;
    - each `aws_iam_role`'s `assume_role_policy` has `token.actions.githubusercontent.com:aud` =
      `sts.amazonaws.com`, and `:sub` = one of the three subjects in section 9, with `StringEquals`;
    - the plan role is `confuzion-github-plan` with `ReadOnlyAccess`, and the deploy roles are
      `confuzion-staging-github-deploy` and `confuzion-prod-github-deploy`;
    - the budget's `limit_amount` is your number.
-
-   If it fails with **"detector already exists"** (GuardDuty was turned on before) or **"Provider with url …
-   already exists"** (a GitHub OIDC provider was added before), import the existing one rather than deleting it:
-   ```powershell
-   terraform import aws_guardduty_detector.main <detector-id>   # aws guardduty list-detectors
-   terraform import aws_iam_openid_connect_provider.github <provider-arn>   # aws iam list-open-id-connect-providers
-   ```
-   and plan again.
 3. **Apply it:**
    ```powershell
    terraform apply bootstrap.tfplan
    terraform output
    ```
-   Keep the outputs. You need them in steps 6.4, 7 and 8.
+   Keep the outputs. You need them in steps 6.4, 7 and 8. If the apply stops partway with an error, fix the cause,
+   then run `terraform plan -out bootstrap.tfplan` again and apply that new plan: a saved plan is stale once
+   anything changed.
 4. **Move the state into the bucket:**
    ```powershell
    mv backend.tf.off backend.tf
@@ -189,7 +204,8 @@ deployment rules matter: they're what stop a job on another branch from using an
 gh variable set AWS_DEPLOY_ROLE_ARN --env staging --body <staging_deploy_role_arn output>
 gh variable set AWS_DEPLOY_ROLE_ARN --env production --body <prod_deploy_role_arn output>
 ```
-(`gh` creates an environment that doesn't exist yet, but set its deployment rules and reviewers in the web UI.)
+On `production`, leave **Prevent self-review** off: you're its only reviewer. The repo's `v*` tag ruleset (D-009)
+already limits who can create a release tag, which is the other half of what keeps prod deploys yours.
 
 ## 9. The OIDC subjects (for the CI and CD workflows, #107)
 GitHub puts a `sub` claim in each job's OIDC token, and each role trusts exactly one. This repo uses GitHub's
@@ -209,7 +225,7 @@ What the workflows must do to match:
 - **PR plans run with `-lock=false`.** The plan role can't write to the state bucket, so it can't take the lock:
   `terraform plan -lock=false -input=false`.
 - **Never use `pull_request_target`** for anything that assumes a role. It runs with the base branch's context and
-  is the usual way untrusted fork code gets credentials. (Its subject wouldn't match the plan role anyway.)
+  is the usual way untrusted fork code gets credentials.
 - **Fork PRs get no AWS access.** A `pull_request` run from a fork gets read-only permissions, with no
   `id-token: write`, so it can't get an OIDC token. Plans run only for branches in this repo, and pushing one needs
   write access.
@@ -229,7 +245,8 @@ What each role may do:
   `infra/bootstrap/github.tf` (`TODO(#105)`: the compute root confirms them). It can't run Terraform.
 
 ## 10. Check the policies (after the first apply)
-These need PowerShell 7 (`pwsh`), which passes the JSON argument through intact. Windows PowerShell 5.1 doesn't.
+Run these in PowerShell 7 (`pwsh`, step 3), which passes the JSON argument through intact. Windows PowerShell 5.1
+doesn't.
 
 **Trust policies, with IAM Access Analyzer** (it flags overly broad or malformed trust):
 ```powershell

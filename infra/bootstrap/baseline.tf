@@ -5,20 +5,14 @@ locals {
   trail_arn  = "arn:${local.partition}:cloudtrail:${local.region}:${local.account_id}:trail/${local.trail_name}"
 }
 
-# --- CloudTrail: every region's management events, kept for 365 days in a bucket nobody can delete from. ---
+# --- CloudTrail: every region's management events, kept for 365 days in a bucket only the trail can write to and
+# nobody can delete from. An admin could still rewrite the bucket policy itself; CloudTrail records that change. ---
 
 resource "aws_s3_bucket" "trail" {
   bucket = "confuzion-cloudtrail-${local.account_id}"
 
   lifecycle {
     prevent_destroy = true
-  }
-}
-
-resource "aws_s3_bucket_ownership_controls" "trail" {
-  bucket = aws_s3_bucket.trail.id
-  rule {
-    object_ownership = "BucketOwnerEnforced"
   }
 }
 
@@ -99,6 +93,24 @@ data "aws_iam_policy_document" "trail_bucket" {
     principals {
       type        = "*"
       identifiers = ["*"]
+    }
+  }
+  # Only the trail may write here, so no one can overwrite a log file either. A caller that isn't CloudTrail has no
+  # aws:SourceArn, and a negated condition on a missing key is true, so the deny applies to them.
+  statement {
+    sid       = "DenyWritesExceptTheTrail"
+    effect    = "Deny"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.trail.arn}/*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "ArnNotEquals"
+      variable = "aws:SourceArn"
+      values   = [local.trail_arn]
     }
   }
   statement {

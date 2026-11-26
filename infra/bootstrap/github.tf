@@ -72,7 +72,7 @@ data "aws_iam_policy_document" "plan" {
   }
 
   # ReadOnlyAccess can also read data that a plan never needs: objects in other buckets (CloudTrail and ALB logs,
-  # which hold invite tokens), log events, and anything a KMS decrypt would reveal. A PR's code runs with this role,
+  # which hold invite tokens), log events (including database logs), and anything a KMS decrypt would reveal. A PR's code runs with this role,
   # so those reads are denied outright.
   statement {
     sid           = "DenyObjectReadsOutsideState"
@@ -95,6 +95,9 @@ data "aws_iam_policy_document" "plan" {
       "logs:StartQuery",
       "logs:StartLiveTail",
       "logs:GetLogRecord",
+      "logs:GetQueryResults",
+      "rds:DownloadCompleteDBLogFile",
+      "rds:DownloadDBLogFilePortion",
     ]
     resources = ["*"]
   }
