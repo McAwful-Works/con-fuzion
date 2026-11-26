@@ -30,6 +30,7 @@ Context · Decision · Consequences · Trigger to revisit
 ## D-004 Baseline infrastructure (2026-11-24) — Accepted
 - **Decision:** CloudFront + WAF → ALB → ECS Fargate (min 2 tasks) → Aurora PostgreSQL Serverless v2 +
   ElastiCache Serverless (Valkey, used only for sessions and rate limits).
+  - *ElastiCache Serverless is superseded by D-016:* node-based ElastiCache for Valkey with cluster mode off.
 - **Not included until triggered:** SSE/WebSockets (polling is enough), read replicas (database CPU above 60%
   sustained), RDS Proxy (connections above 70% of max), message queues (none needed).
 
@@ -663,3 +664,74 @@ Context · Decision · Consequences · Trigger to revisit
   in the MVP, and may name people or places.
 - **Revisit:** if the audit log or the report table gets slow without a retention limit (a measured p95), add one in a
   contract PR. If moderators need several reports on one target closed together, add a bulk resolve.
+
+## D-016 M6: AWS deploy (2026-11-26) — Accepted
+- **Context:** M6 puts the app on AWS with Terraform (#102–#108). The owner confirmed the four choices marked
+  *(owner)*. The rest come from the M6 issues. Claude never runs `terraform apply`: the owner applies every root with
+  their own credentials.
+- **Decision:**
+  - **Valkey** *(owner)*: node-based ElastiCache for Valkey with **cluster mode off** (a primary and a replica in the
+    second AZ, with TLS and AUTH), not Serverless. Serverless always runs in cluster mode, and the session store and
+    the rate limiter assume one node. This supersedes D-004's ElastiCache Serverless and plan B2.
+  - **Region** *(owner)*: `us-east-1` for everything.
+  - **DNS** *(owner)*: a Route 53 hosted zone.
+  - **Accounts** *(owner)*: one AWS account. Staging and prod are kept apart by name prefix (`confuzion-<env>-…`),
+    with separate state keys, separate secrets and a deploy role per environment, prod's usable only from prod.
+  - **Capacity:**
+    - one NAT gateway for staging, and one per AZ for prod;
+    - Aurora PostgreSQL 16 Serverless v2: 0 ACUs minimum in staging, at least 0.5 in prod, KMS encryption, and 14 days
+      of point-in-time recovery;
+    - ECS on Fargate: at least 2 tasks across 2 AZs with autoscaling in prod, and 1 task in staging;
+    - a monthly AWS Budgets alarm, with the amount set by the owner.
+  - **Deploys:**
+    - `main` deploys staging automatically;
+    - a `v*` tag (the owner's, D-009) deploys the same image digest to prod, behind a GitHub environment the owner
+      approves;
+    - PRs that touch `infra/` get fmt, validate and a plan comment, never `apply`;
+    - GitHub reaches AWS only through OIDC: a read-only plan role for PRs, and a deploy role for each environment;
+    - Flyway runs at app start.
+  - **Client IP:** the ALB accepts traffic only from CloudFront's origin-facing prefix list, plus a secret origin
+    header. The app reads `CloudFront-Viewer-Address` only when that secret is present, and never reads
+    `X-Forwarded-For`.
+  - **Logs:** JSON app logs in CloudWatch for 30 days; ALB access logs in a private S3 bucket for 14 days, readable by
+    the owner only; CloudFront standard logs off.
+  - **Metrics:** no new metrics dependency in M6. Alarms use AWS's own metrics.
+  - **WAF:** the AWS common rule set, known bad inputs, and a per-IP rate rule.
+  - **Account baseline:** a multi-region CloudTrail and GuardDuty. The owner handles root MFA and subscribes the
+    alarm email.
+- **As built (#103, the bootstrap root `infra/bootstrap/`; owner-confirmed 2026-11-26):**
+  - **State:** one S3 bucket (versioned, SSE-S3, public access blocked, TLS only), one key per root, with S3's native
+    lock files (Terraform 1.10 or later), so no DynamoDB table. The bootstrap root applies once with local state and
+    then moves into the bucket under `bootstrap/terraform.tfstate`. Its state then has the same protection as every
+    other root's, and isn't lost with a laptop.
+  - **OIDC subjects,** each matched exactly (`StringEquals`), with the audience pinned to `sts.amazonaws.com`:
+    - the plan role trusts `repo:McAwful-Works/con-fuzion:pull_request`;
+    - the staging deploy role trusts `…:environment:staging`;
+    - the prod deploy role trusts `…:environment:production`.
+
+    A job that names a GitHub environment gets an `environment:` subject instead of its branch or tag, so the GitHub
+    environments' deployment rules (`main` only for staging, `v*` tags and the owner's approval for production) are
+    what pin the ref.
+  - **The plan role** is `ReadOnlyAccess` plus reading the state bucket. It has no write access, so PR plans run with
+    `-lock=false`. A PR's code runs with it, so it's denied the reads a plan never needs: objects in other buckets
+    (such as access logs holding invite tokens), log events and database logs, secret and parameter values, and
+    `kms:Decrypt`. So secret values stay out of Terraform wherever they can. A value that can only live in state and
+    in a readable resource (such as the CloudFront origin header) is decided per root, with the owner (`infra/CLAUDE.md`).
+  - **The deploy roles** deploy the app, not Terraform. Each registers its own task-definition family, rolls its own
+    ECS service, and passes only its own task and execution roles to ECS. There is one shared image repository,
+    `confuzion-app`: staging pushes to it, and prod, which deploys the same digest, can only look images up.
+  - **The account baseline** (#103's second part):
+    - **CloudTrail** keeps management events from every region for 365 days, with log file validation, in a bucket
+      whose policy denies every delete and every write but the trail's. That stops accidents and anything short of
+      a policy change. An admin could still rewrite the policy, which CloudTrail records; only Object Lock would
+      stop it.
+    - **GuardDuty** runs in `us-east-1`.
+    - **The SNS topic** `confuzion-alarms` isn't encrypted, because Budgets and CloudWatch can't publish under the
+      AWS-managed SNS key, and alarms hold no user data.
+- **Consequences:** every root after this one depends on the bootstrap. Changing a deploy job's GitHub environment,
+  or turning on GitHub's immutable OIDC subjects, breaks its role's trust until the subject here changes to match.
+  One account keeps cost and setup small, but an admin there can reach both environments. The repo is public, so
+  Actions logs and PR plan comments are too: #107 must post a plan summary without account IDs or ARNs, not the raw
+  plan.
+- **Revisit:** split prod into its own account if a second person needs AWS access, or before storing anything more
+  sensitive than today's data. Move Valkey to cluster mode if one node's memory or CPU is a measured limit.

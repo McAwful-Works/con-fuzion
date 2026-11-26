@@ -55,3 +55,11 @@ frontend/dist/
 .claude/settings.local.json
 .claude/.stop-checks-ok
 .claude/worktrees/
+
+# Terraform: provider caches, local state (it can hold secrets), plans and variable files
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+crash.log
