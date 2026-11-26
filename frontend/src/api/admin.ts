@@ -6,14 +6,7 @@ type Schemas = components['schemas'];
 export type Report = Schemas['ReportResponse'];
 export type ReportStatus = Report['status'];
 export type Resolution = Schemas['ResolveReportRequest']['resolution'];
-/**
- * `ban` is null for someone who isn't banned. Contract bug: `openapi.json` emits
- * `{"type":"null","$ref":…}` for it, so openapi-typescript drops the null. Remove this override once the
- * backend emits `anyOf: [$ref, null]` (#86, which owns `AdminUserResponse`).
- */
-export type AdminUser = Omit<Schemas['AdminUserResponse'], 'ban'> & {
-  ban: Schemas['AdminUserBanResponse'] | null;
-};
+export type AdminUser = Schemas['AdminUserResponse'];
 export type EventAction = 'hide' | 'unhide' | 'cancel';
 export type GrantedRole = Schemas['RolesRequest']['roles'][number];
 export type AuditEntry = Schemas['AuditEntryResponse'];
