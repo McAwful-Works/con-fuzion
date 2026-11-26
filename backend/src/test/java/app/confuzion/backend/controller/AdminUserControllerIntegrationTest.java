@@ -20,8 +20,10 @@ package app.confuzion.backend.controller;
 
 import static app.confuzion.backend.controller.ReportControllerIntegrationTest.as;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -32,6 +34,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -52,13 +55,14 @@ import org.springframework.web.context.WebApplicationContext;
 import com.jayway.jsonpath.JsonPath;
 
 import app.confuzion.backend.TestcontainersConfiguration;
+import app.confuzion.backend.service.RsvpService;
 
 /**
- * Integration tests for user search and suspensions (D-015) against Postgres:
- * what search returns and how it matches, and who can suspend whom. That
- * sessions end at once is tested over real sessions in
- * {@code SecurityConfigIntegrationTest}, and a create racing a suspension in
- * {@code RsvpConcurrencyIntegrationTest}.
+ * Integration tests for user search, suspensions and bans (D-015) against
+ * Postgres: what search returns and how it matches, who can suspend whom, and
+ * what a ban does to the user's events and RSVPs. That sessions end at once is
+ * tested over real sessions in {@code SecurityConfigIntegrationTest}, and bans
+ * racing joins in {@code RsvpConcurrencyIntegrationTest}.
  *
  * @author mcawful
  */
@@ -83,6 +87,12 @@ class AdminUserControllerIntegrationTest {
 	 */
 	@Autowired
 	private WebApplicationContext webApplicationContext;
+
+	/**
+	 * The {@link RsvpService}, for a banned user's join.
+	 */
+	@Autowired
+	private RsvpService rsvpService;
 
 	/**
 	 * The {@link MockMvc}, with the security filter chain.
@@ -231,6 +241,110 @@ class AdminUserControllerIntegrationTest {
 	}
 
 	/**
+	 * Tests what a ban does (D-015): it cancels the user's upcoming hosted events,
+	 * so attendees get {@code EVENT_CANCELLED}, leaving ended ones alone; it ends
+	 * their RSVPs on other events as {@code LEFT}, offering each freed spot to the
+	 * next person in line; and it stops them joining again. It is audit-logged with
+	 * its session purge. Banning again writes nothing, and unbanning removes only
+	 * the ban, once.
+	 */
+	@Test
+	void banCancelsHostedEventsAndEndsRsvps() throws Exception {
+		var admin = user("ADMIN");
+		var asAdmin = as(admin, "ROLE_ADMIN");
+		var banned = fixtures.user("Banned");
+		var attendee = fixtures.user("Attendee");
+		var hosted = fixtures.rsvpEvent(banned, 5, "now() + interval '1 day'", "NULL");
+		join(hosted.id(), attendee, "CONFIRMED");
+		var ended = fixtures.event(banned, "now() - interval '1 day'", "now() - interval '20 hours'");
+		var host = fixtures.user("Host");
+		var full = fixtures.rsvpEvent(host, 2, "now() + interval '1 day'", "NULL");
+		join(full.id(), banned, "CONFIRMED");
+		var waiting = fixtures.user("Waiting");
+		join(full.id(), waiting, "WAITLISTED");
+		// Offered a spot (it's held), with someone behind; and waitlisted (no spot
+		// held).
+		var offered = fixtures.rsvpEvent(host, 2, "now() + interval '1 day'", "NULL");
+		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status, offer_expires_at) "
+				+ "VALUES (?, ?, 'OFFERED', now() + interval '1 hour')", offered.id(), banned);
+		jdbcTemplate.update("UPDATE event SET confirmed_count = 2 WHERE id = ?", offered.id());
+		var next = fixtures.user("Next");
+		join(offered.id(), next, "WAITLISTED");
+		var queued = fixtures.rsvpEvent(host, 2, "now() + interval '1 day'", "NULL");
+		join(queued.id(), fixtures.user("Holder"), "CONFIRMED");
+		join(queued.id(), banned, "WAITLISTED");
+		var open = fixtures.rsvpEvent(host, 5, "now() + interval '1 day'", "NULL");
+		fixtures.audience(open.id(), "USER", null, null, banned);
+		var past = fixtures.event(host, "now() - interval '1 day'", "now() - interval '20 hours'");
+		join(past.id(), banned, "CONFIRMED");
+		var discordId = Long.toString(discordId(banned));
+
+		assertThat(status(ban(asAdmin, discordId))).isEqualTo(204);
+
+		assertThat(eventStatus(hosted.id())).isEqualTo("CANCELLED");
+		assertThat(eventStatus(ended.id())).isEqualTo("PUBLISHED");
+		assertThat(fixtures.rsvpStatus(hosted.id(), banned)).isEqualTo("CONFIRMED");
+		assertThat(jdbcTemplate.queryForList("SELECT type FROM notification WHERE user_id = ? AND event_id = ?",
+				String.class, attendee, hosted.id())).containsExactly("EVENT_CANCELLED");
+		assertThat(fixtures.rsvpStatus(full.id(), banned)).isEqualTo("LEFT");
+		assertThat(fixtures.rsvpStatus(full.id(), waiting)).isEqualTo("OFFERED");
+		assertThat(fixtures.confirmedCount(full.id())).isEqualTo(2);
+		assertThat(fixtures.rsvpStatus(offered.id(), banned)).isEqualTo("LEFT");
+		assertThat(fixtures.rsvpStatus(offered.id(), next)).isEqualTo("OFFERED");
+		assertThat(fixtures.confirmedCount(offered.id())).isEqualTo(2);
+		assertThat(fixtures.rsvpStatus(queued.id(), banned)).isEqualTo("LEFT");
+		assertThat(fixtures.confirmedCount(queued.id())).isEqualTo(2);
+		assertThat(fixtures.rsvpStatus(past.id(), banned)).as("history").isEqualTo("CONFIRMED");
+		assertThatThrownBy(() -> rsvpService.join(banned, open.publicId())).isInstanceOf(NoSuchElementException.class);
+		assertThat(fixtures.rsvpStatus(open.id(), banned)).isNull();
+		assertThat(audit(discordId)).containsExactly("ACCOUNT_BANNED " + admin + " {\"reason\": \"Spam\"}");
+		assertThat(audit(banned.toString()))
+				.containsExactly("SESSIONS_PURGED " + admin + " {\"cause\": \"ACCOUNT_BANNED\", \"sessions\": 0}");
+
+		assertThat(status(ban(asAdmin, discordId))).isEqualTo(204);
+		assertThat(audit(discordId)).hasSize(1);
+		assertThat(status(delete("/api/admin/bans/" + discordId).with(asAdmin).with(csrf()))).isEqualTo(204);
+		assertThat(bans(discordId)).isZero();
+		assertThat(eventStatus(hosted.id())).isEqualTo("CANCELLED");
+		assertThat(audit(discordId)).hasSize(2).last().isEqualTo("ACCOUNT_UNBANNED " + admin + " {}");
+		assertThat(status(delete("/api/admin/bans/" + discordId).with(asAdmin).with(csrf()))).isEqualTo(204);
+		assertThat(audit(discordId)).hasSize(2);
+	}
+
+	/**
+	 * Tests the bans that change nothing about an account: a Discord ID with none
+	 * is just banned (D-015 rule 4); an account holding ADMIN, the actor's own
+	 * included, is a 409 {@code TARGET_HAS_ROLE}; an admin whose role was revoked
+	 * is refused; and an ID past the range of a Discord ID is a 400. The refused
+	 * ones write nothing.
+	 */
+	@Test
+	void banWithoutAnAccountAndRefusedBans() throws Exception {
+		var admin = user("ADMIN");
+		var asAdmin = as(admin, "ROLE_ADMIN");
+		var noAccount = Long.toString(ThreadLocalRandom.current().nextLong(1L << 60, Long.MAX_VALUE));
+
+		assertThat(status(ban(asAdmin, noAccount))).isEqualTo(204);
+		assertThat(bans(noAccount)).isOne();
+		assertThat(audit(noAccount)).containsExactly("ACCOUNT_BANNED " + admin + " {\"reason\": \"Spam\"}");
+
+		var otherAdmin = Long.toString(discordId(user("ADMIN")));
+		for (var refused : List.of(otherAdmin, Long.toString(discordId(admin)))) {
+			assertThat(errorType(ban(asAdmin, refused), 409)).isEqualTo("TARGET_HAS_ROLE");
+			assertThat(bans(refused)).isZero();
+			assertThat(audit(refused)).isEmpty();
+		}
+		var revoked = fixtures.user("Revoked");
+		var plain = Long.toString(discordId(fixtures.user("Plain")));
+		assertThat(errorType(ban(as(revoked, "ROLE_ADMIN"), plain), 403)).isEqualTo("FORBIDDEN");
+		assertThat(errorType(delete("/api/admin/bans/" + noAccount).with(as(revoked, "ROLE_ADMIN")).with(csrf()), 403))
+				.isEqualTo("FORBIDDEN");
+		assertThat(bans(plain)).isZero();
+		assertThat(bans(noAccount)).isOne();
+		assertThat(errorType(ban(asAdmin, "9999999999999999999"), 400)).isEqualTo("BAD_REQUEST");
+	}
+
+	/**
 	 * Creates a user with a stored role and MFA on.
 	 *
 	 * @param role {@code MODERATOR} or {@code ADMIN}
@@ -300,6 +414,52 @@ class AdminUserControllerIntegrationTest {
 			Instant until) {
 		return post("/api/admin/users/" + userId + "/suspend").with(principal).with(csrf())
 				.contentType(MediaType.APPLICATION_JSON).content("{\"until\":\"" + until + "\",\"reason\":\"Spam\"}");
+	}
+
+	/**
+	 * Adds an RSVP, counting a held spot.
+	 *
+	 * @param eventId the event's internal ID
+	 * @param userId  the user
+	 * @param status  {@code CONFIRMED} or {@code WAITLISTED}
+	 */
+	private void join(long eventId, UUID userId, String status) {
+		jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status) VALUES (?, ?, ?)", eventId, userId, status);
+		if (status.equals("CONFIRMED"))
+			jdbcTemplate.update("UPDATE event SET confirmed_count = confirmed_count + 1 WHERE id = ?", eventId);
+	}
+
+	/**
+	 * Returns a ban request, with CSRF.
+	 *
+	 * @param principal the admin
+	 * @param discordId the Discord ID to ban
+	 * @return the request
+	 */
+	private static MockHttpServletRequestBuilder ban(OAuth2LoginRequestPostProcessor principal, String discordId) {
+		return post("/api/admin/bans").with(principal).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"discordId\":\"" + discordId + "\",\"reason\":\"Spam\"}");
+	}
+
+	/**
+	 * Returns an event's status.
+	 *
+	 * @param eventId the event's internal ID
+	 * @return the status
+	 */
+	private String eventStatus(long eventId) {
+		return jdbcTemplate.queryForObject("SELECT status FROM event WHERE id = ?", String.class, eventId);
+	}
+
+	/**
+	 * Counts the bans on a Discord ID.
+	 *
+	 * @param discordId the Discord ID
+	 * @return 0 or 1
+	 */
+	private long bans(String discordId) {
+		return jdbcTemplate.queryForObject("SELECT count(*) FROM banned_account WHERE discord_id = ?", Long.class,
+				Long.parseLong(discordId));
 	}
 
 	/**

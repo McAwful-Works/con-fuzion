@@ -31,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import app.confuzion.backend.model.record.AdminUserListResponse;
 import app.confuzion.backend.model.record.BanRequest;
@@ -52,8 +51,7 @@ import jakarta.validation.constraints.Size;
 /**
  * The {@link RestController} for user search, suspensions and bans (D-015).
  * Search and suspensions need MODERATOR or ADMIN in effect, bans need ADMIN;
- * {@code SecurityConfig} checks both. Bans are stubs until the second part of
- * #86.
+ * {@code SecurityConfig} checks both.
  *
  * @author mcawful
  */
@@ -149,7 +147,7 @@ public class AdminUserController {
 	@ApiResponse(responseCode = "204", description = "Banned, or already banned.")
 	@ApiResponse(responseCode = "409", description = "The account holds ADMIN (errorType TARGET_HAS_ROLE). Remove the role first.")
 	public void ban(@Parameter(hidden = true) Authentication authentication, @Valid @RequestBody BanRequest request) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		adminUserService.ban(HttpUtil.userId(authentication), request.discordId(), request.reason());
 	}
 
 	/**
@@ -165,6 +163,6 @@ public class AdminUserController {
 	@ApiResponse(responseCode = "204", description = "Lifted, or wasn't banned.")
 	public void unban(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The Discord user ID (a snowflake, as a string)") @PathVariable @Pattern(regexp = GuildResponse.SNOWFLAKE_PATTERN) String discordId) {
-		throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED);
+		adminUserService.unban(HttpUtil.userId(authentication), discordId);
 	}
 }

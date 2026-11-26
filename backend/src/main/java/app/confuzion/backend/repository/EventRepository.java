@@ -307,8 +307,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
 	/**
 	 * Returns whether a user is banned or suspended (D-015). A create runs it after
-	 * {@link #lockHost}, as a statement of its own, so it sees a suspension that
-	 * committed while the lock waited.
+	 * {@link #lockHost}, as a statement of its own, so it sees a ban or suspension
+	 * that committed while the lock waited.
 	 *
 	 * @param hostId the user's ID
 	 * @return {@code true} when their Discord ID is banned or their suspension

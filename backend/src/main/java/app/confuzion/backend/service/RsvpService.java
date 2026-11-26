@@ -170,6 +170,8 @@ public class RsvpService {
 					.map(RsvpService::toRsvp).orElseThrow(RateLimitException::new);
 
 		transactionTemplate.executeWithoutResult(tx -> {
+			// Before the event lock, so a ban of the caller can't miss this join (D-015).
+			rsvpRepository.lockJoiner(userId);
 			var locked = rsvpRepository.lock(event.getId());
 			if (!Status.PUBLISHED.name().equals(locked.status()) || locked.hidden())
 				throw new NoSuchElementException();
