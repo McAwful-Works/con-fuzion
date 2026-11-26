@@ -215,8 +215,9 @@ class AdminUserControllerIntegrationTest {
 		var revoked = fixtures.user("Revoked");
 		assertThat(errorType(suspend(as(revoked, "ROLE_MODERATOR"), target, until), 403)).isEqualTo("FORBIDDEN");
 		assertThat(suspendedUntil(otherModerator)).isEqualTo(until);
-		assertThat(errorType(post("/api/admin/users/" + target + "/unsuspend").with(as(revoked, "ROLE_MODERATOR"))
-				.with(csrf()), 403)).isEqualTo("FORBIDDEN");
+		assertThat(errorType(
+				post("/api/admin/users/" + target + "/unsuspend").with(as(revoked, "ROLE_MODERATOR")).with(csrf()),
+				403)).isEqualTo("FORBIDDEN");
 		assertThat(suspendedUntil(target)).isEqualTo(later);
 		assertThat(audit(admin)).isEmpty();
 
@@ -318,8 +319,8 @@ class AdminUserControllerIntegrationTest {
 	 * @return the end, or {@code null}
 	 */
 	private Instant suspendedUntil(UUID userId) {
-		var until = jdbcTemplate.queryForObject("SELECT suspended_until FROM app_user WHERE id = ?",
-				Timestamp.class, userId);
+		var until = jdbcTemplate.queryForObject("SELECT suspended_until FROM app_user WHERE id = ?", Timestamp.class,
+				userId);
 		return until == null ? null : until.toInstant();
 	}
 
