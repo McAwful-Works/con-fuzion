@@ -342,7 +342,7 @@ public class EventService {
 	 */
 	@Transactional
 	public void cancelAsModerator(UUID moderatorId, UUID eventId, String reason) {
-		var event = eventRepository.findByPublicId(eventId).orElseThrow();
+		var event = eventRepository.lockByPublicId(eventId).orElseThrow();
 		if (event.getStatus() == Status.CANCELLED || !end(event).isAfter(Instant.now()))
 			return;
 		cancel(event);
@@ -365,7 +365,7 @@ public class EventService {
 	 */
 	@Transactional
 	public void hide(UUID moderatorId, UUID eventId, String reason) {
-		var event = eventRepository.findByPublicId(eventId).orElseThrow();
+		var event = eventRepository.lockByPublicId(eventId).orElseThrow();
 		if (event.getModerationReason() != null)
 			return;
 		eventRepository.setHidden(event.getId(), reason);
@@ -388,7 +388,7 @@ public class EventService {
 	 */
 	@Transactional
 	public void unhide(UUID moderatorId, UUID eventId) {
-		var event = eventRepository.findByPublicId(eventId).orElseThrow();
+		var event = eventRepository.lockByPublicId(eventId).orElseThrow();
 		if (event.getModerationReason() == null)
 			return;
 		eventRepository.setHidden(event.getId(), null);

@@ -153,7 +153,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	 * @return the event, or empty when it doesn't exist
 	 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	Optional<Event> findByPublicId(UUID publicId);
+	@Query("SELECT e FROM Event e WHERE e.publicId = :publicId")
+	Optional<Event> lockByPublicId(@Param("publicId") UUID publicId);
 
 	/**
 	 * Hides an event, or unhides it with a {@code null} reason. The two columns

@@ -124,17 +124,20 @@ public class RsvpRepository {
 
 	/**
 	 * Locks an event row until the transaction ends and reads it as it stands after
-	 * any write the lock waited for. {@code NO KEY UPDATE} conflicts with itself
-	 * but not with the key-share locks that inserting an RSVP takes.
+	 * any write the lock waited for, so a hide or cancel that committed while it
+	 * waited is seen. {@code NO KEY UPDATE} conflicts with itself but not with the
+	 * key-share locks that inserting an RSVP takes.
 	 *
 	 * @param eventId the event's internal ID
-	 * @return the event's status and counts
+	 * @return the event's status, whether it is hidden, and its counts
 	 */
 	public LockedEvent lock(long eventId) {
 		return jdbc.sql("""
-				SELECT host_id, status, capacity, confirmed_count FROM event WHERE id = :eventId FOR NO KEY UPDATE""")
-				.param("eventId", eventId).query((rs, row) -> new LockedEvent(rs.getObject("host_id", UUID.class),
-						rs.getString("status"), rs.getObject("capacity", Integer.class), rs.getInt("confirmed_count")))
+				SELECT host_id, status, hidden_by_moderation, capacity, confirmed_count FROM event WHERE id = :eventId
+				FOR NO KEY UPDATE""").param("eventId", eventId)
+				.query((rs, row) -> new LockedEvent(rs.getObject("host_id", UUID.class), rs.getString("status"),
+						rs.getBoolean("hidden_by_moderation"), rs.getObject("capacity", Integer.class),
+						rs.getInt("confirmed_count")))
 				.single();
 	}
 
@@ -477,11 +480,12 @@ public class RsvpRepository {
 	 *
 	 * @param hostId         the host's user ID
 	 * @param status         {@code PUBLISHED} or {@code CANCELLED}
+	 * @param hidden         whether moderators have hidden it
 	 * @param capacity       the headcount, or {@code null} for unlimited
 	 * @param confirmedCount how many people hold a spot
 	 * @author mcawful
 	 */
-	public record LockedEvent(UUID hostId, String status, Integer capacity, int confirmedCount) {
+	public record LockedEvent(UUID hostId, String status, boolean hidden, Integer capacity, int confirmedCount) {
 		/**
 		 * Returns whether a spot is free.
 		 *

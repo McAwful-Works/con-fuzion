@@ -160,6 +160,7 @@ class ModerationControllerIntegrationTest {
 		assertThat(status(delete(path + "/rsvp").with(login(attendee)).with(csrf()))).isEqualTo(404);
 		assertThat(status(post(path + "/rsvp").with(login(viewer)).with(csrf()))).isEqualTo(404);
 		assertThat(status(get(path).with(as(moderator)))).as("moderator without MFA").isEqualTo(404);
+		assertThat(status(get(path + "/spots").with(as(moderator)))).as("moderator without MFA").isEqualTo(404);
 		assertThat(fixtures.rsvpStatus(event.id(), attendee)).isEqualTo("CONFIRMED");
 
 		var asHost = content(get(path).with(login(host)), 200);

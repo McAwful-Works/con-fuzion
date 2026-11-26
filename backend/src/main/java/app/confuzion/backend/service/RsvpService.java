@@ -52,12 +52,13 @@ import io.github.bucket4j.distributed.proxy.ProxyManager;
 /**
  * Joining, leaving, removal, attendee lists and spot counts (plan B4, D-013).
  * Every operation first needs the event to be visible to the caller
- * ({@link EventRepository#VISIBLE}); otherwise it is a 404. Only the spot
- * counts also open to a moderator reviewing an event under moderation (D-015
- * rule 8): a moderator can't join, leave or list attendees through that, and an
- * event hidden by moderators can't be opened, joined or left by its attendees
- * ({@link NoSuchElementException}). Every write that changes who holds a spot
- * locks the event row before it touches an RSVP (D-013).
+ * ({@link EventRepository#VISIBLE}); otherwise it is a 404
+ * ({@link NoSuchElementException}). An event hidden by moderators can't be
+ * opened, joined or left by its attendees, and a join or accept re-checks that
+ * under the event row lock (D-015 rule 10). Only the spot counts also open to a
+ * moderator reviewing an event under moderation (rule 8): a moderator can't
+ * join, leave or list attendees through that. Every write that changes who
+ * holds a spot locks the event row before it touches an RSVP (D-013).
  * <p>
  * TODO(M7, account deletion): leave every active RSVP first, freeing the spot
  * and promoting the next person, because the {@code rsvp.user_id} cascade
@@ -170,7 +171,7 @@ public class RsvpService {
 
 		transactionTemplate.executeWithoutResult(tx -> {
 			var locked = rsvpRepository.lock(event.getId());
-			if (!Status.PUBLISHED.name().equals(locked.status()))
+			if (!Status.PUBLISHED.name().equals(locked.status()) || locked.hidden())
 				throw new NoSuchElementException();
 			// Nothing written can also mean the caller's offer ran out and the expiry job
 			// hasn't ended it yet: end it, freeing the spot, then join at the back of the
@@ -205,6 +206,8 @@ public class RsvpService {
 	public RsvpResponse accept(UUID userId, UUID eventId) {
 		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
 		var locked = rsvpRepository.lock(event.getId());
+		if (locked.hidden())
+			throw new NoSuchElementException();
 		var confirmed = new RsvpResponse(RsvpResponse.Status.CONFIRMED, null, null);
 		if (Status.PUBLISHED.name().equals(locked.status()) && rsvpRepository.acceptOffer(event.getId(), userId))
 			return confirmed;
