@@ -14,7 +14,10 @@ interface Props {
 /** Ban or unban, behind typing the Discord ID. */
 function BanButton({ discordId, name, banned, onStart, onDone }: Props) {
   const setBan = useSetBan(discordId);
-  const [typed, setTyped] = useState('');
+  // What was typed counts only for the action it was typed under: a Ban form that turns into Unban,
+  // because someone else banned them meanwhile, has to be confirmed again.
+  const [entry, setEntry] = useState({ banned, text: '' });
+  const typed = entry.banned === banned ? entry.text : '';
   const id = useId();
   const verb = banned ? 'Unban' : 'Ban';
 
@@ -24,7 +27,7 @@ function BanButton({ discordId, name, banned, onStart, onDone }: Props) {
       confirm={verb}
       mutation={setBan}
       onOpen={() => {
-        setTyped('');
+        setEntry({ banned, text: '' });
         onStart();
       }}
       ready={typed.trim() === discordId}
@@ -57,7 +60,7 @@ function BanButton({ discordId, name, banned, onStart, onDone }: Props) {
           inputMode="numeric"
           autoComplete="off"
           required
-          onChange={(e) => setTyped(e.target.value)}
+          onChange={(e) => setEntry({ banned, text: e.target.value })}
           className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3"
         />
       </div>

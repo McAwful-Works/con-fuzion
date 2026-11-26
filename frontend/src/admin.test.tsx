@@ -696,6 +696,22 @@ describe('banning', () => {
     ]);
   });
 
+  it('wants the ID again if the person was banned while the form was open', async () => {
+    let current = rowdy;
+    await openRowdy(
+      () => undefined,
+      () => current,
+    );
+    const { form, idBox } = openBanForm('Ban');
+    fireEvent.change(idBox, { target: { value: BAN_ID } });
+    current = { ...rowdy, ban: { reason: 'Spam', createdAt: '2026-11-25T10:00:00Z' } };
+    // Coming back to the tab reads the search again.
+    fireEvent(window, new Event('visibilitychange'));
+
+    expect(await form.findByRole('button', { name: 'Unban' })).toBeDisabled();
+    expect(idBox).toHaveValue('');
+  });
+
   it('forgets the typed ID when the form is dismissed', async () => {
     await openRowdy(() => undefined);
     fireEvent.change(openBanForm('Ban').idBox, { target: { value: BAN_ID } });
@@ -768,6 +784,15 @@ describe('roles', () => {
 
     expect(await screen.findByText('Roles for Rowdy saved.')).toBeInTheDocument();
     expect(writes(calls)).toEqual([{ method: 'PUT', path: ROLES, body: { roles: sent } }]);
+  });
+
+  it('has nothing to save once the boxes are back as they were', async () => {
+    await openRoles(({ path }) => (path === ROLES ? roles(['MODERATOR']) : undefined));
+    const admin = await screen.findByRole('checkbox', { name: 'Admin' });
+    fireEvent.click(admin);
+    expect(save()).toBeEnabled();
+    fireEvent.click(admin);
+    expect(save()).toBeDisabled();
   });
 
   it('reads them afresh each time, and warns when 2FA is off', async () => {

@@ -11,7 +11,7 @@ interface FieldsProps {
   userId: string;
   /** The new set, or null while it's unchanged. */
   picked: GrantedRole[] | null;
-  onPick: (roles: GrantedRole[]) => void;
+  onPick: (roles: GrantedRole[] | null) => void;
 }
 
 /** Mounted with the form, so the roles are only asked for when someone wants to see them. */
@@ -28,7 +28,13 @@ function RoleFields({ userId, picked, onPick }: FieldsProps) {
   if (!roles.data) {
     return <ErrorState error={roles.error} onRetry={() => void roles.refetch()} />;
   }
-  const current = picked ?? roles.data.roles;
+  const held = roles.data.roles;
+  const current = picked ?? held;
+  const toggle = (role: GrantedRole, on: boolean) => {
+    const next = ROLES.filter((r) => (r === role ? on : current.includes(r)));
+    // Back to what they already hold is no change, so there's nothing to save.
+    onPick(ROLES.every((r) => next.includes(r) === held.includes(r)) ? null : next);
+  };
 
   return (
     <>
@@ -39,9 +45,7 @@ function RoleFields({ userId, picked, onPick }: FieldsProps) {
             <input
               type="checkbox"
               checked={current.includes(role)}
-              onChange={(e) =>
-                onPick(ROLES.filter((r) => (r === role ? e.target.checked : current.includes(r))))
-              }
+              onChange={(e) => toggle(role, e.target.checked)}
               className="size-5 shrink-0"
             />
             <span>{words(role)}</span>
