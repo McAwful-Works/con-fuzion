@@ -563,3 +563,313 @@ describe('user search', () => {
     expect(await screen.findByText('No one found.')).toBeInTheDocument();
   });
 });
+
+const SEARCH = '/api/admin/users?q=rowdy';
+const ROLES = `/api/admin/users/${USER_ID}/roles`;
+const BAN_ID = rowdy.discordId;
+const found = (users: AdminUser[]) => envelope('ADMIN_USER_LIST', { items: users });
+
+/** An admin looking at one search result; `extra` answers everything else. */
+async function openRowdy(
+  extra: (call: RecordedCall) => Response | undefined,
+  user: () => AdminUser = () => rowdy,
+) {
+  const calls = signedIn(admin, (call) => {
+    if (call.method === 'GET' && call.path === SEARCH) return found([user()]);
+    return extra(call);
+  });
+  await openAdmin('/admin/users?q=rowdy');
+  await screen.findByRole('heading', { name: 'Rowdy' });
+  return calls;
+}
+
+/** Opens a ban or unban form and returns it with its confirm button and ID box. */
+function openBanForm(verb: 'Ban' | 'Unban', name = 'Rowdy') {
+  fireEvent.click(screen.getByRole('button', { name: `${verb} ${name}` }));
+  const form = within(screen.getByRole('form', { name: `${verb} ${name}` }));
+  return {
+    form,
+    confirm: form.getByRole('button', { name: verb }),
+    idBox: form.getByLabelText(/Type the Discord ID/),
+  };
+}
+
+describe('what only an admin gets', () => {
+  it('shows a moderator no bans, roles or audit log', async () => {
+    signedIn(moderator, ({ path }) => (path === SEARCH ? found([rowdy]) : undefined));
+    await openAdmin('/admin/users?q=rowdy');
+
+    expect(await screen.findByRole('button', { name: 'Suspend Rowdy' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ban|Unban|Roles/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Audit log' })).toBeNull();
+  });
+
+  it('shows an admin all three', async () => {
+    const calls = await openRowdy(() => undefined);
+
+    expect(screen.getByRole('button', { name: 'Ban Rowdy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Roles for Rowdy' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Audit log' })).toHaveAttribute('href', '/admin/audit');
+    // Roles are only asked for once someone opens them.
+    expect(adminCalls(calls).map((c) => c.path)).toEqual([SEARCH]);
+  });
+
+  it('answers a moderator at the audit log address with not found, asking nothing', async () => {
+    const calls = signedIn(moderator);
+    await openAdmin('/admin/audit');
+
+    expect(await notFound()).toBeInTheDocument();
+    expect(adminCalls(calls)).toEqual([]);
+  });
+
+  it.each([
+    ['a moderator', moderator, 0],
+    ['an admin', admin, 2],
+  ])('offers %s ban buttons for a Discord ID with no account', async (_, meBody, buttons) => {
+    const path = `/api/admin/users?q=${BAN_ID}`;
+    signedIn(meBody, (call) => (call.path === path ? found([]) : undefined));
+    await openAdmin(`/admin/users?q=${BAN_ID}`);
+
+    expect(await screen.findByText('No one found.')).toBeInTheDocument();
+    expect(screen.queryAllByRole('button', { name: /(Ban|Unban) Discord ID/ })).toHaveLength(
+      buttons,
+    );
+  });
+});
+
+describe('banning', () => {
+  async function sendBan() {
+    const { form, confirm, idBox } = openBanForm('Ban');
+    fireEvent.change(idBox, { target: { value: BAN_ID } });
+    fireEvent.change(form.getByLabelText(/Reason/), { target: { value: 'Threats' } });
+    fireEvent.click(confirm);
+  }
+
+  it('needs the exact Discord ID and a reason, then offers the unban', async () => {
+    let current = rowdy;
+    const calls = await openRowdy(
+      ({ path }) => {
+        if (path !== '/api/admin/bans') return undefined;
+        current = { ...rowdy, ban: { reason: 'Threats', createdAt: '2026-11-25T10:00:00Z' } };
+        return noContent();
+      },
+      () => current,
+    );
+    const { form, confirm, idBox } = openBanForm('Ban');
+    const reason = form.getByLabelText(/Reason/);
+    expect(reason).toHaveAttribute('maxlength', '500');
+    fireEvent.change(reason, { target: { value: ' Threats ' } });
+    expect(confirm).toBeDisabled();
+    for (const wrong of [BAN_ID.slice(0, -1), `${BAN_ID}0`, 'Rowdy']) {
+      fireEvent.change(idBox, { target: { value: wrong } });
+      expect(confirm).toBeDisabled();
+    }
+    fireEvent.change(idBox, { target: { value: BAN_ID } });
+    fireEvent.change(reason, { target: { value: '  ' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(reason, { target: { value: ' Threats ' } });
+    fireEvent.click(confirm);
+
+    expect(await screen.findByRole('button', { name: 'Unban Rowdy' })).toHaveFocus();
+    expect(screen.getByText('Rowdy is banned.')).toBeInTheDocument();
+    expect(screen.queryByRole('form')).toBeNull();
+    expect(writes(calls)).toEqual([
+      { method: 'POST', path: '/api/admin/bans', body: { discordId: BAN_ID, reason: 'Threats' } },
+    ]);
+  });
+
+  it('unbans behind the same typed ID, with no reason', async () => {
+    const banned = { ...rowdy, ban: { reason: 'Spam', createdAt: '2026-11-01T00:00:00Z' } };
+    const calls = await openRowdy(
+      ({ method }) => (method === 'DELETE' ? noContent() : undefined),
+      () => banned,
+    );
+    const { form, confirm, idBox } = openBanForm('Unban');
+    expect(form.queryByLabelText(/Reason/)).toBeNull();
+    expect(confirm).toBeDisabled();
+    fireEvent.change(idBox, { target: { value: BAN_ID } });
+    fireEvent.click(confirm);
+
+    expect(await screen.findByText('Rowdy is unbanned.')).toBeInTheDocument();
+    expect(writes(calls)).toEqual([
+      { method: 'DELETE', path: `/api/admin/bans/${BAN_ID}`, body: undefined },
+    ]);
+  });
+
+  it('forgets the typed ID when the form is dismissed', async () => {
+    await openRowdy(() => undefined);
+    fireEvent.change(openBanForm('Ban').idBox, { target: { value: BAN_ID } });
+    fireEvent.click(screen.getByRole('button', { name: 'Never mind' }));
+    expect(openBanForm('Ban').idBox).toHaveValue('');
+  });
+
+  it('says only how the latest change to an unlisted ID ended', async () => {
+    const calls = signedIn(admin, ({ method, path }) => {
+      if (method !== 'GET') return noContent();
+      return path === `/api/admin/users?q=${BAN_ID}` ? found([]) : undefined;
+    });
+    await openAdmin(`/admin/users?q=${BAN_ID}`);
+    await screen.findByText('No one found.');
+    const name = `Discord ID ${BAN_ID}`;
+    const ban = openBanForm('Ban', name);
+    fireEvent.change(ban.idBox, { target: { value: BAN_ID } });
+    fireEvent.change(ban.form.getByLabelText(/Reason/), { target: { value: 'Known spammer' } });
+    fireEvent.click(ban.confirm);
+    expect(await screen.findByText(`${name} is banned.`)).toBeInTheDocument();
+    const unban = openBanForm('Unban', name);
+    fireEvent.change(unban.idBox, { target: { value: BAN_ID } });
+    fireEvent.click(unban.confirm);
+
+    expect(await screen.findByText(`${name} is unbanned.`)).toBeInTheDocument();
+    expect(screen.queryByText(`${name} is banned.`)).toBeNull();
+    expect(writes(calls).map((c) => c.method)).toEqual(['POST', 'DELETE']);
+  });
+
+  it('explains why an account with a role can’t be banned', async () => {
+    await openRowdy(({ method }) =>
+      method === 'POST' ? failure(409, 'TARGET_HAS_ROLE') : undefined,
+    );
+    await sendBan();
+    expect(await screen.findByRole('alert')).toHaveTextContent('can’t be suspended or banned');
+  });
+
+  it('answers a 403 with the not-found page', async () => {
+    await openRowdy(({ method }) => (method === 'POST' ? failure(403, 'FORBIDDEN') : undefined));
+    await sendBan();
+    expect(await notFound()).toBeInTheDocument();
+  });
+});
+
+describe('roles', () => {
+  const roles = (held: Schemas['RolesResponse']['roles'], mfaEnabled = true) =>
+    envelope('ROLES', { roles: held, mfaEnabled });
+
+  async function openRoles(extra: (call: RecordedCall) => Response | undefined) {
+    const calls = await openRowdy(extra);
+    fireEvent.click(screen.getByRole('button', { name: 'Roles for Rowdy' }));
+    return calls;
+  }
+
+  const save = () => screen.getByRole('button', { name: 'Save roles' });
+
+  it.each([
+    ['grants a second role', 'Admin', ['MODERATOR', 'ADMIN']],
+    ['removes the last role', 'Moderator', []],
+  ])('%s', async (_, box, sent) => {
+    const calls = await openRoles(({ path }) =>
+      path === ROLES ? roles(['MODERATOR']) : undefined,
+    );
+    expect(await screen.findByRole('checkbox', { name: 'Moderator' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Admin' })).not.toBeChecked();
+    expect(screen.queryByText(/2FA\) was off/)).toBeNull();
+    expect(save()).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', { name: box }));
+    fireEvent.click(save());
+
+    expect(await screen.findByText('Roles for Rowdy saved.')).toBeInTheDocument();
+    expect(writes(calls)).toEqual([{ method: 'PUT', path: ROLES, body: { roles: sent } }]);
+  });
+
+  it('reads them afresh each time, and warns when 2FA is off', async () => {
+    const calls = await openRoles(({ path }) => (path === ROLES ? roles([], false) : undefined));
+    expect(await screen.findByText(/2FA\) was off/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Admin' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Never mind' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Roles for Rowdy' }));
+
+    expect(await screen.findByRole('checkbox', { name: 'Admin' })).not.toBeChecked();
+    expect(save()).toBeDisabled();
+    await waitFor(() => expect(calls.filter((c) => c.path === ROLES)).toHaveLength(2));
+  });
+
+  it('explains why the last admin can’t be removed', async () => {
+    await openRoles(({ method, path }) => {
+      if (path !== ROLES) return undefined;
+      return method === 'GET' ? roles(['ADMIN']) : failure(409, 'LAST_ADMIN');
+    });
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Admin' }));
+    fireEvent.click(save());
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('would leave no admin');
+  });
+
+  it('answers a 404 to reading them with the not-found page', async () => {
+    await openRoles(({ path }) => (path === ROLES ? failure(404) : undefined));
+    expect(await notFound()).toBeInTheDocument();
+  });
+
+  it('answers a 403 to saving them with the not-found page', async () => {
+    await openRoles(({ method, path }) => {
+      if (path !== ROLES) return undefined;
+      return method === 'GET' ? roles([]) : failure(403, 'FORBIDDEN');
+    });
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Admin' }));
+    fireEvent.click(save());
+    expect(await notFound()).toBeInTheDocument();
+  });
+});
+
+describe('the audit log', () => {
+  const AUDIT = '/api/admin/audit?limit=20';
+  const entry: Schemas['AuditEntryResponse'] = {
+    id: 7,
+    actorId: REPORTER_ID,
+    action: 'USER_SUSPENDED',
+    targetType: 'USER',
+    targetId: USER_ID,
+    details: { until: '2027-01-01T00:00:00Z', reason: '<img src=x> ACCOUNT_BANNED' },
+    createdAt: '2026-11-25T10:00:00Z',
+  };
+  const system: Schemas['AuditEntryResponse'] = {
+    ...entry,
+    id: 6,
+    actorId: null,
+    action: 'ROLES_CHANGED',
+    targetType: 'DISCORD_ACCOUNT',
+    targetId: BAN_ID,
+    details: { roles: [], cause: 'SIGN_IN_REFUSED', resolution: 'DISMISSED', sessions: 0 },
+  };
+  const log = (items: Schemas['AuditEntryResponse'][], nextCursor: string | null = null) =>
+    envelope('AUDIT_PAGE', { items, nextCursor });
+
+  it('shows a page at a time, with details as plain text', async () => {
+    const calls = signedIn(admin, ({ path }) => {
+      if (path === AUDIT) return log([entry], 'abc');
+      return path === `${AUDIT}&cursor=abc` ? log([system]) : undefined;
+    });
+    await openAdmin('/admin/audit');
+
+    expect(await screen.findByRole('heading', { name: 'User suspended' })).toBeInTheDocument();
+    // Free text is shown as written: no markup, and a code inside it isn't reworded.
+    expect(screen.getByText('<img src=x> ACCOUNT_BANNED')).toBeInTheDocument();
+    expect(document.querySelector('img[src="x"]')).toBeNull();
+    expect(screen.getByText(REPORTER_ID)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+
+    expect(await screen.findByRole('heading', { name: 'Roles changed' })).toBeInTheDocument();
+    const second = within(screen.getAllByRole('listitem').at(-1)!);
+    expect(second.getAllByRole('definition').map((d) => d.textContent)).toEqual([
+      expect.any(String),
+      'The system',
+      BAN_ID,
+      'None',
+      'Sign in refused',
+      'Dismissed',
+      '0',
+    ]);
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    expect(adminCalls(calls).map((c) => c.path)).toEqual([AUDIT, `${AUDIT}&cursor=abc`]);
+  });
+
+  it('says when nothing is recorded', async () => {
+    signedIn(admin, ({ path }) => (path === AUDIT ? log([]) : undefined));
+    await openAdmin('/admin/audit');
+    expect(await screen.findByText('Nothing recorded yet.')).toBeInTheDocument();
+  });
+
+  it('answers a 403 with the not-found page', async () => {
+    signedIn(admin, ({ path }) => (path === AUDIT ? failure(403, 'FORBIDDEN') : undefined));
+    await openAdmin('/admin/audit');
+    expect(await notFound()).toBeInTheDocument();
+  });
+});

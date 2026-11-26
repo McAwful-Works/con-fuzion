@@ -10,7 +10,8 @@ export function When({ iso }: { iso: string }) {
 /** One labelled value in a `<dl>`. Values are often user text: plain text, wrapped wherever it must. */
 export function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
+    // `min-w-0`: in a grid, a long unbroken value would otherwise widen the page instead of wrapping.
+    <div className="min-w-0">
       <dt className="text-ink-muted text-sm">{label}</dt>
       <dd className="break-words whitespace-pre-wrap">{children}</dd>
     </div>
