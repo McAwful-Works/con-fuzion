@@ -49,10 +49,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	 * with an audience entry that matches them: a {@code USER} entry naming them, a
 	 * {@code FRIENDS} entry while they are the host's friend, a {@code CIRCLE}
 	 * entry for one of the host's circles they are in, or a {@code GUILD} entry for
-	 * a server where both of them are discoverable now.
+	 * a server where both of them are discoverable now. An event hidden by
+	 * moderators is visible to its host only, whatever RSVP or audience entry
+	 * anyone else has (D-015 rule 10); {@link #findVisible} adds the moderators.
 	 */
 	String VISIBLE = """
-			(e.host_id = :viewer OR (NOT EXISTS (SELECT 1 FROM block b
+			(e.host_id = :viewer OR (NOT e.hidden_by_moderation AND NOT EXISTS (SELECT 1 FROM block b
 					WHERE (b.blocker_id = e.host_id AND b.blocked_id = :viewer)
 						OR (b.blocker_id = :viewer AND b.blocked_id = e.host_id))
 				AND (EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id AND r.user_id = :viewer
@@ -69,6 +71,20 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 					OR (a.type = 'GUILD' AND EXISTS (SELECT 1 FROM user_guild vg
 						JOIN user_guild hg ON hg.guild_id = vg.guild_id AND hg.user_id = e.host_id AND hg.discoverable
 						WHERE vg.guild_id = a.guild_id AND vg.user_id = :viewer AND vg.discoverable)))))))
+			""";
+
+	/**
+	 * Whether event {@code e} is under moderation for the viewer {@code :viewer}:
+	 * hidden, or the target of a report in any status by someone else. Only such an
+	 * event is open to a moderator who couldn't otherwise see it (D-015 rule 8), so
+	 * a moderator can't walk event IDs to find where people will be, and can't get
+	 * past a host's block or a CONFIRMED-only location by reporting the event
+	 * themself.
+	 */
+	String MODERATED = """
+			(e.hidden_by_moderation OR EXISTS (SELECT 1 FROM report rp
+				WHERE rp.target_type = 'EVENT' AND rp.target_id = e.public_id
+					AND rp.reporter_id IS DISTINCT FROM :viewer))
 			""";
 
 	/**
@@ -89,14 +105,21 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 			""";
 
 	/**
-	 * Returns an event if the viewer may see it.
+	 * Returns an event if the viewer may see it: by {@link #VISIBLE}, or, for a
+	 * moderator, while it is {@link #MODERATED}. Only the moderators' reads pass
+	 * {@code moderator = true} (the detail view and the spot counts); joining,
+	 * leaving and the attendee list never do, so a moderator's view of a reported
+	 * or hidden event is for review only (D-015 rules 8 and 10).
 	 *
-	 * @param publicId the event's public ID
-	 * @param viewer   the viewer's user ID
+	 * @param publicId  the event's public ID
+	 * @param viewer    the viewer's user ID
+	 * @param moderator whether the session holds MODERATOR or ADMIN in effect
 	 * @return the event, or empty when it doesn't exist or the viewer can't see it
 	 */
-	@Query(value = "SELECT e.* FROM event e WHERE e.public_id = :publicId AND " + VISIBLE, nativeQuery = true)
-	Optional<Event> findVisible(@Param("publicId") UUID publicId, @Param("viewer") UUID viewer);
+	@Query(value = "SELECT e.* FROM event e WHERE e.public_id = :publicId AND (" + VISIBLE
+			+ " OR (CAST(:moderator AS boolean) AND " + MODERATED + "))", nativeQuery = true)
+	Optional<Event> findVisible(@Param("publicId") UUID publicId, @Param("viewer") UUID viewer,
+			@Param("moderator") boolean moderator);
 
 	/**
 	 * Returns an event a user may report (D-015 rule 6): one they can see, or one
@@ -110,6 +133,43 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	@Query(value = "SELECT e.* FROM event e WHERE e.public_id = :publicId AND (" + VISIBLE
 			+ " OR EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id AND r.user_id = :viewer))", nativeQuery = true)
 	Optional<Event> findReportable(@Param("publicId") UUID publicId, @Param("viewer") UUID viewer);
+
+	/**
+	 * Returns whether an event is {@link #MODERATED} for a viewer.
+	 *
+	 * @param id     the event's internal ID
+	 * @param viewer the viewer's user ID
+	 * @return {@code true} when it is hidden or someone else has reported it
+	 */
+	@Query(value = "SELECT " + MODERATED + " FROM event e WHERE e.id = :id", nativeQuery = true)
+	boolean isModerated(@Param("id") long id, @Param("viewer") UUID viewer);
+
+	/**
+	 * Returns any event, locked until the transaction ends, for a moderator's hide,
+	 * unhide or cancel. The lock is the host's edit and cancel lock, so they run
+	 * one after another.
+	 *
+	 * @param publicId the event's public ID
+	 * @return the event, or empty when it doesn't exist
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT e FROM Event e WHERE e.publicId = :publicId")
+	Optional<Event> lockByPublicId(@Param("publicId") UUID publicId);
+
+	/**
+	 * Hides an event, or unhides it with a {@code null} reason. The two columns
+	 * change together (D-015 rule 10). {@code Event.moderationReason} is read-only
+	 * in JPA, so only this writes it.
+	 *
+	 * @param id     the event's internal ID
+	 * @param reason the moderator's reason, or {@code null} to unhide
+	 * @return 1
+	 */
+	@Modifying
+	@Query(value = """
+			UPDATE event SET hidden_by_moderation = CAST(:reason AS varchar) IS NOT NULL, moderation_reason = CAST(:reason AS varchar)
+			WHERE id = :id""", nativeQuery = true)
+	int setHidden(@Param("id") long id, @Param("reason") String reason);
 
 	/**
 	 * Returns a page of the viewer's feed: upcoming published events they may see,

@@ -21,6 +21,7 @@ package app.confuzion.backend.controller;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.assertError;
 import static app.confuzion.backend.controller.ErrorEnvelopeAssert.json;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -46,6 +47,7 @@ import app.confuzion.backend.model.record.ReportPageResponse;
 import app.confuzion.backend.model.record.ReportResponse;
 import app.confuzion.backend.model.record.ResolveReportRequest;
 import app.confuzion.backend.model.record.ResolveReportRequest.Resolution;
+import app.confuzion.backend.service.EventService;
 import app.confuzion.backend.service.ReportService;
 
 /**
@@ -86,9 +88,14 @@ class ModerationControllerTest {
 	private final ReportService reportService = mock(ReportService.class);
 
 	/**
+	 * The mocked {@link EventService}.
+	 */
+	private final EventService eventService = mock(EventService.class);
+
+	/**
 	 * The {@link MockMvc} for the controller.
 	 */
-	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new ModerationController(reportService));
+	private final MockMvc mockMvc = ErrorEnvelopeAssert.mockMvc(new ModerationController(reportService, eventService));
 
 	/**
 	 * Tests that every report operation maps to the service with the caller's ID
@@ -130,15 +137,17 @@ class ModerationControllerTest {
 	}
 
 	/**
-	 * Tests that a valid event request is a 501 in the error envelope, until the
-	 * second part of #85.
-	 *
-	 * @param request the request
+	 * Tests that each event operation is a 204 that reaches the service with the
+	 * caller's ID, the event and the reason.
 	 */
-	@ParameterizedTest
-	@MethodSource("eventRequests")
-	void testEventRequestsAreNotImplementedYet(MockHttpServletRequestBuilder request) throws Exception {
-		assertError(mockMvc, request.principal(AUTHENTICATION), HttpStatus.NOT_IMPLEMENTED);
+	@Test
+	void testEventOperationsMapToTheService() throws Exception {
+		for (var request : eventRequests().toList())
+			mockMvc.perform(request.principal(AUTHENTICATION)).andExpect(status().isNoContent());
+
+		verify(eventService).hide(MODERATOR_ID, EVENT_ID, "x".repeat(500));
+		verify(eventService).unhide(MODERATOR_ID, EVENT_ID);
+		verify(eventService).cancelAsModerator(MODERATOR_ID, EVENT_ID, "Unsafe location");
 	}
 
 	/**

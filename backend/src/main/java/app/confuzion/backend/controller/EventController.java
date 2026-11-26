@@ -141,10 +141,13 @@ public class EventController {
 	@GetMapping("/{eventId}")
 	@Operation(summary = "Get an event", description = "404 unless the user can see it (D-012). Once it's cancelled, "
 			+ "the host and anyone still confirmed or waitlisted can see it (D-013). A CONFIRMED-only location is "
-			+ "withheld unless the user is the host or confirmed.")
+			+ "withheld unless the user is the host or confirmed. An event hidden by moderators is a 404 for everyone "
+			+ "but its host. A moderator also sees an event that is hidden or has been reported, with its location, "
+			+ "to review it (D-015).")
 	public ResponseRecord<EventResponse> getEvent(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "The event's public ID") @PathVariable UUID eventId) {
-		return new ResponseRecord<>(eventService.getEvent(HttpUtil.userId(authentication), eventId));
+		return new ResponseRecord<>(
+				eventService.getEvent(HttpUtil.userId(authentication), eventId, HttpUtil.isModerator(authentication)));
 	}
 
 	/**

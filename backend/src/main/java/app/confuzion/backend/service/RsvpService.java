@@ -53,8 +53,12 @@ import io.github.bucket4j.distributed.proxy.ProxyManager;
  * Joining, leaving, removal, attendee lists and spot counts (plan B4, D-013).
  * Every operation first needs the event to be visible to the caller
  * ({@link EventRepository#VISIBLE}); otherwise it is a 404
- * ({@link NoSuchElementException}). Every write that changes who holds a spot
- * locks the event row before it touches an RSVP (D-013).
+ * ({@link NoSuchElementException}). An event hidden by moderators can't be
+ * opened, joined or left by its attendees, and a join or accept re-checks that
+ * under the event row lock (D-015 rule 10). Only the spot counts also open to a
+ * moderator reviewing an event under moderation (rule 8): a moderator can't
+ * join, leave or list attendees through that. Every write that changes who
+ * holds a spot locks the event row before it touches an RSVP (D-013).
  * <p>
  * TODO(M7, account deletion): leave every active RSVP first, freeing the spot
  * and promoting the next person, because the {@code rsvp.user_id} cascade
@@ -148,7 +152,7 @@ public class RsvpService {
 	 *                                open
 	 */
 	public RsvpResponse join(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
+		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
 		var mine = rsvpRepository.findMine(event.getId(), userId);
 		if (mine.isPresent() && mine.get().status() != MyStatus.REMOVED)
 			return toRsvp(mine.get());
@@ -167,7 +171,7 @@ public class RsvpService {
 
 		transactionTemplate.executeWithoutResult(tx -> {
 			var locked = rsvpRepository.lock(event.getId());
-			if (!Status.PUBLISHED.name().equals(locked.status()))
+			if (!Status.PUBLISHED.name().equals(locked.status()) || locked.hidden())
 				throw new NoSuchElementException();
 			// Nothing written can also mean the caller's offer ran out and the expiry job
 			// hasn't ended it yet: end it, freeing the spot, then join at the back of the
@@ -200,8 +204,10 @@ public class RsvpService {
 	 */
 	@Transactional
 	public RsvpResponse accept(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
+		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
 		var locked = rsvpRepository.lock(event.getId());
+		if (locked.hidden())
+			throw new NoSuchElementException();
 		var confirmed = new RsvpResponse(RsvpResponse.Status.CONFIRMED, null, null);
 		if (Status.PUBLISHED.name().equals(locked.status()) && rsvpRepository.acceptOffer(event.getId(), userId))
 			return confirmed;
@@ -226,7 +232,7 @@ public class RsvpService {
 	 */
 	@Transactional
 	public void leave(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
+		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
 		if (event.getHostId().equals(userId))
 			throw new ConflictException(Conflict.HOST_CANNOT_LEAVE);
 		end(event.getId(), userId, "LEFT");
@@ -264,7 +270,7 @@ public class RsvpService {
 	 */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public AttendeesResponse getAttendees(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
+		var event = eventRepository.findVisible(eventId, userId, false).orElseThrow();
 		var isHost = event.getHostId().equals(userId);
 		if (!isHost && rsvpRepository.findMine(event.getId(), userId).map(Mine::status)
 				.filter(MyStatus.CONFIRMED::equals).isEmpty())
@@ -279,14 +285,15 @@ public class RsvpService {
 	 * up to {@link #COUNTS_TTL} old; the caller's status and position are always
 	 * current.
 	 *
-	 * @param userId  the signed-in user's ID
-	 * @param eventId the event's public ID
+	 * @param userId    the signed-in user's ID
+	 * @param eventId   the event's public ID
+	 * @param moderator whether the session holds MODERATOR or ADMIN in effect
 	 * @return the {@link SpotsResponse}
 	 * @throws NoSuchElementException when the caller can't see the event
 	 */
 	@Transactional(readOnly = true)
-	public SpotsResponse getSpots(UUID userId, UUID eventId) {
-		var event = eventRepository.findVisible(eventId, userId).orElseThrow();
+	public SpotsResponse getSpots(UUID userId, UUID eventId, boolean moderator) {
+		var event = eventRepository.findVisible(eventId, userId, moderator).orElseThrow();
 		var shared = counts.get(event.getId(), rsvpRepository::findCounts);
 		var mine = rsvpRepository.findMine(event.getId(), userId);
 		return new SpotsResponse(shared.capacity(), shared.confirmed(), shared.waitlisted(),
@@ -319,7 +326,7 @@ public class RsvpService {
 	 * @throws NoSuchElementException when it doesn't exist or isn't theirs
 	 */
 	private Event hosted(UUID hostId, UUID eventId) {
-		return eventRepository.findVisible(eventId, hostId).filter(event -> event.getHostId().equals(hostId))
+		return eventRepository.findVisible(eventId, hostId, false).filter(event -> event.getHostId().equals(hostId))
 				.orElseThrow();
 	}
 
