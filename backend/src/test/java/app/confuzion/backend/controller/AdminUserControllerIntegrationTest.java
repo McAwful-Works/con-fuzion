@@ -160,6 +160,21 @@ class AdminUserControllerIntegrationTest {
 	}
 
 	/**
+	 * Tests that a search returns at most 20 users (D-015 rule 13), the first by
+	 * username.
+	 */
+	@Test
+	void searchReturnsAtMostTwenty() throws Exception {
+		var prefix = "c" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
+		for (var i = 20; i >= 0; i--)
+			fixtures.social().user(prefix + "_%02d".formatted(i), null);
+
+		var found = usernames(search(as(user("MODERATOR"), "ROLE_MODERATOR"), prefix));
+		assertThat(found).hasSize(20).first().isEqualTo(prefix + "_00");
+		assertThat(found).last().isEqualTo(prefix + "_19");
+	}
+
+	/**
 	 * Tests who can be suspended (D-015 rule 4): a moderator only users with no
 	 * granted role, an admin moderators too, and nobody an admin or themself (409
 	 * {@code TARGET_HAS_ROLE}). A suspension sets the end and is audit-logged with
@@ -239,6 +254,8 @@ class AdminUserControllerIntegrationTest {
 		join(full.id(), waiting, "WAITLISTED");
 		var open = fixtures.rsvpEvent(host, 5, "now() + interval '1 day'", "NULL");
 		fixtures.audience(open.id(), "USER", null, null, banned);
+		var past = fixtures.event(host, "now() - interval '1 day'", "now() - interval '20 hours'");
+		join(past.id(), banned, "CONFIRMED");
 		var discordId = Long.toString(discordId(banned));
 
 		assertThat(status(ban(asAdmin, discordId))).isEqualTo(204);
@@ -251,6 +268,7 @@ class AdminUserControllerIntegrationTest {
 		assertThat(fixtures.rsvpStatus(full.id(), banned)).isEqualTo("LEFT");
 		assertThat(fixtures.rsvpStatus(full.id(), waiting)).isEqualTo("OFFERED");
 		assertThat(fixtures.confirmedCount(full.id())).isEqualTo(2);
+		assertThat(fixtures.rsvpStatus(past.id(), banned)).as("history").isEqualTo("CONFIRMED");
 		assertThatThrownBy(() -> rsvpService.join(banned, open.publicId())).isInstanceOf(NoSuchElementException.class);
 		assertThat(fixtures.rsvpStatus(open.id(), banned)).isNull();
 		assertThat(audit(discordId)).containsExactly("ACCOUNT_BANNED " + admin + " {\"reason\": \"Spam\"}");

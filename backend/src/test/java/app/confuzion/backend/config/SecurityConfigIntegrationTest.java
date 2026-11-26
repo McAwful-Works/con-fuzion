@@ -146,8 +146,8 @@ class SecurityConfigIntegrationTest {
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
 	 * needs: {@code MODERATOR} for the moderator routes (which ADMIN also passes)
 	 * and {@code ADMIN} for the rest, and the status a caller with the role gets.
-	 * The user, the report and the event are unknown, and the banned Discord ID
-	 * has no account (and is unbanned again).
+	 * The user, the report and the event are unknown, and the banned Discord ID has
+	 * no account (and is unbanned again).
 	 */
 	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
 			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR", 200),

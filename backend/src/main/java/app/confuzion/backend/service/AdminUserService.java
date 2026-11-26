@@ -129,7 +129,8 @@ public class AdminUserService {
 
 	/**
 	 * Finds users by an exact user ID or Discord ID, or by part of a username or
-	 * display name, ignoring case (D-015 rule 14).
+	 * display name, ignoring case (D-015 rule 14). The text is used as sent, so the
+	 * 2-character minimum it was validated against holds.
 	 *
 	 * @param viewer the moderator searching
 	 * @param q      the search text, 2 to 100 characters
@@ -137,21 +138,20 @@ public class AdminUserService {
 	 */
 	@Transactional(readOnly = true)
 	public AdminUserListResponse findUsers(UUID viewer, String q) {
-		var text = q.strip();
 		UUID id = null;
 		try {
-			id = UUID.fromString(text);
+			id = UUID.fromString(q);
 		} catch (IllegalArgumentException e) {
 			// Not a user ID: match it as a name or a Discord ID only.
 		}
 		Long discordId = null;
-		if (DIGITS.matcher(text).matches())
+		if (DIGITS.matcher(q).matches())
 			try {
-				discordId = Long.parseLong(text);
+				discordId = Long.parseLong(q);
 			} catch (NumberFormatException e) {
 				// Past the range of a Discord ID.
 			}
-		return new AdminUserListResponse(adminUserRepository.search(text, id, discordId, viewer, SEARCH_LIMIT));
+		return new AdminUserListResponse(adminUserRepository.search(q, id, discordId, viewer, SEARCH_LIMIT));
 	}
 
 	/**
@@ -221,11 +221,11 @@ public class AdminUserService {
 	 * one, in this transaction and in D-013's lock order (the user's row, then
 	 * their events in ID order): their upcoming hosted events are cancelled through
 	 * {@link EventService#cancelEvent}, so attendees get the usual
-	 * {@code EVENT_CANCELLED}; their active RSVPs on other events end as
-	 * {@code LEFT}, each freed spot going to the next person in line; and their
-	 * sessions and push subscriptions are deleted. The account, and the host's own
-	 * RSVPs on their events, are kept. Banning a banned ID changes nothing and
-	 * writes nothing.
+	 * {@code EVENT_CANCELLED}; their active RSVPs on other events that haven't
+	 * ended end as {@code LEFT}, each freed spot going to the next person in line;
+	 * and their sessions and push subscriptions are deleted. The account, and the
+	 * host's own RSVPs on their events, are kept. Banning a banned ID changes
+	 * nothing and writes nothing.
 	 * <p>
 	 * A join of theirs racing the ban either commits first, and the ban ends it, or
 	 * waits for the ban and writes nothing ({@link RsvpRepository#lockJoiner}).
@@ -250,7 +250,7 @@ public class AdminUserService {
 		if (!userRoleRepository.lockRoles(actorId).contains(GrantedRole.ADMIN))
 			throw new AccessDeniedException("The actor no longer holds ADMIN");
 		userId.ifPresent(this::cleanUp);
-		auditLogRepository.insert(actorId, Action.ACCOUNT_BANNED, TargetType.DISCORD_ACCOUNT, discordId,
+		auditLogRepository.insert(actorId, Action.ACCOUNT_BANNED, TargetType.DISCORD_ACCOUNT, Long.toString(id),
 				new AuditDetails(reason, null, null, null, null, null, null));
 		userId.ifPresent(user -> signOut(user, Action.ACCOUNT_BANNED, actorId));
 	}
@@ -270,7 +270,8 @@ public class AdminUserService {
 		if (!userRoleRepository.lockRoles(actorId).contains(GrantedRole.ADMIN))
 			throw new AccessDeniedException("The actor no longer holds ADMIN");
 		if (adminUserRepository.deleteBan(id))
-			auditLogRepository.insert(actorId, Action.ACCOUNT_UNBANNED, TargetType.DISCORD_ACCOUNT, discordId, null);
+			auditLogRepository.insert(actorId, Action.ACCOUNT_UNBANNED, TargetType.DISCORD_ACCOUNT, Long.toString(id),
+					null);
 	}
 
 	/**

@@ -460,11 +460,12 @@ public class RsvpRepository {
 	}
 
 	/**
-	 * Locks, in ID order, every event a ban must clean up (D-015): the user's
-	 * hosted events that are published and haven't ended, to cancel, and the other
-	 * events where they hold an active RSVP, to end it. The caller must hold the
-	 * user's {@code app_user} row lock, which a join takes a share of first
-	 * ({@link #lockJoiner}), so no RSVP of theirs can still be on its way in.
+	 * Locks, in ID order, every event a ban must clean up (D-015) among those that
+	 * haven't ended: the user's published hosted events, to cancel, and the other
+	 * events where they hold an active RSVP, to end it. Ended events are history
+	 * and stay as they are. The caller must hold the user's {@code app_user} row
+	 * lock, which a join takes a share of first ({@link #lockJoiner}), so no RSVP
+	 * of theirs can still be on its way in.
 	 *
 	 * @param userId the banned user's ID
 	 * @return the events
@@ -472,11 +473,11 @@ public class RsvpRepository {
 	public List<BannedEvent> lockForBan(UUID userId) {
 		return jdbc.sql("""
 				SELECT e.id, e.public_id, e.host_id = :userId AS hosted FROM event e
-				WHERE (e.host_id = :userId AND e.status = 'PUBLISHED'
-						AND coalesce(e.ends_at, e.starts_at + interval '3 hours') > now())
-					OR (e.host_id <> :userId AND EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id
-						AND r.user_id = :userId AND\s""" + ACTIVE + """
-						))
+				WHERE coalesce(e.ends_at, e.starts_at + interval '3 hours') > now()
+					AND ((e.host_id = :userId AND e.status = 'PUBLISHED')
+						OR (e.host_id <> :userId AND EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id
+							AND r.user_id = :userId AND\s""" + ACTIVE + """
+							)))
 				ORDER BY e.id FOR NO KEY UPDATE OF e""").param("userId", userId)
 				.query((rs, row) -> new BannedEvent(rs.getLong("id"), rs.getObject("public_id", UUID.class),
 						rs.getBoolean("hosted")))
