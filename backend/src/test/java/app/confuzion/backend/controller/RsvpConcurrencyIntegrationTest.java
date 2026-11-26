@@ -350,9 +350,9 @@ class RsvpConcurrencyIntegrationTest {
 	 * and leaving one event while others join and leave it and an event the banned
 	 * user hosts, and the ban lands once 20 joins are done. Nothing deadlocks; the
 	 * banned user ends with no active RSVP on either event, their own host RSVP
-	 * aside; their event is cancelled; and on each event the count matches the
-	 * held spots, never exceeds the capacity, and nobody is left waitlisted while
-	 * a spot is free.
+	 * aside; their event is cancelled; and on each event the count matches the held
+	 * spots, never exceeds the capacity, and nobody is left waitlisted while a spot
+	 * is free.
 	 */
 	@Test
 	void testBanRacingJoinsAndLeaves() throws Exception {
@@ -408,7 +408,8 @@ class RsvpConcurrencyIntegrationTest {
 
 		assertThat(jdbcTemplate.queryForObject("""
 				SELECT count(*) FROM rsvp WHERE user_id = ? AND event_id = ?
-					AND status IN ('CONFIRMED', 'WAITLISTED', 'OFFERED')""", Integer.class, banned, event.id())).isZero();
+					AND status IN ('CONFIRMED', 'WAITLISTED', 'OFFERED')""", Integer.class, banned, event.id()))
+				.isZero();
 		assertThat(jdbcTemplate.queryForObject("SELECT status FROM event WHERE id = ?", String.class, hosted.id()))
 				.isEqualTo("CANCELLED");
 		assertThat(fixtures.rsvpStatus(hosted.id(), banned)).isEqualTo("CONFIRMED");

@@ -116,8 +116,8 @@ class AdminUserControllerIntegrationTest {
 	 * Tests the search: it matches an exact user ID or Discord ID, or part of a
 	 * username or display name ignoring case, with {@code %} and {@code _} taken
 	 * literally, by username. Each match has exactly the fields D-015 lists, never
-	 * servers, friends, circles or RSVPs, with the reports naming them and any
-	 * ban, and the searcher's own report count reads as 0.
+	 * servers, friends, circles or RSVPs, with the reports naming them and any ban,
+	 * and the searcher's own report count reads as 0.
 	 */
 	@Test
 	void searchReturnsOnlyWhatModeratorsMaySee() throws Exception {
@@ -356,8 +356,7 @@ class AdminUserControllerIntegrationTest {
 	 * @return the body
 	 */
 	private String search(OAuth2LoginRequestPostProcessor principal, String q) throws Exception {
-		var response = mockMvc.perform(get("/api/admin/users").param("q", q).with(principal)).andReturn()
-				.getResponse();
+		var response = mockMvc.perform(get("/api/admin/users").param("q", q).with(principal)).andReturn().getResponse();
 		assertThat(response.getStatus()).isEqualTo(200);
 		return response.getContentAsString();
 	}

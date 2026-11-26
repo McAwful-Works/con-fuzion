@@ -52,9 +52,8 @@ import app.confuzion.backend.model.record.AdminUserResponse;
 import app.confuzion.backend.service.AdminUserService;
 
 /**
- * Unit tests for {@link AdminUserController}: valid requests reach the
- * service with the caller from the session, and bad ones are 400s that never
- * do.
+ * Unit tests for {@link AdminUserController}: valid requests reach the service
+ * with the caller from the session, and bad ones are 400s that never do.
  *
  * @author mcawful
  */
@@ -116,8 +115,7 @@ class AdminUserControllerTest {
 				.andExpect(jsonPath("$.body.items[0].discordId").value("80351110224678912"))
 				.andExpect(jsonPath("$.body.items[0].reportCount").value(2));
 		var suspend = "{\"until\":\"" + NEXT_WEEK + "\",\"reason\":\"Spam\"}";
-		mockMvc.perform(json(post(USER + "/suspend"), suspend).principal(MODERATOR))
-				.andExpect(status().isNoContent());
+		mockMvc.perform(json(post(USER + "/suspend"), suspend).principal(MODERATOR)).andExpect(status().isNoContent());
 		verify(adminUserService).suspend(moderator, false, USER_ID, NEXT_WEEK, "Spam");
 		mockMvc.perform(json(post(USER + "/suspend"), suspend).principal(AUTHENTICATION))
 				.andExpect(status().isNoContent());

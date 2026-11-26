@@ -217,18 +217,18 @@ public class AdminUserService {
 	}
 
 	/**
-	 * Bans a Discord ID (D-015 rule 4), whether or not it has an account. If it
-	 * has one, in this transaction and in D-013's lock order (the user's row, then
-	 * their events in ID order): their upcoming hosted events are cancelled
-	 * through {@link EventService#cancelEvent}, so attendees get the usual
+	 * Bans a Discord ID (D-015 rule 4), whether or not it has an account. If it has
+	 * one, in this transaction and in D-013's lock order (the user's row, then
+	 * their events in ID order): their upcoming hosted events are cancelled through
+	 * {@link EventService#cancelEvent}, so attendees get the usual
 	 * {@code EVENT_CANCELLED}; their active RSVPs on other events end as
 	 * {@code LEFT}, each freed spot going to the next person in line; and their
 	 * sessions and push subscriptions are deleted. The account, and the host's own
 	 * RSVPs on their events, are kept. Banning a banned ID changes nothing and
 	 * writes nothing.
 	 * <p>
-	 * A join of theirs racing the ban either commits first, and the ban ends it,
-	 * or waits for the ban and writes nothing ({@link RsvpRepository#lockJoiner}).
+	 * A join of theirs racing the ban either commits first, and the ban ends it, or
+	 * waits for the ban and writes nothing ({@link RsvpRepository#lockJoiner}).
 	 * Someone else joining one of their events waits on the event lock and then
 	 * finds it cancelled.
 	 *

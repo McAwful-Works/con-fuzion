@@ -58,10 +58,10 @@ public class AdminUserRepository {
 	/**
 	 * Finds users by an exact user ID or Discord ID, or by part of a username or
 	 * display name, ignoring case (D-015 rule 14). The text is matched literally:
-	 * {@code %}, {@code _} and the escape character {@code !} are escaped. Only the fields
-	 * moderators may see are read, never servers, friends, circles or RSVPs. The
-	 * viewer's own report count reads as 0, so a moderator never learns of a report
-	 * about them.
+	 * {@code %}, {@code _} and the escape character {@code !} are escaped. Only the
+	 * fields moderators may see are read, never servers, friends, circles or RSVPs.
+	 * The viewer's own report count reads as 0, so a moderator never learns of a
+	 * report about them.
 	 *
 	 * @param text      the search text
 	 * @param id        the text as a user ID, or {@code null}
@@ -94,8 +94,7 @@ public class AdminUserRepository {
 	 */
 	public Optional<Suspension> lockForSuspension(UUID userId) {
 		return jdbc.sql("SELECT suspended_until FROM app_user WHERE id = :userId FOR NO KEY UPDATE")
-				.param("userId", userId).query((rs, row) -> new Suspension(instant(rs, "suspended_until")))
-				.optional();
+				.param("userId", userId).query((rs, row) -> new Suspension(instant(rs, "suspended_until"))).optional();
 	}
 
 	/**
@@ -106,8 +105,7 @@ public class AdminUserRepository {
 	 */
 	public void setSuspendedUntil(UUID userId, Instant until) {
 		jdbc.sql("UPDATE app_user SET suspended_until = :until WHERE id = :userId").param("userId", userId)
-				.param("until", until == null ? null : OffsetDateTime.ofInstant(until, ZoneOffset.UTC))
-				.update();
+				.param("until", until == null ? null : OffsetDateTime.ofInstant(until, ZoneOffset.UTC)).update();
 	}
 
 	/**

@@ -106,8 +106,8 @@ public class UserRoleRepository {
 	 * transaction ends, so a revoke waiting for the lock lands after this
 	 * transaction, and one that committed first is seen. A suspension or ban takes
 	 * it on the actor's rows after the target's {@link #lockUser}, the same order
-	 * as a role change, to re-check that the actor still holds the role the
-	 * session says (D-015).
+	 * as a role change, to re-check that the actor still holds the role the session
+	 * says (D-015).
 	 *
 	 * @param userId the user's ID
 	 * @return the roles, MODERATOR before ADMIN; empty for a plain user

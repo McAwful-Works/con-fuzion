@@ -146,9 +146,9 @@ class SecurityConfigIntegrationTest {
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
 	 * needs: {@code MODERATOR} for the moderator routes (which ADMIN also passes)
 	 * and {@code ADMIN} for the rest, and the status a caller with the role gets.
-	 * The user and the report are unknown, and the banned Discord ID has no
-	 * account (and is unbanned again). Event moderation is a 501 stub until #85's
-	 * second part.
+	 * The user and the report are unknown, and the banned Discord ID has no account
+	 * (and is unbanned again). Event moderation is a 501 stub until #85's second
+	 * part.
 	 */
 	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
 			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR", 200),
@@ -751,29 +751,32 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
-	 * Tests suspensions and bans end to end (D-015): each ends every session of
-	 * the user at once and deletes their push subscriptions, the purge is
-	 * audit-logged with its count, and sign-in is refused until the suspension or
-	 * ban is lifted. Search finds the user by Discord ID with only the fields
-	 * D-015 lists, never their servers.
+	 * Tests suspensions and bans end to end (D-015): each ends every session of the
+	 * user at once and deletes their push subscriptions, the purge is audit-logged
+	 * with its count, and sign-in is refused until the suspension or ban is lifted.
+	 * Search finds the user by Discord ID with only the fields D-015 lists, never
+	 * their servers.
 	 */
 	@Test
 	void suspensionAndBanEndTheUsersSessionsAtOnce() throws Exception {
 		DISCORD.reset(ADMIN_ID, "admin", true);
 		var admin = login().session();
-		var target = "100000000000000150";
+		var target = "100000000000000170";
 		DISCORD.reset(target, "suspend_me", true);
 		var phone = login().session();
 		var laptop = login().session();
 		var targetId = userId(target).toString();
-		jdbcTemplate.update("INSERT INTO push_subscription (user_id, endpoint, p256dh, auth) VALUES (?, "
-				+ "'https://fcm.googleapis.com/fcm/send/suspend-me', 'key', 'auth')", UUID.fromString(targetId));
+		jdbcTemplate.update(
+				"INSERT INTO push_subscription (user_id, endpoint, p256dh, auth) VALUES (?, "
+						+ "'https://fcm.googleapis.com/fcm/send/suspend-me', 'key', 'auth')",
+				UUID.fromString(targetId));
 		assertThat(send("GET", "/api/me", phone, null).statusCode()).isEqualTo(200);
 
 		var found = send("GET", "/api/admin/users?q=" + target, admin, null);
 		assertThat(found.statusCode()).isEqualTo(200);
-		assertThat(JsonPath.<Map<String, Object>>read(found.body(), "$.body.items[0]")).containsOnlyKeys("id",
-				"discordId", "username", "globalName", "createdAt", "lastLoginAt", "suspendedUntil", "ban", "reportCount")
+		assertThat(JsonPath.<Map<String, Object>>read(found.body(), "$.body.items[0]"))
+				.containsOnlyKeys("id", "discordId", "username", "globalName", "createdAt", "lastLoginAt",
+						"suspendedUntil", "ban", "reportCount")
 				.containsEntry("id", targetId);
 
 		var until = Instant.now().plus(Duration.ofDays(1));
