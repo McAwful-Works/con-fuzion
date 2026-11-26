@@ -637,13 +637,22 @@ Context · Decision · Consequences · Trigger to revisit
       an event can't get them past a host's block or a CONFIRMED-only location;
     - unhiding hands the spots freed while hidden to the waitlist in queue order, with the usual `SPOT_OFFERED`, so a
       new join can't take them first (D-013). Nobody is told about the unhide itself.
-- **As built (#86 part 1: search and suspensions, for the owner to confirm):**
-  - **A create racing a ban or suspension** waits on the host's `app_user` row lock (`lockHost`), the lock a suspension
-    takes, then re-checks the host under it. A host who is banned or suspended by then gets a plain 403 `FORBIDDEN`,
+- **As built (#86, for the owner to confirm):**
+  - **Lock order, extending D-013's.** A user's `app_user` row comes before any event row, and events lock in ID
+    order. A join takes `FOR SHARE` on the joiner's row first; a block, a ban, a suspension and an event create take
+    `FOR NO KEY UPDATE`. While holding an event lock, nothing may take a lock on an `app_user` row stronger than the
+    `KEY SHARE` that foreign keys take, or it can deadlock with joins. The share lock makes a ban wait for a join in
+    flight, which it then ends; a join that comes second finds the ban and writes nothing (a 404). It adds one
+    statement to the claim transaction, which the M7 load test should measure.
+  - **What a ban ends** is limited to events that haven't ended. Their hosted ones are cancelled through the host's
+    cancel path, and their active RSVPs elsewhere end as `LEFT`. Their own host RSVPs and past attendance stay as
+    history.
+  - **A create racing a ban or suspension** waits on the host's `app_user` row lock (`lockHost`), the lock both take,
+    then re-checks the host under it. A host who is banned or suspended by then gets a plain 403 `FORBIDDEN`,
     with nothing created, which says nothing about why. Their session is already gone, so the next request is a 401
     anyway.
-  - **Signed out means no pushes:** a suspension also deletes the user's push subscriptions, as "log out everywhere"
-    does (D-014 rule 18).
+  - **Signed out means no pushes:** a suspension and a ban also delete the user's push subscriptions, as "log out
+    everywhere" does (D-014 rule 18).
   - **The search** answers a moderator's own `reportCount` as 0, like the rest of "reports about the viewer are
     invisible to them". The actor's stored roles are re-checked under a share lock after the target's row lock, so a
     role revoked while the request waited is a 403.

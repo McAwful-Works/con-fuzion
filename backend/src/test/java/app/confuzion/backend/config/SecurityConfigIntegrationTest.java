@@ -146,8 +146,8 @@ class SecurityConfigIntegrationTest {
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
 	 * needs: {@code MODERATOR} for the moderator routes (which ADMIN also passes)
 	 * and {@code ADMIN} for the rest, and the status a caller with the role gets.
-	 * The user, the report and the event are unknown. Bans are 501 stubs until the
-	 * second part of #86.
+	 * The user, the report and the event are unknown, and the banned Discord ID has
+	 * no account (and is unbanned again).
 	 */
 	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
 			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR", 200),
@@ -167,8 +167,8 @@ class SecurityConfigIntegrationTest {
 			new AdminEndpoint("POST", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/unsuspend", null,
 					"MODERATOR", 404),
 			new AdminEndpoint("POST", "/api/admin/bans", "{\"discordId\":\"80351110224678912\",\"reason\":\"Spam\"}",
-					"ADMIN", 501),
-			new AdminEndpoint("DELETE", "/api/admin/bans/80351110224678912", null, "ADMIN", 501),
+					"ADMIN", 204),
+			new AdminEndpoint("DELETE", "/api/admin/bans/80351110224678912", null, "ADMIN", 204),
 			new AdminEndpoint("GET", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles", null, "ADMIN", 404),
 			new AdminEndpoint("PUT", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/roles",
 					"{\"roles\":[\"MODERATOR\"]}", "ADMIN", 404),
@@ -750,13 +750,14 @@ class SecurityConfigIntegrationTest {
 	}
 
 	/**
-	 * Tests suspensions end to end (D-015): one ends every session of the user at
-	 * once and deletes their push subscriptions, the purge is audit-logged with its
-	 * count, and sign-in is refused until the suspension is lifted. Search finds
-	 * the user by Discord ID with only the fields D-015 lists, never their servers.
+	 * Tests suspensions and bans end to end (D-015): each ends every session of the
+	 * user at once and deletes their push subscriptions, the purge is audit-logged
+	 * with its count, and sign-in is refused until the suspension or ban is lifted.
+	 * Search finds the user by Discord ID with only the fields D-015 lists, never
+	 * their servers.
 	 */
 	@Test
-	void suspensionEndsTheUsersSessionsAtOnce() throws Exception {
+	void suspensionAndBanEndTheUsersSessionsAtOnce() throws Exception {
 		DISCORD.reset(ADMIN_ID, "admin", true);
 		var admin = login().session();
 		var target = "100000000000000170";
@@ -793,6 +794,16 @@ class SecurityConfigIntegrationTest {
 		var again = login();
 		assertThat(again.location()).isEqualTo("/");
 		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(200);
+
+		var ban = "{\"discordId\":\"" + target + "\",\"reason\":\"Spam\"}";
+		assertThat(sendWithCsrf("POST", "/api/admin/bans", admin, ban).statusCode()).isEqualTo(204);
+		assertThat(send("GET", "/api/me", again.session(), null).statusCode()).isEqualTo(401);
+		assertThat(auditDetails("SESSIONS_PURGED", targetId, false)).last()
+				.isEqualTo("{\"cause\": \"ACCOUNT_BANNED\", \"sessions\": 1}");
+		assertThat(login().location()).isEqualTo(SecurityConfig.LOGIN_REFUSED_URL);
+
+		assertThat(sendWithCsrf("DELETE", "/api/admin/bans/" + target, admin, null).statusCode()).isEqualTo(204);
+		assertThat(login().location()).isEqualTo("/");
 	}
 
 	/**

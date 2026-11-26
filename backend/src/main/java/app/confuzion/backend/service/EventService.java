@@ -202,8 +202,8 @@ public class EventService {
 	@Transactional
 	public EventResponse createEvent(UUID hostId, EventRequest request) {
 		eventRepository.lockHost(hostId);
-		// A suspension takes the same lock, so one that landed while this request
-		// waited is seen here, as is any ban (D-015).
+		// A ban or suspension takes the same lock, so one that landed while this
+		// request waited is seen here (D-015).
 		if (eventRepository.isBarred(hostId))
 			throw new AccessDeniedException("The host is banned or suspended");
 		if (eventRepository.countCreatedInLastDay(hostId) >= MAX_EVENTS_PER_DAY)

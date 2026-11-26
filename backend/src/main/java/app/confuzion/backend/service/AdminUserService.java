@@ -37,15 +37,18 @@ import app.confuzion.backend.model.record.AuditDetails;
 import app.confuzion.backend.model.record.AuditEntryResponse.Action;
 import app.confuzion.backend.model.record.AuditEntryResponse.TargetType;
 import app.confuzion.backend.model.record.GrantedRole;
+import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.repository.AdminUserRepository;
 import app.confuzion.backend.repository.AuditLogRepository;
+import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.UserRoleRepository;
 
 /**
- * User search and suspensions (D-015). {@code SecurityConfig} lets only
- * MODERATOR or ADMIN in effect reach them. Every write locks the target's
- * {@code app_user} row and then re-checks the actor's stored roles, as a role
- * change does, since a revoke may have committed while the request waited.
+ * User search, suspensions and bans (D-015). {@code SecurityConfig} lets only
+ * MODERATOR or ADMIN in effect reach search and suspensions, and only ADMIN
+ * reach bans. Every write locks the target's {@code app_user} row and then
+ * re-checks the actor's stored roles, as a role change does, since a revoke may
+ * have committed while the request waited.
  *
  * @author mcawful
  */
@@ -77,12 +80,22 @@ public class AdminUserService {
 	private final UserRoleRepository userRoleRepository;
 
 	/**
+	 * The {@link RsvpRepository}, to end a banned user's RSVPs.
+	 */
+	private final RsvpRepository rsvpRepository;
+
+	/**
+	 * The {@link EventService}, to cancel a banned user's events the usual way.
+	 */
+	private final EventService eventService;
+
+	/**
 	 * The {@link AuditLogRepository}.
 	 */
 	private final AuditLogRepository auditLogRepository;
 
 	/**
-	 * The {@link SessionService}, to end a suspended user's sessions.
+	 * The {@link SessionService}, to end a suspended or banned user's sessions.
 	 */
 	private final SessionService sessionService;
 
@@ -96,14 +109,19 @@ public class AdminUserService {
 	 *
 	 * @param adminUserRepository the {@link AdminUserRepository}
 	 * @param userRoleRepository  the {@link UserRoleRepository}
+	 * @param rsvpRepository      the {@link RsvpRepository}
+	 * @param eventService        the {@link EventService}
 	 * @param auditLogRepository  the {@link AuditLogRepository}
 	 * @param sessionService      the {@link SessionService}
 	 * @param pushService         the {@link PushService}
 	 */
 	public AdminUserService(AdminUserRepository adminUserRepository, UserRoleRepository userRoleRepository,
-			AuditLogRepository auditLogRepository, SessionService sessionService, PushService pushService) {
+			RsvpRepository rsvpRepository, EventService eventService, AuditLogRepository auditLogRepository,
+			SessionService sessionService, PushService pushService) {
 		this.adminUserRepository = adminUserRepository;
 		this.userRoleRepository = userRoleRepository;
+		this.rsvpRepository = rsvpRepository;
+		this.eventService = eventService;
 		this.auditLogRepository = auditLogRepository;
 		this.sessionService = sessionService;
 		this.pushService = pushService;
@@ -175,9 +193,7 @@ public class AdminUserService {
 		adminUserRepository.setSuspendedUntil(userId, end);
 		auditLogRepository.insert(actorId, Action.USER_SUSPENDED, TargetType.USER, userId.toString(),
 				new AuditDetails(reason, end, null, null, null, null, null));
-		sessionService.purge(userId, Action.USER_SUSPENDED, actorId);
-		// Signed out, so no more pushes, as "log out everywhere" does (D-014 rule 18).
-		pushService.unsubscribeAll(userId);
+		signOut(userId, Action.USER_SUSPENDED, actorId);
 	}
 
 	/**
@@ -198,5 +214,97 @@ public class AdminUserService {
 			return;
 		adminUserRepository.setSuspendedUntil(userId, null);
 		auditLogRepository.insert(actorId, Action.USER_UNSUSPENDED, TargetType.USER, userId.toString(), null);
+	}
+
+	/**
+	 * Bans a Discord ID (D-015 rule 4), whether or not it has an account. If it has
+	 * one, in this transaction and in D-013's lock order (the user's row, then
+	 * their events in ID order): their upcoming hosted events are cancelled through
+	 * {@link EventService#cancelEvent}, so attendees get the usual
+	 * {@code EVENT_CANCELLED}; their active RSVPs on other events that haven't
+	 * ended end as {@code LEFT}, each freed spot going to the next person in line;
+	 * and their sessions and push subscriptions are deleted. The account, and the
+	 * host's own RSVPs on their events, are kept. Banning a banned ID changes
+	 * nothing and writes nothing.
+	 * <p>
+	 * A join of theirs racing the ban either commits first, and the ban ends it, or
+	 * waits for the ban and writes nothing ({@link RsvpRepository#lockJoiner}).
+	 * Someone else joining one of their events waits on the event lock and then
+	 * finds it cancelled.
+	 *
+	 * @param actorId   the admin
+	 * @param discordId the Discord user ID
+	 * @param reason    why, for the audit log and other admins
+	 * @throws NumberFormatException when the ID is past the range of a Discord ID
+	 * @throws AccessDeniedException when the actor no longer holds ADMIN
+	 * @throws ConflictException     with {@link Conflict#TARGET_HAS_ROLE} when the
+	 *                               account holds ADMIN (the actor themself
+	 *                               included)
+	 */
+	@Transactional
+	public void ban(UUID actorId, String discordId, String reason) {
+		var id = Long.parseLong(discordId);
+		if (!adminUserRepository.insertBan(id, reason, actorId))
+			return;
+		var userId = adminUserRepository.lockByDiscordId(id);
+		if (!userRoleRepository.lockRoles(actorId).contains(GrantedRole.ADMIN))
+			throw new AccessDeniedException("The actor no longer holds ADMIN");
+		userId.ifPresent(this::cleanUp);
+		auditLogRepository.insert(actorId, Action.ACCOUNT_BANNED, TargetType.DISCORD_ACCOUNT, Long.toString(id),
+				new AuditDetails(reason, null, null, null, null, null, null));
+		userId.ifPresent(user -> signOut(user, Action.ACCOUNT_BANNED, actorId));
+	}
+
+	/**
+	 * Lifts a ban. Nothing the ban did is undone. An ID that isn't banned changes
+	 * nothing and writes nothing.
+	 *
+	 * @param actorId   the admin
+	 * @param discordId the Discord user ID
+	 * @throws NumberFormatException when the ID is past the range of a Discord ID
+	 * @throws AccessDeniedException when the actor no longer holds ADMIN
+	 */
+	@Transactional
+	public void unban(UUID actorId, String discordId) {
+		var id = Long.parseLong(discordId);
+		if (!userRoleRepository.lockRoles(actorId).contains(GrantedRole.ADMIN))
+			throw new AccessDeniedException("The actor no longer holds ADMIN");
+		if (adminUserRepository.deleteBan(id))
+			auditLogRepository.insert(actorId, Action.ACCOUNT_UNBANNED, TargetType.DISCORD_ACCOUNT, Long.toString(id),
+					null);
+	}
+
+	/**
+	 * Cancels a banned user's upcoming hosted events and ends their active RSVPs on
+	 * other events as {@code LEFT}, under the event row locks. The caller holds the
+	 * user's row lock.
+	 *
+	 * @param userId the banned user's ID
+	 * @throws ConflictException with {@link Conflict#TARGET_HAS_ROLE} when the user
+	 *                           holds ADMIN
+	 */
+	private void cleanUp(UUID userId) {
+		if (userRoleRepository.findRoles(userId).contains(GrantedRole.ADMIN))
+			throw new ConflictException(Conflict.TARGET_HAS_ROLE);
+		for (var event : rsvpRepository.lockForBan(userId)) {
+			if (event.hosted())
+				eventService.cancelEvent(userId, event.publicId());
+			else if (rsvpRepository.end(event.id(), userId, "LEFT")
+					.filter(held -> held == MyStatus.CONFIRMED || held == MyStatus.OFFERED).isPresent())
+				rsvpRepository.freeSpot(event.id());
+		}
+	}
+
+	/**
+	 * Ends a user's sessions, audit-logging the purge, and deletes their push
+	 * subscriptions, as "log out everywhere" does (D-014 rule 18).
+	 *
+	 * @param userId  the user's ID
+	 * @param cause   {@code USER_SUSPENDED} or {@code ACCOUNT_BANNED}
+	 * @param actorId the moderator or admin
+	 */
+	private void signOut(UUID userId, Action cause, UUID actorId) {
+		sessionService.purge(userId, cause, actorId);
+		pushService.unsubscribeAll(userId);
 	}
 }
