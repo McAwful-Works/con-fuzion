@@ -12,6 +12,8 @@ const CONFLICTS: Record<string, string> = {
   HOST_CANNOT_LEAVE: 'You’re the host, so you can’t leave. Cancel the event instead.',
   // D-015's moderation conflicts.
   REPORT_RESOLVED: 'This report has already been resolved.',
+  TARGET_HAS_ROLE:
+    'This account can’t be suspended: a role protects it, or it’s yours. Moderators can suspend only people with no role, and an admin’s role has to be removed first.',
 };
 
 /** Text is chosen from the status, never from server text. */

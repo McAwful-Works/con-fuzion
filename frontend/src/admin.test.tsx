@@ -1,7 +1,9 @@
 import '@testing-library/jest-dom/vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AdminUser } from './api/admin';
 import type { components } from './api/schema';
+import { localDay } from './features/admin/SuspendAction';
 import {
   envelope,
   errorEnvelope,
@@ -50,6 +52,18 @@ const userReport: Schemas['ReportResponse'] = {
   targetLabel: 'Rowdy',
   reason: 'HARASSMENT',
 };
+const rowdy: AdminUser = {
+  id: USER_ID,
+  username: 'rowdy_one',
+  globalName: 'Rowdy',
+  discordId: '80351110224678912',
+  createdAt: '2026-01-05T12:00:00Z',
+  lastLoginAt: '2026-11-19T12:00:00Z',
+  suspendedUntil: null,
+  ban: null,
+  reportCount: 3,
+};
+
 const OPEN_QUEUE = '/api/admin/reports?status=OPEN&limit=20';
 const noContent = () => new Response(null, { status: 204 });
 const failure = (status: number, errorType = 'NOT_FOUND') =>
@@ -216,7 +230,7 @@ async function openReport(
 }
 
 describe('a report', () => {
-  it('shows the note as plain text, links to the event and names the reporter', async () => {
+  it('shows the note as plain text, and links to the event and the reporter', async () => {
     await openReport(eventReport);
 
     expect(screen.getByText(eventReport.note!)).toBeInTheDocument();
@@ -225,7 +239,11 @@ describe('a report', () => {
       'href',
       `/events/${EVENT_ID}`,
     );
-    expect(screen.getByText(REPORTER_ID)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Look up the reporter' })).toHaveAttribute(
+      'href',
+      `/admin/users?q=${REPORTER_ID}`,
+    );
+    expect(screen.queryByRole('button', { name: /Suspend/ })).toBeNull();
   });
 
   it.each([
@@ -296,10 +314,47 @@ describe('a report', () => {
     expect(screen.getByRole('radio', { name: 'Dismissed' })).not.toBeChecked();
   });
 
+  it('forgets the date of a dismissed suspension', async () => {
+    await openReport(userReport);
+    const opener = screen.getByRole('button', { name: 'Suspend Rowdy' });
+    fireEvent.click(opener);
+    fireEvent.change(screen.getByLabelText('Suspended until'), { target: { value: localDay(7) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Never mind' }));
+    fireEvent.click(opener);
+    expect(screen.getByLabelText('Suspended until')).toHaveValue('');
+  });
+
   it('answers a 403 from an action with the not-found page', async () => {
     await openReport(eventReport, () => failure(403, 'FORBIDDEN'));
     await act('Unhide event', 'Unhide');
     expect(await notFound()).toBeInTheDocument();
+  });
+
+  it('suspends the reported person until the start of a day', async () => {
+    const calls = await openReport(userReport);
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend Rowdy' }));
+    const form = within(screen.getByRole('form', { name: 'Suspend Rowdy' }));
+    const submit = form.getByRole('button', { name: 'Suspend' });
+    const until = form.getByLabelText('Suspended until');
+    expect(until).toHaveAttribute('min', localDay(1));
+    expect(until).toHaveAttribute('max', localDay(364));
+    fireEvent.change(form.getByLabelText(/Reason/), { target: { value: 'Threats' } });
+    expect(submit).toBeDisabled();
+    for (const outside of [localDay(0), localDay(366)]) {
+      fireEvent.change(until, { target: { value: outside } });
+      expect(submit).toBeDisabled();
+    }
+    fireEvent.change(until, { target: { value: localDay(7) } });
+    fireEvent.click(submit);
+
+    expect(await screen.findByText('Rowdy is suspended.')).toBeInTheDocument();
+    expect(writes(calls)).toEqual([
+      {
+        method: 'POST',
+        path: `/api/admin/users/${USER_ID}/suspend`,
+        body: { until: new Date(`${localDay(7)}T00:00`).toISOString(), reason: 'Threats' },
+      },
+    ]);
   });
 
   it.each([
@@ -369,21 +424,142 @@ describe('a report', () => {
     expect(await notFound()).toBeInTheDocument();
   });
 
+  it('links a report about a person to that person', async () => {
+    await openReport(userReport);
+    expect(screen.getByRole('link', { name: 'Look up this person' })).toHaveAttribute(
+      'href',
+      `/admin/users?q=${USER_ID}`,
+    );
+    expect(screen.queryByRole('link', { name: 'Open event' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hide event' })).toBeNull();
+  });
+
   it.each([
-    ['a report about a person', userReport, 'Person: Rowdy'],
-    ['an event that’s gone', { ...eventReport, targetLabel: null }, 'Event: no longer exists'],
-  ])('offers only resolving for %s', async (_, report, target) => {
-    await openReport(report);
+    ['person', userReport, 'Person: no longer exists'],
+    ['event', eventReport, 'Event: no longer exists'],
+  ])('offers only resolving for a %s that’s gone', async (_, report, target) => {
+    await openReport({ ...report, targetLabel: null });
 
     expect(screen.getByText(target)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open event' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: / (event|report)$/ })).toEqual([
-      screen.getByRole('button', { name: 'Resolve report' }),
-    ]);
+    expect(screen.queryByRole('link', { name: /Open event|Look up this person/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Suspend|event/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Resolve report' })).toBeInTheDocument();
   });
 
   it('says when the reporter’s account is gone', async () => {
     await openReport({ ...eventReport, reporterId: null });
     expect(screen.getByText('Account deleted')).toBeInTheDocument();
+  });
+});
+
+describe('user search', () => {
+  const found = (users: AdminUser[]) => envelope('ADMIN_USER_LIST', { items: users });
+
+  it('searches on submit and shows what a moderator may see', async () => {
+    const calls = signedIn(moderator, ({ path }) =>
+      path === '/api/admin/users?q=row+dy'
+        ? found([
+            {
+              ...rowdy,
+              suspendedUntil: '2099-01-01T00:00:00Z',
+              ban: { createdAt: '2026-11-01T00:00:00Z', reason: '<b>Spam</b>' },
+            },
+          ])
+        : undefined,
+    );
+    await openAdmin('/admin/users');
+    const box = await screen.findByRole('searchbox');
+    fireEvent.change(box, { target: { value: 'r' } });
+    expect(screen.getByRole('button', { name: 'Search' })).toBeDisabled();
+    expect(box).toHaveAttribute('maxlength', '100');
+    fireEvent.change(box, { target: { value: ' row dy ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+
+    const card = within(await screen.findByRole('list', { name: 'Search results' }));
+    expect(card.getAllByRole('term').map((term) => term.textContent)).toEqual([
+      'Username',
+      'Discord ID',
+      'Joined',
+      'Last signed in',
+      'Suspension',
+      'Ban',
+      'Reports against them',
+    ]);
+    expect(card.getByText('80351110224678912')).toBeInTheDocument();
+    expect(card.getByText(/Suspended until/)).toBeInTheDocument();
+    expect(card.getByText(/<b>Spam<\/b>/)).toBeInTheDocument();
+    expect(screen.queryByText(USER_ID)).toBeNull();
+    expect(adminCalls(calls)).toHaveLength(1);
+  });
+
+  it('suspends from a result, then shows the new end', async () => {
+    let current = rowdy;
+    const calls = signedIn(moderator, ({ method, path }) => {
+      if (method === 'GET' && path === `/api/admin/users?q=${USER_ID}`) return found([current]);
+      if (path !== `/api/admin/users/${USER_ID}/suspend`) return undefined;
+      current = { ...rowdy, suspendedUntil: '2099-01-01T00:00:00Z' };
+      return noContent();
+    });
+    await openAdmin(`/admin/users?q=${USER_ID}`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Suspend Rowdy' }));
+    fireEvent.change(screen.getByLabelText('Suspended until'), { target: { value: localDay(1) } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Threats' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+
+    expect(await screen.findByText(/Suspended until/, { selector: 'dd' })).toBeInTheDocument();
+    expect(screen.getByText('Rowdy is suspended.')).toBeInTheDocument();
+    expect(writes(calls)).toHaveLength(1);
+  });
+
+  it('explains why a protected account can’t be suspended', async () => {
+    signedIn(moderator, ({ method, path }) => {
+      if (method === 'GET' && path === '/api/admin/users?q=rowdy') return found([rowdy]);
+      return method === 'POST' ? failure(409, 'TARGET_HAS_ROLE') : undefined;
+    });
+    await openAdmin('/admin/users?q=rowdy');
+    fireEvent.click(await screen.findByRole('button', { name: 'Suspend Rowdy' }));
+    fireEvent.change(screen.getByLabelText('Suspended until'), { target: { value: localDay(1) } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Threats' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('a role protects it');
+    expect(screen.getByRole('form', { name: 'Suspend Rowdy' })).toBeInTheDocument();
+  });
+
+  it.each([403, 404])('shows the not-found page when search answers %i', async (status) => {
+    signedIn(moderator, ({ path }) =>
+      path === '/api/admin/users?q=rowdy' ? failure(status) : undefined,
+    );
+    await openAdmin('/admin/users?q=rowdy');
+    expect(await notFound()).toBeInTheDocument();
+  });
+
+  it('shows the not-found page when the person to suspend is gone', async () => {
+    signedIn(moderator, ({ method, path }) => {
+      if (method === 'GET' && path === '/api/admin/users?q=rowdy') return found([rowdy]);
+      return method === 'POST' ? failure(404) : undefined;
+    });
+    await openAdmin('/admin/users?q=rowdy');
+    fireEvent.click(await screen.findByRole('button', { name: 'Suspend Rowdy' }));
+    fireEvent.change(screen.getByLabelText('Suspended until'), { target: { value: localDay(1) } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Threats' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+    expect(await notFound()).toBeInTheDocument();
+  });
+
+  it.each(['r', 'r'.repeat(101)])('sends nothing for the address query %s', async (q) => {
+    const calls = signedIn(moderator);
+    await openAdmin(`/admin/users?q=${q}`);
+
+    expect(await screen.findByText('Search for 2 to 100 characters.')).toBeInTheDocument();
+    expect(adminCalls(calls)).toEqual([]);
+  });
+
+  it('says when no one matches', async () => {
+    signedIn(moderator, ({ path }) =>
+      path === '/api/admin/users?q=nobody' ? found([]) : undefined,
+    );
+    await openAdmin('/admin/users?q=nobody');
+    expect(await screen.findByText('No one found.')).toBeInTheDocument();
   });
 });
