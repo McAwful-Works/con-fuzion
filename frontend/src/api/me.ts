@@ -27,6 +27,11 @@ export function isModerator(me: Me | undefined): boolean {
   return me?.roles.some((role) => role === 'MODERATOR' || role === 'ADMIN') ?? false;
 }
 
+/** Whether to show the admin-only views: bans, roles and the audit log. The server enforces them. */
+export function isAdmin(me: Me | undefined): boolean {
+  return me?.roles.includes('ADMIN') ?? false;
+}
+
 export function useMe() {
   return useQuery({
     queryKey: meKey,

@@ -7,11 +7,17 @@ import {
   useUserSearch,
   type AdminUser,
 } from '../../api/admin';
+import { isAdmin, useMe } from '../../api/me';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
 import { useNow } from '../rsvp/signup';
+import { BanAction } from './BanAction';
 import { Fact, When } from './Fact';
+import { RolesAction } from './RolesAction';
 import { SuspendAction } from './SuspendAction';
+
+/** The contract's pattern for a Discord user ID. */
+const DISCORD_ID = /^[0-9]{17,19}$/;
 
 function SearchForm({ initial, onSearch }: { initial: string; onSearch: (q: string) => void }) {
   const [text, setText] = useState(initial);
@@ -47,6 +53,7 @@ function SearchForm({ initial, onSearch }: { initial: string; onSearch: (q: stri
 function UserCard({ user, now }: { user: AdminUser; now: number }) {
   const name = user.globalName ?? user.username;
   const suspended = user.suspendedUntil && Date.parse(user.suspendedUntil) > now;
+  const admin = isAdmin(useMe().data);
 
   return (
     <li className="border-line bg-surface-raised rounded-card space-y-3 border p-4">
@@ -82,7 +89,25 @@ function UserCard({ user, now }: { user: AdminUser; now: number }) {
         <Fact label="Reports against them">{user.reportCount}</Fact>
       </dl>
       <SuspendAction userId={user.id} name={name} />
+      {admin && (
+        <>
+          <BanAction discordId={user.discordId} name={name} banned={user.ban !== null} />
+          <RolesAction userId={user.id} name={name} />
+        </>
+      )}
     </li>
+  );
+}
+
+/** A Discord ID can be banned before it signs up, and stays banned if the account goes (D-015). */
+function NoAccount({ discordId }: { discordId: string }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm">
+        No account here has this Discord ID. You can still ban it, or lift a ban on it.
+      </p>
+      <BanAction discordId={discordId} name={`Discord ID ${discordId}`} />
+    </div>
   );
 }
 
@@ -92,6 +117,7 @@ export function UserSearch() {
   const q = (params.get('q') ?? '').trim();
   const search = useUserSearch(q);
   const asked = isSearchable(q);
+  const admin = isAdmin(useMe().data);
   // Only "suspended until" against "ended" depends on the time, so a slow clock is enough.
   const now = useNow(30_000);
 
@@ -116,6 +142,9 @@ export function UserSearch() {
         <ErrorState error={search.error} onRetry={() => void search.refetch()} />
       )}
       {asked && search.data?.length === 0 && <p className="text-ink-muted">No one found.</p>}
+      {admin && search.data?.length === 0 && DISCORD_ID.test(q) && (
+        <NoAccount key={q} discordId={q} />
+      )}
       {asked && search.data && search.data.length > 0 && (
         <>
           <p className="text-ink-muted text-sm">

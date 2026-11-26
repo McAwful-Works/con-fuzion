@@ -13,7 +13,8 @@ const CONFLICTS: Record<string, string> = {
   // D-015's moderation conflicts.
   REPORT_RESOLVED: 'This report has already been resolved.',
   TARGET_HAS_ROLE:
-    'This account can’t be suspended: a role protects it, or it’s yours. Moderators can suspend only people with no role, and an admin’s role has to be removed first.',
+    'This account can’t be suspended or banned: a role protects it, or it’s yours. Moderators can suspend only people with no role, and an admin’s role has to be removed first.',
+  LAST_ADMIN: 'That would leave no admin. Give someone else the admin role first.',
 };
 
 /** Text is chosen from the status, never from server text. */

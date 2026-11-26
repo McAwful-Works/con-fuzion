@@ -877,7 +877,7 @@ export interface components {
         };
         AdminUserResponse: {
             /** @description Null when the Discord ID isn't banned. */
-            ban: components["schemas"]["AdminUserBanResponse"];
+            ban: components["schemas"]["AdminUserBanResponse"] | null;
             /** Format: date-time */
             createdAt: string;
             /**
