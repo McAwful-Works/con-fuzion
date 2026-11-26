@@ -30,8 +30,10 @@ The owner applies `bootstrap/` once, before anything else. The `Dockerfile` and 
 - A version bump is its own PR. A new provider or a third-party module needs the owner's OK; prefer plain resources.
 
 ## Naming, tags and region
-- Names are `confuzion-<env>-<thing>`, where `<env>` is `staging` or `prod`. Account-wide resources in `bootstrap/`
-  are `confuzion-<thing>`. A globally unique name (S3) may end in the account ID, read from a data source.
+- Names are `confuzion-<env>-<thing>`, where `<env>` is `staging` or `prod`. A globally unique name (S3) may end in
+  the account ID, read from a data source.
+- Account-wide resources, and any that both environments use (such as an image repository that prod deploys the same
+  digest from), are `confuzion-<thing>` with `Environment = "shared"`. Exactly one root owns each.
 - Tags are set once, in each root's provider `default_tags`: `Project = "confuzion"`, `Environment` (`staging`,
   `prod` or `shared`) and `ManagedBy = "terraform"`.
 - Everything is in `us-east-1`, in one AWS account.
@@ -40,6 +42,8 @@ The owner applies `bootstrap/` once, before anything else. The `Dockerfile` and 
 - One state key per root, `<root path under infra/>/terraform.tfstate` (for example
   `envs/staging/terraform.tfstate`), in the bucket `bootstrap/` creates, locked with S3's own lock file
   (`use_lockfile = true`, no DynamoDB).
+- `bootstrap/` creates that bucket, so its first apply uses local state. The owner then moves it into the bucket with
+  `terraform init -migrate-state`.
 - A backend value that contains the account ID goes to `terraform init -backend-config=…`, not into a file.
 - Never commit state, saved plan files or `.terraform/`, and never paste state anywhere.
 
@@ -55,11 +59,14 @@ The owner applies `bootstrap/` once, before anything else. The `Dockerfile` and 
   `aws_region`, resource attributes and module outputs.
 
 ## Secrets
-- **No secret values in Terraform**: not in code, variables, `.tfvars` or outputs, and not in state. Terraform creates
-  Secrets Manager secrets empty, and the owner enters the values.
-- A credential a resource needs is managed by AWS (such as RDS's managed master password) or passed through a
-  write-only argument. If neither is possible, stop and ask.
-- Never read a secret's value (`secretsmanager get-secret-value`) or print one.
+- **No secret values in Terraform**: never in code, variables, `.tfvars` or outputs. Terraform creates Secrets
+  Manager secrets empty, and the owner enters the values.
+- **Keep them out of state too.** Have AWS manage a credential (such as RDS's managed master password), or pass it
+  from an ephemeral value to a write-only argument.
+- Some arguments can only be stored in state, such as a CloudFront origin's custom header and the ALB rule that
+  matches it. Don't decide that alone: name the value, the argument and who can read the state, and get the owner's OK
+  first.
+- Claude never fetches a secret's value (`secretsmanager get-secret-value`) or prints one.
 
 ## Footprint
 - Build only what the issue and D-016 name. A new AWS service needs an entry in `docs/decisions.md`.
@@ -81,3 +88,6 @@ terraform -chdir=infra/<root> validate
 terraform -chdir=infra/<root> plan
 ```
 Put the plan's summary and notable resources in the PR, **with account IDs, ARNs and any sensitive value removed**.
+
+`plan` needs AWS access, which sessions don't have, and the plan workflow only arrives with #107. Until then, run
+`fmt` and `validate`, say in the PR that `plan` wasn't run, and ask the owner to run it and share the summary.
