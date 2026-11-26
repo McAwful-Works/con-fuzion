@@ -146,8 +146,8 @@ class SecurityConfigIntegrationTest {
 	 * One valid request per {@code /api/admin} operation (D-015), with the role it
 	 * needs: {@code MODERATOR} for the moderator routes (which ADMIN also passes)
 	 * and {@code ADMIN} for the rest, and the status a caller with the role gets.
-	 * The user and the report are unknown. Event moderation, suspensions and bans
-	 * are 501 stubs until #85's second part and #86.
+	 * The user, the report and the event are unknown. Suspensions and bans are 501
+	 * stubs until #86.
 	 */
 	private static final List<AdminEndpoint> ADMIN_ENDPOINTS = List.of(
 			new AdminEndpoint("GET", "/api/admin/reports?status=OPEN", null, "MODERATOR", 200),
@@ -155,11 +155,11 @@ class SecurityConfigIntegrationTest {
 			new AdminEndpoint("POST", "/api/admin/reports/9223372036854775807/resolve",
 					"{\"resolution\":\"DISMISSED\"}", "MODERATOR", 404),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/hide",
-					"{\"reason\":\"Unsafe\"}", "MODERATOR", 501),
+					"{\"reason\":\"Unsafe\"}", "MODERATOR", 404),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/unhide", null,
-					"MODERATOR", 501),
+					"MODERATOR", 404),
 			new AdminEndpoint("POST", "/api/admin/events/3f2c9a4e-6d1b-4f7a-9c3e-2b8d5e1a7f60/cancel",
-					"{\"reason\":\"Unsafe\"}", "MODERATOR", 501),
+					"{\"reason\":\"Unsafe\"}", "MODERATOR", 404),
 			new AdminEndpoint("GET", "/api/admin/users?q=con", null, "MODERATOR", 501),
 			new AdminEndpoint("POST", "/api/admin/users/5b1d0c7e-2a4f-4e6b-8d9c-1f3a5e7b9d20/suspend",
 					"{\"until\":\"" + Instant.now().plus(Duration.ofDays(7)) + "\",\"reason\":\"Spam\"}", "MODERATOR",

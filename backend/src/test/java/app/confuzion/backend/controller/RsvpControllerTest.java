@@ -106,7 +106,7 @@ class RsvpControllerTest {
 		var other = UUID.randomUUID();
 		when(rsvpService.join(USER_ID, EVENT_ID)).thenReturn(new RsvpResponse(RsvpResponse.Status.WAITLISTED, 4, null));
 		when(rsvpService.getAttendees(USER_ID, EVENT_ID)).thenReturn(new AttendeesResponse(List.of(), null, null));
-		when(rsvpService.getSpots(USER_ID, EVENT_ID)).thenReturn(SPOTS);
+		when(rsvpService.getSpots(USER_ID, EVENT_ID, false)).thenReturn(SPOTS);
 
 		mockMvc.perform(post(EVENT + "/rsvp").principal(AUTHENTICATION)).andExpect(status().isOk())
 				.andExpect(jsonPath("$.responseType").value("RSVP"))
