@@ -22,9 +22,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 
 import app.confuzion.backend.config.SecurityConfig;
-
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.experimental.UtilityClass;
 
@@ -75,13 +75,29 @@ public class HttpUtil {
 	}
 
 	/**
-	 * Returns whether the session has ADMIN in effect ({@code ROLE_ADMIN}).
+	 * Returns whether the session holds MODERATOR or ADMIN in effect: the
+	 * authorities granted at sign-in, which only a user with Discord MFA on gets
+	 * (D-015). Never look the roles up elsewhere, so what a moderator may see
+	 * always matches what {@code SecurityConfig} lets them do.
+	 *
+	 * @param authentication the session's {@link Authentication}
+	 * @return {@code true} for {@code ROLE_MODERATOR} or {@code ROLE_ADMIN}
+	 */
+	public boolean isModerator(Authentication authentication) {
+		return authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority)
+				.anyMatch(authority -> authority.equals("ROLE_" + SecurityConfig.MODERATOR)
+						|| authority.equals("ROLE_" + SecurityConfig.ADMIN));
+	}
+
+	/**
+	 * Returns whether the session has ADMIN in effect ({@code ROLE_ADMIN}), read
+	 * the same way as {@link #isModerator}.
 	 *
 	 * @param authentication the session's {@link Authentication}
 	 * @return {@code true} for an admin
 	 */
 	public boolean isAdmin(Authentication authentication) {
-		return authentication.getAuthorities().stream()
-				.anyMatch(authority -> ("ROLE_" + SecurityConfig.ADMIN).equals(authority.getAuthority()));
+		return authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority)
+				.anyMatch(authority -> authority.equals("ROLE_" + SecurityConfig.ADMIN));
 	}
 }

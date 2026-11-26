@@ -71,13 +71,36 @@ class HttpUtilTest {
 	}
 
 	/**
+	 * Tests that {@code isModerator} is true for {@code ROLE_MODERATOR} or
+	 * {@code ROLE_ADMIN} only.
+	 */
+	@Test
+	void testIsModeratorReadsTheSessionsAuthorities() {
+		assertThat(HttpUtil.isModerator(authenticated("ROLE_USER", "ROLE_MODERATOR"))).isTrue();
+		assertThat(HttpUtil.isModerator(authenticated("ROLE_USER", "ROLE_ADMIN"))).isTrue();
+		assertThat(HttpUtil.isModerator(authenticated("ROLE_USER"))).isFalse();
+		assertThat(HttpUtil.isModerator(authenticated())).isFalse();
+		assertThat(HttpUtil.isModerator(authenticated("MODERATOR", "ADMIN"))).as("not role authorities").isFalse();
+	}
+
+	/**
+	 * Returns a signed-in {@link UsernamePasswordAuthenticationToken} with the
+	 * given authorities.
+	 *
+	 * @param authorities the authorities
+	 * @return the authentication
+	 */
+	private static UsernamePasswordAuthenticationToken authenticated(String... authorities) {
+		return UsernamePasswordAuthenticationToken.authenticated("user", null,
+				AuthorityUtils.createAuthorityList(authorities));
+	}
+
+	/**
 	 * Tests that only {@code ROLE_ADMIN} makes a session an admin's.
 	 */
 	@Test
 	void testIsAdmin() {
-		assertThat(HttpUtil.isAdmin(UsernamePasswordAuthenticationToken.authenticated("user", null,
-				AuthorityUtils.createAuthorityList("ROLE_USER", "ROLE_ADMIN")))).isTrue();
-		assertThat(HttpUtil.isAdmin(UsernamePasswordAuthenticationToken.authenticated("user", null,
-				AuthorityUtils.createAuthorityList("ROLE_USER", "ROLE_MODERATOR", "ADMIN")))).isFalse();
+		assertThat(HttpUtil.isAdmin(authenticated("ROLE_USER", "ROLE_ADMIN"))).isTrue();
+		assertThat(HttpUtil.isAdmin(authenticated("ROLE_USER", "ROLE_MODERATOR", "ADMIN"))).isFalse();
 	}
 }
