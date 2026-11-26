@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
-import { USER_QUERY_MAX, USER_QUERY_MIN, useUserSearch, type AdminUser } from '../../api/admin';
+import {
+  isSearchable,
+  USER_QUERY_MAX,
+  USER_QUERY_MIN,
+  useUserSearch,
+  type AdminUser,
+} from '../../api/admin';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
 import { useNow } from '../rsvp/signup';
@@ -85,7 +91,7 @@ export function UserSearch() {
   const [params, setParams] = useSearchParams();
   const q = (params.get('q') ?? '').trim();
   const search = useUserSearch(q);
-  const asked = q.length >= USER_QUERY_MIN;
+  const asked = isSearchable(q);
   // Only "suspended until" against "ended" depends on the time, so a slow clock is enough.
   const now = useNow(30_000);
 
@@ -95,6 +101,12 @@ export function UserSearch() {
         Users
       </h2>
       <SearchForm key={q} initial={q} onSearch={(next) => setParams({ q: next })} />
+      {/* The address can carry a query the form would never send. */}
+      {q !== '' && !asked && (
+        <p className="text-ink-muted">
+          Search for {USER_QUERY_MIN} to {USER_QUERY_MAX} characters.
+        </p>
+      )}
       {asked && search.isPending && (
         <div role="status" aria-label="Searching" className="space-y-3">
           <Skeleton className="h-40 w-full" />

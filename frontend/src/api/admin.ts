@@ -91,11 +91,16 @@ export function useEventAction(eventId: string, action: EventAction) {
   });
 }
 
-/** `GET /api/admin/users?q`: at most 20 people. Nothing is sent for a query that's too short. */
+/** The lengths `GET /api/admin/users` accepts (D-015 rule 13). */
+export function isSearchable(q: string): boolean {
+  return q.length >= USER_QUERY_MIN && q.length <= USER_QUERY_MAX;
+}
+
+/** `GET /api/admin/users?q`: at most 20 people. Nothing is sent for a query it wouldn't accept. */
 export function useUserSearch(q: string) {
   return useQuery({
     queryKey: [...usersKey, q],
-    enabled: q.length >= USER_QUERY_MIN,
+    enabled: isSearchable(q),
     queryFn: async (): Promise<AdminUser[]> =>
       (
         await api<Schemas['ResponseRecordAdminUserListResponse']>(

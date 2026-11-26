@@ -522,7 +522,7 @@ describe('user search', () => {
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Threats' } });
     fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Their role protects this account');
+    expect(await screen.findByRole('alert')).toHaveTextContent('a role protects it');
     expect(screen.getByRole('form', { name: 'Suspend Rowdy' })).toBeInTheDocument();
   });
 
@@ -545,6 +545,14 @@ describe('user search', () => {
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Threats' } });
     fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
     expect(await notFound()).toBeInTheDocument();
+  });
+
+  it.each(['r', 'r'.repeat(101)])('sends nothing for the address query %s', async (q) => {
+    const calls = signedIn(moderator);
+    await openAdmin(`/admin/users?q=${q}`);
+
+    expect(await screen.findByText('Search for 2 to 100 characters.')).toBeInTheDocument();
+    expect(adminCalls(calls)).toEqual([]);
   });
 
   it('says when no one matches', async () => {
