@@ -88,4 +88,16 @@ public class HttpUtil {
 				.anyMatch(authority -> authority.equals("ROLE_" + SecurityConfig.MODERATOR)
 						|| authority.equals("ROLE_" + SecurityConfig.ADMIN));
 	}
+
+	/**
+	 * Returns whether the session has ADMIN in effect ({@code ROLE_ADMIN}), read
+	 * the same way as {@link #isModerator}.
+	 *
+	 * @param authentication the session's {@link Authentication}
+	 * @return {@code true} for an admin
+	 */
+	public boolean isAdmin(Authentication authentication) {
+		return authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority)
+				.anyMatch(authority -> authority.equals("ROLE_" + SecurityConfig.ADMIN));
+	}
 }

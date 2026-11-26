@@ -19,6 +19,8 @@
 package app.confuzion.backend.config;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.utils.SpringDocAnnotationsUtils;
@@ -35,6 +37,8 @@ import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.JsonSchema;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
@@ -92,6 +96,34 @@ public class OpenApiConfig {
 										+ "also send the " + CSRF_COOKIE + " cookie's value in the " + CSRF_HEADER
 										+ " header.")))
 				.addSecurityItem(new SecurityRequirement().addList(SESSION_SCHEME));
+	}
+
+	/**
+	 * Rewrites each nullable property that refers to another schema as
+	 * {@code anyOf: [$ref, {type: null}]}. springdoc exports
+	 * {@code @Schema(nullable = true)} on such a property as a {@code type: null}
+	 * beside the {@code $ref}, which OpenAPI 3.1 tools (openapi-typescript among
+	 * them) ignore, typing the property as never null.
+	 *
+	 * @return the {@link OpenApiCustomizer}
+	 */
+	@Bean
+	OpenApiCustomizer nullableRefsCustomizer() {
+		return openApi -> {
+			for (Schema<?> schema : openApi.getComponents().getSchemas().values()) {
+				Map<String, Schema> properties = schema.getProperties();
+				if (properties != null)
+					properties
+							.replaceAll((name,
+									property) -> property.get$ref() != null && property.getTypes() != null
+											&& property.getTypes().contains("null")
+													? new JsonSchema()
+															.anyOf(List.of(new JsonSchema().$ref(property.get$ref()),
+																	new JsonSchema().types(Set.of("null"))))
+															.description(property.getDescription())
+													: property);
+			}
+		};
 	}
 
 	/**

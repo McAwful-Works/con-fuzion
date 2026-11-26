@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -195,10 +196,16 @@ public class EventService {
 	 *                                last 24 hours
 	 * @throws NoSuchElementException when an audience entry is one the host can't
 	 *                                use
+	 * @throws AccessDeniedException  when the host was banned or suspended while
+	 *                                the request was on its way
 	 */
 	@Transactional
 	public EventResponse createEvent(UUID hostId, EventRequest request) {
 		eventRepository.lockHost(hostId);
+		// A suspension takes the same lock, so one that landed while this request
+		// waited is seen here, as is any ban (D-015).
+		if (eventRepository.isBarred(hostId))
+			throw new AccessDeniedException("The host is banned or suspended");
 		if (eventRepository.countCreatedInLastDay(hostId) >= MAX_EVENTS_PER_DAY)
 			throw new LimitExceededException(Limit.EVENT_LIMIT);
 		var refs = resolveAudience(hostId, request.audience(), Set.of());

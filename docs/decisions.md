@@ -637,6 +637,16 @@ Context · Decision · Consequences · Trigger to revisit
       an event can't get them past a host's block or a CONFIRMED-only location;
     - unhiding hands the spots freed while hidden to the waitlist in queue order, with the usual `SPOT_OFFERED`, so a
       new join can't take them first (D-013). Nobody is told about the unhide itself.
+- **As built (#86 part 1: search and suspensions, for the owner to confirm):**
+  - **A create racing a ban or suspension** waits on the host's `app_user` row lock (`lockHost`), the lock a suspension
+    takes, then re-checks the host under it. A host who is banned or suspended by then gets a plain 403 `FORBIDDEN`,
+    with nothing created, which says nothing about why. Their session is already gone, so the next request is a 401
+    anyway.
+  - **Signed out means no pushes:** a suspension also deletes the user's push subscriptions, as "log out everywhere"
+    does (D-014 rule 18).
+  - **The search** answers a moderator's own `reportCount` as 0, like the rest of "reports about the viewer are
+    invisible to them". The actor's stored roles are re-checked under a share lock after the target's row lock, so a
+    role revoked while the request waited is a 403.
 - **Consequences:** moderators can act without seeing anything a user hasn't made public, and attendees are told only
   when an event is really off. The audit log can't be edited from the app, even by a bug, and outlives every account it
   names. Reports and audit rows keep the IDs of deleted accounts and purged events, which name nobody once those are

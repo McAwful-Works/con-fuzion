@@ -42,6 +42,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import app.confuzion.backend.TestcontainersConfiguration;
 import app.confuzion.backend.controller.EventFixtures.SeededEvent;
@@ -103,6 +105,12 @@ class RsvpConcurrencyIntegrationTest {
 	 */
 	@Autowired
 	private BlockService blockService;
+
+	/**
+	 * The {@link TransactionTemplate}, to hold a ban's or a suspension's lock open.
+	 */
+	@Autowired
+	private TransactionTemplate transactionTemplate;
 
 	/**
 	 * The seeding helpers.
@@ -339,6 +347,42 @@ class RsvpConcurrencyIntegrationTest {
 	}
 
 	/**
+	 * Tests an event create that starts while a ban or a suspension holds the
+	 * host's row and hasn't committed: the create waits on the same lock, then is
+	 * refused with a plain 403 and creates nothing.
+	 */
+	@Test
+	void testCreateWaitingForABanOrSuspensionCreatesNothing() throws Exception {
+		for (var barring : List.of(
+				"INSERT INTO banned_account (discord_id, reason) "
+						+ "SELECT discord_id, 'Spam' FROM app_user WHERE id = ?",
+				"UPDATE app_user SET suspended_until = now() + interval '1 day' WHERE id = ?")) {
+			var barred = guests(1).getFirst();
+			var locked = new CountDownLatch(1);
+			var release = new CountDownLatch(1);
+
+			try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+				var bar = executor.submit(() -> transactionTemplate.executeWithoutResult(tx -> {
+					jdbcTemplate.queryForList("SELECT id FROM app_user WHERE id = ? FOR NO KEY UPDATE", barred);
+					jdbcTemplate.update(barring, barred);
+					locked.countDown();
+					await(release);
+				}));
+				await(locked);
+				var create = executor.submit(() -> eventService.createEvent(barred, request(5)));
+				awaitLockWaiters(1);
+				assertThat(create.isDone()).isFalse();
+				release.countDown();
+				bar.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+				assertThatThrownBy(() -> create.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).as(barring)
+						.hasCauseInstanceOf(AccessDeniedException.class);
+			}
+			assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM event WHERE host_id = ?", Long.class, barred))
+					.as(barring).isZero();
+		}
+	}
+
+	/**
 	 * Tests that an unlimited event confirms every parallel join and never has a
 	 * waitlist (D-013 rule 3).
 	 */
@@ -353,6 +397,37 @@ class RsvpConcurrencyIntegrationTest {
 		assertThat(results).allMatch(r -> r.status() == RsvpResponse.Status.CONFIRMED);
 		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(51);
 		assertThat(count(event, "WAITLISTED")).isZero();
+	}
+
+	/**
+	 * Waits for a latch, failing the test if it takes too long.
+	 *
+	 * @param latch the latch
+	 */
+	private static void await(CountDownLatch latch) {
+		try {
+			assertThat(latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).as("latch").isTrue();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException(e);
+		}
+	}
+
+	/**
+	 * Waits until this many other database sessions are waiting for a lock on an
+	 * {@code app_user} row, so an unrelated waiter can't end the wait early.
+	 *
+	 * @param waiters the number of waiters
+	 */
+	private void awaitLockWaiters(int waiters) throws InterruptedException {
+		var deadline = Instant.now().plusSeconds(TIMEOUT_SECONDS);
+		while (jdbcTemplate.queryForObject("""
+				SELECT count(*) FROM pg_stat_activity
+				WHERE datname = current_database() AND wait_event_type = 'Lock'
+					AND query ILIKE '%FROM app_user%FOR NO KEY UPDATE%'""", Long.class) < waiters) {
+			assertThat(Instant.now()).as("lock waiters").isBefore(deadline);
+			Thread.sleep(10);
+		}
 	}
 
 	/**
