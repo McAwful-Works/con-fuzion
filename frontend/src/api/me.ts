@@ -19,6 +19,14 @@ export const meKey = ['me'] as const;
 const guildsKey = ['guilds'] as const;
 export const singleGuildKey = ['guild'] as const;
 
+/**
+ * Whether to offer the moderation area. `roles` lists only the roles in effect, already gated on MFA
+ * (D-015 rule 2). This only decides what's shown: the server enforces access.
+ */
+export function isModerator(me: Me | undefined): boolean {
+  return me?.roles.some((role) => role === 'MODERATOR' || role === 'ADMIN') ?? false;
+}
+
 export function useMe() {
   return useQuery({
     queryKey: meKey,

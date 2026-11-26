@@ -10,6 +10,8 @@ const CONFLICTS: Record<string, string> = {
     'This offer ran out before it was accepted. You can join again, at the back of the line.',
   NO_OFFER: 'There’s no offer to accept any more.',
   HOST_CANNOT_LEAVE: 'You’re the host, so you can’t leave. Cancel the event instead.',
+  // D-015's moderation conflicts.
+  REPORT_RESOLVED: 'This report has already been resolved.',
 };
 
 /** Text is chosen from the status, never from server text. */

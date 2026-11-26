@@ -29,6 +29,10 @@ export default defineConfig({
         // the handlers means the precache and the runtime rule below stay exactly as they were, and no
         // workbox-* package has to become a direct dependency, which `injectManifest` would need.
         importScripts: ['push-sw.js'],
+        // The moderation chunk isn't precached, so only a moderator who opens `/admin` downloads it.
+        // It's named after `AdminArea.tsx`, so renaming that file means renaming the pattern.
+        // The first pattern is Workbox's default, which setting this option would otherwise drop.
+        globIgnores: ['**/node_modules/**/*', 'assets/AdminArea-*.js'],
         // The SPA shell fallback must never swallow API calls.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [

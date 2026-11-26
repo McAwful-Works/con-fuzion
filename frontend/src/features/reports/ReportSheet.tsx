@@ -3,7 +3,7 @@ import { REPORT_NOTE_MAX, useSendReport, type ReportReason } from '../../api/rep
 import { useInvalidateSocial } from '../../api/social';
 import { ErrorState } from '../../components/ErrorState';
 
-const REASONS: { value: ReportReason; label: string }[] = [
+export const REASONS: { value: ReportReason; label: string }[] = [
   { value: 'HARASSMENT', label: 'Harassment or bullying' },
   { value: 'UNSAFE', label: 'Unsafe or dangerous' },
   { value: 'SPAM', label: 'Spam or a scam' },
