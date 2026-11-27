@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   envelope,
@@ -254,7 +254,9 @@ describe('servers', () => {
     await pause();
 
     expect(calls).toHaveLength(settled);
-    expect(await findSignIn()).toBeInTheDocument();
+    // Synchronous on purpose: it has to be on screen now, after the pauses.
+    const main = screen.getByRole('main');
+    expect(within(main).getByRole('link', { name: 'Sign in with Discord' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/welcome');
     // No signed-in navigation is left on screen.
     expect(screen.queryByText('Con Goer')).toBeNull();
