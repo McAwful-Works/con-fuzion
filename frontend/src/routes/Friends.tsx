@@ -15,7 +15,7 @@ export function Friends() {
       </section>
       <p className="text-ink-muted text-sm">
         Want to group people for your meetups?{' '}
-        <Link to="/circles" className="underline">
+        <Link to="/people?tab=circles" className="underline">
           Make a circle
         </Link>
         .

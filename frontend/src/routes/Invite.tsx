@@ -74,7 +74,7 @@ export function Invite() {
           type="button"
           className="btn btn-primary"
           disabled={accept.isPending}
-          onClick={() => accept.mutate(undefined, { onSuccess: () => void navigate('/friends') })}
+          onClick={() => accept.mutate(undefined, { onSuccess: () => void navigate('/people') })}
         >
           Accept
         </button>

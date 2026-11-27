@@ -62,9 +62,9 @@ export async function setDiscoverable({ page }, guildName, on) {
   else await expect(toggle).not.toBeChecked();
 }
 
-/** On /friends: makes an invite link and returns the URL the page shows. */
+/** On /people: makes an invite link and returns the URL the page shows. */
 export async function makeInvite({ page }, baseURL) {
-  await page.goto('/friends');
+  await page.goto('/people');
   await page.getByRole('button', { name: /^(Invite a friend|Make a new link)$/ }).click();
   const shown = page.getByText(/\/invite\/[\w-]{22}$/);
   await expect(shown).toBeVisible();
@@ -74,12 +74,12 @@ export async function makeInvite({ page }, baseURL) {
   return url;
 }
 
-/** `to` opens the link and accepts. Lands on /friends. */
+/** `to` opens the link and accepts. Lands on /people. */
 export async function acceptInvite({ page }, url) {
   await page.goto(url);
   await expect(page.getByRole('heading', { name: /invited you to be friends/ })).toBeVisible();
   await page.getByRole('button', { name: 'Accept' }).click();
-  await expect(page).toHaveURL(/\/friends$/);
+  await expect(page).toHaveURL(/\/people$/);
 }
 
 /** `from` invites, `to` accepts: they are friends afterwards. */
@@ -87,9 +87,9 @@ export async function befriend(from, to, baseURL) {
   await acceptInvite(to, await makeInvite(from, baseURL));
 }
 
-/** Opens /friends and waits for the list to load. */
+/** Opens the friends list (/people) and waits for it to load. */
 export async function openFriends({ page }) {
-  await page.goto('/friends');
+  await page.goto('/people');
   await expect(page.getByRole('heading', { name: 'Your friends' })).toBeVisible();
   await expect(page.getByRole('status', { name: 'Loading your friends' })).toHaveCount(0);
 }
@@ -98,9 +98,9 @@ export async function openFriends({ page }) {
 export const friendRow = ({ page }, who) =>
   page.getByRole('listitem').filter({ hasText: who.name });
 
-/** Makes a circle on /circles, opens it and adds `members` by searching for them. Returns nothing. */
+/** Makes a circle on /people?tab=circles, opens it and adds `members` by searching for them. Returns nothing. */
 export async function makeCircle({ page }, circleName, members) {
-  await page.goto('/circles');
+  await page.goto('/people?tab=circles');
   await page.getByLabel('Circle name').fill(circleName);
   await page.getByRole('button', { name: 'Create circle' }).click();
   await page.getByRole('link', { name: literal(circleName) }).click();
@@ -180,7 +180,7 @@ export async function expectFeed(viewer, { sees = [], hidden = [] }) {
 
 /** Asserts what the viewer's My schedule shows, once it has loaded, like `expectFeed`. */
 export async function expectSchedule({ page }, { sees = [], hidden = [] }) {
-  await page.goto('/schedule');
+  await page.goto('/plans');
   await expect(page.getByRole('heading', { level: 1, name: 'My schedule' })).toBeVisible();
   await expect(page.getByRole('status', { name: 'Loading events' })).toHaveCount(0);
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -194,12 +194,12 @@ export async function expectSchedule({ page }, { sees = [], hidden = [] }) {
   }
 }
 
-/** The bell in the header: its name carries the unread count, "Notifications, 2 unread" (or "99+ unread"). */
-export const bell = ({ page }) => page.getByRole('link', { name: /^Notifications/ });
+/** The sidebar's Inbox link: its name carries the unread count, "Inbox, 2 unread" (or "99+ unread"). */
+export const bell = ({ page }) => page.getByRole('link', { name: /^Inbox/ });
 
 /** Opens the inbox. */
 export async function openInbox({ page }) {
-  await page.goto('/notifications');
+  await page.goto('/inbox');
   await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible();
 }
 
