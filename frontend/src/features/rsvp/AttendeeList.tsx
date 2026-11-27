@@ -86,13 +86,14 @@ function ConfirmedRow({ event, person }: { event: Event; person: Person }) {
 
 const LIST = 'card divide-line divide-y-2 divide-dashed';
 
-function Going({ event, people, hidden }: { event: Event; people: Person[]; hidden?: boolean }) {
+function Going({ event, people, inTab }: { event: Event; people: Person[]; inTab?: boolean }) {
+  // In the host's tabs it sits under "Manage guests", and the tab already shows it on screen.
+  const Heading = inTab ? 'h3' : 'h2';
   return (
     <div className="space-y-3">
-      {/* The host's tab already shows this, so there the heading is for screen readers. */}
-      <h2 id="going-heading" className={hidden ? 'sr-only' : 'text-base font-extrabold'}>
+      <Heading id="going-heading" className={inTab ? 'sr-only' : 'text-base font-extrabold'}>
         Going ({people.length})
-      </h2>
+      </Heading>
       <ul aria-labelledby="going-heading" className={LIST}>
         {people.map((person) => (
           <ConfirmedRow key={person.id} event={event} person={person} />
@@ -118,9 +119,9 @@ function InLine({
 }) {
   return (
     <div className="space-y-3">
-      <h2 id={id} className="sr-only">
+      <h3 id={id} className="sr-only">
         {heading} ({people.length})
-      </h2>
+      </h3>
       {people.length === 0 ? (
         <p className="text-ink-muted">{empty}</p>
       ) : (
@@ -168,7 +169,7 @@ function ManageGuests({ event, attendees }: { event: Event; attendees: Attendees
           </button>
         ))}
       </div>
-      {tab === 'going' && <Going event={event} people={confirmed} hidden />}
+      {tab === 'going' && <Going event={event} people={confirmed} inTab />}
       {tab === 'offered' && (
         <InLine
           id="offered-heading"

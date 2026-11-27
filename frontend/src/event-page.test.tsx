@@ -169,6 +169,28 @@ describe('the action bar', () => {
     ['joined', { myStatus: 'CONFIRMED' }, {}, ['Joined'], ['Leave']],
     ['removed', { myStatus: 'REMOVED' }, {}, ['You can’t rejoin this event.'], []],
     ['cancelled', { status: 'CANCELLED' }, {}, [/Signup is closed because the event was/], []],
+    // D-013 rule 12: someone still signed up can leave a cancelled event, which takes it off My plans.
+    [
+      'cancelled, joined',
+      { status: 'CANCELLED', myStatus: 'CONFIRMED' },
+      {},
+      ['Joined'],
+      ['Leave'],
+    ],
+    [
+      'cancelled, waitlisted',
+      { status: 'CANCELLED', myStatus: 'WAITLISTED' },
+      {},
+      ['Waitlisted'],
+      ['Leave'],
+    ],
+    [
+      'cancelled, offered',
+      { status: 'CANCELLED', myStatus: 'OFFERED' },
+      {},
+      [/You were offered a spot, but this event was cancelled/],
+      [],
+    ],
     ['started', { startsAt: past }, {}, [/Signup is closed because the event has started/], []],
     ['not open yet', { signupOpensAt: soon }, {}, [/Signup opens in/], ['Join']],
   ])('holds the action when %s', async (name, event, spots, texts, buttons) => {
