@@ -2648,7 +2648,7 @@
             "minLength" : 2
           }
         }, {
-          "description" : "feed only. A Discord server ID (a snowflake, as a string) where the user is discoverable: keeps the events whose visibleBecause names it, so never the user's own. Any other server is a 400.",
+          "description" : "feed only. A Discord server ID (a snowflake, as a string) where the user is discoverable: keeps the user's own events whose audience has it, and other events whose visibleBecause names it. Any other server is a 400.",
           "in" : "query",
           "name" : "guild",
           "required" : false,
@@ -2657,7 +2657,7 @@
             "pattern" : "^[0-9]{17,19}$"
           }
         }, {
-          "description" : "feed only. true keeps the events open to the host's friends whose host is the user's friend (a FRIEND in visibleBecause); false is no filter.",
+          "description" : "feed only. true keeps the user's own events open to their friends, and other events open to the host's friends whose host is the user's friend (a FRIEND in visibleBecause); false is no filter.",
           "in" : "query",
           "name" : "friends",
           "required" : false,

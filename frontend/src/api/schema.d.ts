@@ -3788,9 +3788,9 @@ export interface operations {
                 limit?: number;
                 /** @description feed only. Text to find, case-insensitively, in the title, tag or description, never the location; 2 to 100 characters. % and _ match themselves. */
                 q?: string;
-                /** @description feed only. A Discord server ID (a snowflake, as a string) where the user is discoverable: keeps the events whose visibleBecause names it, so never the user's own. Any other server is a 400. */
+                /** @description feed only. A Discord server ID (a snowflake, as a string) where the user is discoverable: keeps the user's own events whose audience has it, and other events whose visibleBecause names it. Any other server is a 400. */
                 guild?: string;
-                /** @description feed only. true keeps the events open to the host's friends whose host is the user's friend (a FRIEND in visibleBecause); false is no filter. */
+                /** @description feed only. true keeps the user's own events open to their friends, and other events open to the host's friends whose host is the user's friend (a FRIEND in visibleBecause); false is no filter. */
                 friends?: boolean;
                 /** @description feed only. true keeps unlimited events and those with spots left; false is no filter. */
                 hasSpots?: boolean;

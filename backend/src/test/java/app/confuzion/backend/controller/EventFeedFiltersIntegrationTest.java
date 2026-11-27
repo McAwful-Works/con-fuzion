@@ -117,18 +117,19 @@ class EventFeedFiltersIntegrationTest {
 		return Stream.of(Arguments.of("", ALL), Arguments.of("friends=false&hasSpots=false", ALL),
 				Arguments.of("q=BOARD",
 						List.of("Board night", "Board swap", "Board brunch", "Cosplay shoot", "Dice", "My board")),
-				Arguments.of("guild=GUILD", List.of("Board swap", "Board brunch", "Cosplay shoot", "Panel")),
+				Arguments.of("guild=GUILD",
+						List.of("Board swap", "Board brunch", "Cosplay shoot", "Panel", "My board")),
 				Arguments.of("friends=true", List.of("Board night", "Board swap", "Karaoke")),
 				Arguments.of("hasSpots=true",
 						List.of("Board night", "Board brunch", "Cosplay shoot", "Dice", "Karaoke", "Map talk",
 								"My board")),
-				Arguments.of("q=board&guild=GUILD", List.of("Board swap", "Board brunch", "Cosplay shoot")),
+				Arguments.of("q=board&guild=GUILD", List.of("Board swap", "Board brunch", "Cosplay shoot", "My board")),
 				Arguments.of("q=board&friends=true", List.of("Board night", "Board swap")),
 				Arguments.of("q=board&hasSpots=true",
 						List.of("Board night", "Board brunch", "Cosplay shoot", "Dice", "My board")),
-				Arguments.of("guild=GUILD&hasSpots=true", List.of("Board brunch", "Cosplay shoot")),
+				Arguments.of("guild=GUILD&hasSpots=true", List.of("Board brunch", "Cosplay shoot", "My board")),
 				Arguments.of("friends=true&hasSpots=true", List.of("Board night", "Karaoke")),
-				Arguments.of("q=board&guild=GUILD&hasSpots=true", List.of("Board brunch", "Cosplay shoot")),
+				Arguments.of("q=board&guild=GUILD&hasSpots=true", List.of("Board brunch", "Cosplay shoot", "My board")),
 				Arguments.of("q=board&guild=GUILD&friends=true&hasSpots=true", List.of()));
 	}
 
@@ -156,9 +157,8 @@ class EventFeedFiltersIntegrationTest {
 	/**
 	 * Seeds a viewer's feed: events from a friend, from someone they share a server
 	 * with, from someone who invited them, and their own, each reaching them in a
-	 * different way and with a different number of spots left. The {@code guild}
-	 * and {@code friends} filters follow {@code visibleBecause}, so they skip the
-	 * viewer's own event, which has none.
+	 * different way and with a different number of spots left. The viewer's own
+	 * event is for the shared server, so {@code guild} keeps it.
 	 *
 	 * @param viewer the viewer
 	 * @return the server the viewer shares with the hosts
@@ -216,6 +216,33 @@ class EventFeedFiltersIntegrationTest {
 		assertThat(titles(viewer, "q=zebra")).isEmpty();
 		assertThat(titles(viewer, "q=lair")).isEmpty();
 		assertThat(titles(viewer, "")).containsExactly("Meet", "Gather");
+	}
+
+	/**
+	 * Tests that the viewer's own events match {@code guild=X} when their audience
+	 * names X, and {@code friends=true} when it has a {@code FRIENDS} entry, but
+	 * not another server, and not when the audience is only a circle or a person.
+	 */
+	@Test
+	void ownEventsMatchTheirOwnAudience() throws Exception {
+		var viewer = fixtures.user("Viewer");
+		var x = fixtures.newGuildId();
+		var y = fixtures.newGuildId();
+		fixtures.guild(viewer, x, true);
+		fixtures.guild(viewer, y, true);
+		var forServer = event(viewer, "For X", null, null, "Hall A", null, 1);
+		fixtures.audience(forServer.id(), "GUILD", x, null, null);
+		var forFriends = event(viewer, "For friends", null, null, "Hall A", null, 1);
+		fixtures.audience(forFriends.id(), "FRIENDS", null, null, null);
+		var forCircle = event(viewer, "For a circle", null, null, "Hall A", null, 1);
+		fixtures.audience(forCircle.id(), "CIRCLE", null, fixtures.circle(viewer, fixtures.user("Member")).id(), null);
+		var forPerson = event(viewer, "For a person", null, null, "Hall A", null, 1);
+		fixtures.audience(forPerson.id(), "USER", null, null, fixtures.user("Guest"));
+
+		assertThat(titles(viewer, "guild=" + x)).containsExactly("For X");
+		assertThat(titles(viewer, "guild=" + y)).isEmpty();
+		assertThat(titles(viewer, "friends=true")).containsExactly("For friends");
+		assertThat(titles(viewer, "")).containsExactly("For X", "For friends", "For a circle", "For a person");
 	}
 
 	/**

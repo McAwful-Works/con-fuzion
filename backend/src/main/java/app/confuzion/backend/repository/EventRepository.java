@@ -75,36 +75,45 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	 * Whether event {@code e} gives the viewer {@code :viewer} their own reasons
 	 * for seeing it (D-017): it isn't theirs, it is published and not hidden by
 	 * moderators, and there is no block either way. With {@link #REACHES}, it is
-	 * what {@link EventAudienceRepository#findReasons} lists and what the feed's
-	 * {@code guild} and {@code friends} filters match, so a filter matches exactly
-	 * the events whose {@code visibleBecause} names it.
+	 * what {@link EventAudienceRepository#findReasons} lists and, for other
+	 * people's events, what the feed's {@code guild} and {@code friends} filters
+	 * match ({@link #MINE_OR_REASON}), so there a filter matches exactly the events
+	 * whose {@code visibleBecause} names it.
 	 */
 	String EXPLAINED = "e.host_id <> :viewer AND e.status = 'PUBLISHED' AND NOT e.hidden_by_moderation AND "
 			+ UNBLOCKED;
+
+	/**
+	 * Whether audience entry {@code a} of event {@code e} is on the viewer
+	 * {@code :viewer}'s own event, or is one of their reasons for seeing someone
+	 * else's ({@link #EXPLAINED} and {@link #REACHES}), for the feed's
+	 * {@code guild} and {@code friends} filters.
+	 */
+	String MINE_OR_REASON = "(e.host_id = :viewer OR (" + EXPLAINED + " AND " + REACHES + "))";
 
 	/**
 	 * The feed's search and filters (D-017), each off while its parameter is
 	 * {@code null} or {@code false}. {@code :pattern} is an {@code ILIKE} pattern
 	 * whose own wildcards are escaped with {@code !}, matched against the title,
 	 * tag and description and never the location, which can be withheld (D-013).
-	 * {@code :guild} keeps the events with an entry for that server that
-	 * {@link #REACHES} the viewer, and {@code :friends} the ones with a
-	 * {@code FRIENDS} entry that does. {@code :hasSpots} keeps unlimited events and
-	 * those with spots left. They only add conditions to {@link #findFeed}, so they
-	 * can't widen it.
+	 * {@code :guild} keeps the events with an entry for that server, and
+	 * {@code :friends} the ones with a {@code FRIENDS} entry, where the entry is on
+	 * the viewer's own event or is one of their reasons ({@link #EXPLAINED} and
+	 * {@link #REACHES}). {@code :hasSpots} keeps unlimited events and those with
+	 * spots left. They only add conditions to {@link #findFeed}, so they can't
+	 * widen it.
 	 */
 	String FEED_FILTERS = """
 			(CAST(:pattern AS text) IS NULL OR e.title ILIKE CAST(:pattern AS text) ESCAPE '!'
 				OR e.tag ILIKE CAST(:pattern AS text) ESCAPE '!'
 				OR e.description ILIKE CAST(:pattern AS text) ESCAPE '!')
-			AND (CAST(:guild AS bigint) IS NULL OR (""" + EXPLAINED + """
-			AND EXISTS (SELECT 1 FROM event_audience a WHERE a.event_id = e.id AND a.type = 'GUILD'
-				AND a.guild_id = CAST(:guild AS bigint) AND\s""" + REACHES + """
-			)))
-			AND (NOT CAST(:friends AS boolean) OR (""" + EXPLAINED + """
-			AND EXISTS (SELECT 1 FROM event_audience a WHERE a.event_id = e.id AND a.type = 'FRIENDS'
-				AND\s""" + REACHES + """
-			)))
+			AND (CAST(:guild AS bigint) IS NULL OR EXISTS (SELECT 1 FROM event_audience a
+				WHERE a.event_id = e.id AND a.type = 'GUILD' AND a.guild_id = CAST(:guild AS bigint)
+				AND\s""" + MINE_OR_REASON + """
+			))
+			AND (NOT CAST(:friends AS boolean) OR EXISTS (SELECT 1 FROM event_audience a
+				WHERE a.event_id = e.id AND a.type = 'FRIENDS' AND\s""" + MINE_OR_REASON + """
+			))
 			AND (NOT CAST(:hasSpots AS boolean) OR e.capacity IS NULL OR e.confirmed_count < e.capacity)
 			""";
 

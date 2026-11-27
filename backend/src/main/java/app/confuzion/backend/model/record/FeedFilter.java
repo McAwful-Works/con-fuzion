@@ -24,10 +24,11 @@ package app.confuzion.backend.model.record;
  *
  * @param q        text to find in the title, tag or description, never the
  *                 location, or {@code null}
- * @param guild    a Discord server ID whose events the viewer sees through it,
- *                 or {@code null}
- * @param friends  {@code true} for events open to the host's friends, the
- *                 viewer being one, or {@code null}
+ * @param guild    a Discord server ID: the viewer's own events for it, and the
+ *                 events they see through it, or {@code null}
+ * @param friends  {@code true} for events open to the host's friends: the
+ *                 viewer's own, and others' where the viewer is a friend, or
+ *                 {@code null}
  * @param hasSpots {@code true} for unlimited events and events with spots left,
  *                 or {@code null}
  * @author mcawful

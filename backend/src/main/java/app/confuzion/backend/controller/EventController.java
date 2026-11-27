@@ -139,10 +139,11 @@ public class EventController {
 			@Parameter(description = "feed only. Text to find, case-insensitively, in the title, tag or description, "
 					+ "never the location; 2 to 100 characters. % and _ match themselves.") @RequestParam(required = false) @Size(min = 2, max = 100) String q,
 			@Parameter(description = "feed only. A Discord server ID (a snowflake, as a string) where the user is "
-					+ "discoverable: keeps the events whose visibleBecause names it, so never the user's own. Any other server is a "
-					+ "400.", schema = @Schema(type = "string", pattern = GuildResponse.SNOWFLAKE_PATTERN)) @RequestParam(required = false) @Pattern(regexp = GuildResponse.SNOWFLAKE_PATTERN) String guild,
-			@Parameter(description = "feed only. true keeps the events open to the host's friends whose host is the "
-					+ "user's friend (a FRIEND in visibleBecause); false is no filter.") @RequestParam(required = false) Boolean friends,
+					+ "discoverable: keeps the user's own events whose audience has it, and other events whose visibleBecause "
+					+ "names it. Any other server is a 400.", schema = @Schema(type = "string", pattern = GuildResponse.SNOWFLAKE_PATTERN)) @RequestParam(required = false) @Pattern(regexp = GuildResponse.SNOWFLAKE_PATTERN) String guild,
+			@Parameter(description = "feed only. true keeps the user's own events open to their friends, and other "
+					+ "events open to the host's friends whose host is the user's friend (a FRIEND in visibleBecause); false is "
+					+ "no filter.") @RequestParam(required = false) Boolean friends,
 			@Parameter(description = "feed only. true keeps unlimited events and those with spots left; false is no "
 					+ "filter.") @RequestParam(required = false) Boolean hasSpots) {
 		return new ResponseRecord<>(eventService.getEvents(HttpUtil.userId(authentication), scope, cursor, limit,
