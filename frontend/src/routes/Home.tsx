@@ -41,10 +41,10 @@ export function Home() {
       </div>
       <EventFeed key={scope} scope={scope} />
       <nav aria-label="More" className="flex flex-col gap-3 sm:flex-row">
-        <Link to="/friends" className="btn btn-secondary">
+        <Link to="/people" className="btn btn-secondary">
           Friends
         </Link>
-        <Link to="/circles" className="btn btn-secondary">
+        <Link to="/people?tab=circles" className="btn btn-secondary">
           Circles
         </Link>
         <Link to="/onboarding" className="btn btn-secondary">

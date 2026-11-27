@@ -88,7 +88,9 @@ function DeleteCircle({ circle }: { circle: Circle }) {
       pending={remove.isPending}
       error={remove.error}
       onCancel={() => setAsking(false)}
-      onConfirm={() => remove.mutate(undefined, { onSuccess: () => void navigate('/circles') })}
+      onConfirm={() =>
+        remove.mutate(undefined, { onSuccess: () => void navigate('/people?tab=circles') })
+      }
     >
       <p>
         The circle is deleted. The people in it aren’t affected, and they aren’t told. This can’t be
@@ -119,7 +121,7 @@ export function CircleDetail() {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold">Circle not found</h1>
-        <Link to="/circles" className="btn btn-secondary">
+        <Link to="/people?tab=circles" className="btn btn-secondary">
           Back to your circles
         </Link>
       </div>
@@ -132,7 +134,7 @@ export function CircleDetail() {
   return (
     <div className="space-y-8">
       <div className="space-y-3">
-        <Link to="/circles" className="text-sm underline">
+        <Link to="/people?tab=circles" className="text-sm underline">
           All circles
         </Link>
         <h1 className="text-2xl font-semibold break-words">{data.name}</h1>

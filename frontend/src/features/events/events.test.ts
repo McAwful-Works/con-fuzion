@@ -67,6 +67,8 @@ const base: Event = {
   myStatus: 'NONE',
   status: 'PUBLISHED',
   audience: null,
+  spotsLeft: null,
+  visibleBecause: [],
   capacity: null,
   signupOpensAt: null,
   startsAt: '2030-07-01T20:00:00Z',

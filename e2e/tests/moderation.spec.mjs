@@ -36,7 +36,7 @@ async function myRoles({ page }) {
 const adminStatus = async ({ page }, path) =>
   (await page.request.get(`/api/admin${path}`)).status();
 
-/** The header's link to the admin area. */
+/** The sidebar's link to the admin area. */
 const moderationLink = ({ page }) => page.getByRole('link', { name: 'Moderation' });
 
 /** `days` from today as a date input takes it. Contexts run in UTC. */
@@ -73,7 +73,7 @@ test.describe('roles', () => {
     expect(hide.status()).toBe(403);
 
     // The same account with 2FA on: the role takes effect at the next sign-in.
-    await user.page.goto('/settings');
+    await user.page.goto('/you');
     await user.page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await expect(user.page).toHaveURL(/\/welcome$/);
     await signInAgain(user, { mfaEnabled: true });
@@ -199,7 +199,7 @@ test.describe('reports and hidden events', () => {
 
     // The reporter hears that it was reviewed, and nothing about what was reported or done.
     await reporter.page.goto('/');
-    await expect(bell(reporter)).toHaveAccessibleName('Notifications, 1 unread');
+    await expect(bell(reporter)).toHaveAccessibleName('Inbox, 1 unread');
     await openInbox(reporter);
     const reviewed = reporter.page.getByRole('listitem');
     await expect(reviewed).toHaveCount(1);

@@ -21,6 +21,7 @@ package app.confuzion.backend.model.record;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -44,18 +45,20 @@ class EventResponseTest {
 		var host = new PersonResponse(UUID.randomUUID(), "Con Goer", "https://cdn.discordapp.com/embed/avatars/0.png");
 		var event = new EventResponse(UUID.randomUUID(), host, "Cosplay photo walk", null, null, true,
 				EventResponse.LocationVisibility.CONFIRMED, null, Instant.parse("2026-12-01T18:00:00Z"), null,
-				"America/Chicago", null, 20, 30, EventResponse.Status.PUBLISHED, false, MyStatus.NONE, null, null);
+				"America/Chicago", null, 20, 3, 30, EventResponse.Status.PUBLISHED, false, MyStatus.NONE, null,
+				List.of(new EventResponse.VisibleReason(EventResponse.ReasonType.INVITED, null)), null);
 
 		JsonNode json = JsonMapper.builder().build().valueToTree(event);
 
-		assertThat(json.propertyNames())
-				.contains("isHost", "host", "locationHidden", "audience", "location", "myStatus")
-				.doesNotContain("host_", "hostId");
+		assertThat(json.propertyNames()).contains("isHost", "host", "locationHidden", "audience", "location",
+				"myStatus", "spotsLeft", "visibleBecause").doesNotContain("host_", "hostId");
 		assertThat(json.get("isHost").asBoolean()).isFalse();
 		assertThat(json.get("host").get("displayName").asString()).isEqualTo("Con Goer");
 		assertThat(json.get("location").isNull()).isTrue();
 		assertThat(json.get("audience").isNull()).isTrue();
 		assertThat(json.get("myStatus").asString()).isEqualTo("NONE");
+		assertThat(json.get("spotsLeft").asInt()).isEqualTo(3);
+		assertThat(json.get("visibleBecause").get(0).get("type").asString()).isEqualTo("INVITED");
 		assertThat(json.get("startsAt").asString()).isEqualTo("2026-12-01T18:00:00Z");
 	}
 }

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   envelope,
@@ -12,6 +12,8 @@ import {
 } from './test-utils';
 
 afterEach(() => vi.unstubAllGlobals());
+
+const pause = () => act(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
 describe('auth state', () => {
   it('sends a 401 from /api/me to the landing page', async () => {
@@ -59,7 +61,7 @@ describe('auth state', () => {
 
     expect(await screen.findByText('Con Goer')).toBeInTheDocument();
     expect(document.querySelector(`img[src="${me.avatarUrl}"]`)).not.toBeNull();
-    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+    expect(screen.getAllByRole('navigation', { name: 'Main' })).toHaveLength(2);
   });
 
   it('shows an error state with retry for a non-401 failure, never server text', async () => {
@@ -223,10 +225,10 @@ describe('servers', () => {
     expect(screen.getByRole('switch', { name: /Example Con Community/ })).not.toBeChecked();
   });
 
-  it('sends a 401 from a toggle save to the landing page', async () => {
+  it('sends a 401 from a toggle save to the landing page, and stays there', async () => {
     const target = guilds[0]!;
     let expired = false;
-    mockApi(({ method, path }) => {
+    const calls = mockApi(({ method, path }) => {
       if (path === '/api/me') {
         return expired ? jsonResponse(errorEnvelope, 401) : envelope('ME', me);
       }
@@ -235,13 +237,27 @@ describe('servers', () => {
         expired = true;
         return jsonResponse(errorEnvelope, 401);
       }
+      if (path.startsWith('/api/notifications')) {
+        return envelope('NOTIFICATION_PAGE', { items: [], nextCursor: null, unreadCount: 0 });
+      }
       return undefined;
     });
 
     const router = renderApp('/settings');
     fireEvent.click(await screen.findByRole('switch', { name: /Example Con Community/ }));
+    await screen.findByRole('link', { name: 'Sign in with Discord' });
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/welcome'));
+    // Wait before looking: a redirect loop never settles, even if the landing page shows for a moment.
+    await pause();
+    const settled = calls.length;
+    await pause();
+
+    expect(calls).toHaveLength(settled);
+    expect(screen.getByRole('link', { name: 'Sign in with Discord' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/welcome');
+    // No signed-in navigation is left on screen.
+    expect(screen.queryByText('Con Goer')).toBeNull();
+    expect(screen.queryByRole('link', { name: /Notifications/ })).toBeNull();
   });
 
   it('sorts servers case-insensitively', async () => {

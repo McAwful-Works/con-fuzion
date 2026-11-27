@@ -107,8 +107,8 @@ class EventControllerTest {
 	 */
 	private static final EventResponse RESPONSE = new EventResponse(UUID.randomUUID(),
 			new PersonResponse(USER_ID, "Host", "https://cdn.discordapp.com/embed/avatars/0.png"), "Walk", null,
-			"Hall B", false, LocationVisibility.VIEWERS, null, STARTS_AT, null, "UTC", null, null, 30, Status.PUBLISHED,
-			true, MyStatus.CONFIRMED, List.of(), null);
+			"Hall B", false, LocationVisibility.VIEWERS, null, STARTS_AT, null, "UTC", null, null, null, 30,
+			Status.PUBLISHED, true, MyStatus.CONFIRMED, List.of(), null, null);
 
 	/**
 	 * The mocked {@link EventService}.

@@ -414,15 +414,27 @@ class OpenApiConfigIntegrationTest {
 
 	/**
 	 * Tests the event schemas: {@code isHost} under that name, a nullable location
-	 * and audience, and typed audience entries with no free-text reference.
+	 * and audience, typed audience entries with no free-text reference, and the
+	 * card data (D-017), whose reasons carry only a type and a server name.
 	 */
 	@Test
 	void eventSchemas() {
 		Map<String, Map<String, Object>> properties = document.read("$.components.schemas.EventResponse.properties");
 		assertThat(properties).containsOnlyKeys("id", "host", "title", "description", "location", "locationHidden",
-				"locationVisibility", "tag", "startsAt", "endsAt", "timeZone", "signupOpensAt", "capacity",
-				"confirmWindowMinutes", "status", "isHost", "myStatus", "audience", "hiddenReason");
+				"locationVisibility", "tag", "startsAt", "endsAt", "timeZone", "signupOpensAt", "capacity", "spotsLeft",
+				"confirmWindowMinutes", "status", "isHost", "myStatus", "audience", "visibleBecause", "hiddenReason");
 		assertThat((List<String>) properties.get("hiddenReason").get("type")).contains("null");
+		assertThat((List<String>) properties.get("spotsLeft").get("type")).contains("null");
+		assertThat(properties.get("spotsLeft")).containsEntry("minimum", 0);
+		assertThat((List<String>) properties.get("visibleBecause").get("type")).contains("null");
+		assertThat(document.<List<String>>read("$.components.schemas.EventResponse.required")).contains("spotsLeft",
+				"visibleBecause");
+		// A reason names a server and nothing else: no circle, person or audience
+		// entry ID (D-017).
+		assertThat(document.<Map<String, Object>>read("$.components.schemas.VisibleReason.properties"))
+				.containsOnlyKeys("type", "guildName");
+		assertThat(document.<List<String>>read("$.components.schemas.VisibleReason.properties.type.enum"))
+				.containsExactly("GUILD", "FRIEND", "INVITED");
 		assertThat(properties.get("myStatus").get("enum")).isEqualTo(MY_STATUSES);
 		assertThat(document.<List<String>>read("$.components.schemas.EventResponse.required"))
 				.contains("confirmWindowMinutes");

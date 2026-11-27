@@ -37,6 +37,8 @@ const walk: Schemas['EventResponse'] = {
   myStatus: 'OFFERED',
   status: 'PUBLISHED',
   audience: null,
+  spotsLeft: null,
+  visibleBecause: [],
   capacity: 10,
   signupOpensAt: null,
   startsAt: new Date(Date.now() + 48 * HOUR).toISOString(),
