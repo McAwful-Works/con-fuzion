@@ -28,7 +28,7 @@ function SearchForm({ initial, onSearch }: { initial: string; onSearch: (q: stri
 
   return (
     <form role="search" onSubmit={submit} className="space-y-2">
-      <label className="block space-y-1">
+      <label className="block space-y-1 sm:max-w-md">
         <span className="text-sm font-medium">Name, user ID or Discord ID</span>
         <input
           type="search"
@@ -88,13 +88,16 @@ function UserCard({ user, now }: { user: AdminUser; now: number }) {
         </Fact>
         <Fact label="Reports against them">{user.reportCount}</Fact>
       </dl>
-      <SuspendAction userId={user.id} name={name} />
-      {admin && (
-        <>
-          <BanAction discordId={user.discordId} name={name} banned={user.ban !== null} />
-          <RolesAction userId={user.id} name={name} />
-        </>
-      )}
+      {/* The action buttons fill their column, which would be far too wide across the card. */}
+      <div className="max-w-md space-y-3">
+        <SuspendAction userId={user.id} name={name} />
+        {admin && (
+          <>
+            <BanAction discordId={user.discordId} name={name} banned={user.ban !== null} />
+            <RolesAction userId={user.id} name={name} />
+          </>
+        )}
+      </div>
     </li>
   );
 }
@@ -102,7 +105,7 @@ function UserCard({ user, now }: { user: AdminUser; now: number }) {
 /** A Discord ID can be banned before it signs up, and stays banned if the account goes (D-015). */
 function NoAccount({ discordId }: { discordId: string }) {
   return (
-    <div className="space-y-3">
+    <div className="max-w-md space-y-3">
       <p className="text-sm">
         No account here has this Discord ID. You can still ban it, or lift a ban on it.
       </p>

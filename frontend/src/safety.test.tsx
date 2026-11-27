@@ -6,6 +6,7 @@ import { describeNotification } from './features/notifications/describe';
 import {
   envelope,
   errorEnvelope,
+  findSignIn,
   jsonResponse,
   me,
   mockApi,
@@ -291,7 +292,7 @@ describe('a refused sign-in', () => {
   it('shows nothing of the kind on a plain visit', async () => {
     mockApi((call) => (call.path === '/api/me' ? jsonResponse(errorEnvelope, 401) : undefined));
     renderApp('/welcome');
-    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    await findSignIn();
     expect(screen.queryByText(/can’t sign in/)).toBeNull();
   });
 });

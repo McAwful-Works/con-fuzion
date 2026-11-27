@@ -4,6 +4,7 @@ import type { components } from './api/schema';
 import {
   envelope,
   errorEnvelope,
+  findSignIn,
   jsonResponse,
   me,
   mockApi,
@@ -201,7 +202,7 @@ describe('accepting an invite', () => {
     );
 
     const first = renderApp(`/invite/${TOKEN}`);
-    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    await findSignIn();
     expect(first.state.location.pathname).toBe('/welcome');
     expect(sessionStorage.getItem('pendingInviteToken')).toBe(TOKEN);
     expect(screen.getByText('Sign in to answer your friend’s invite.')).toBeInTheDocument();
