@@ -482,18 +482,17 @@ describe('search and filters', () => {
     await waitFor(async () => expect(await box()).toHaveValue(''));
     expect(router.state.location.search).toBe('');
   });
+});
 
-  it('has none of it on the Hosting tab, which asks for no filters', async () => {
-    const calls = signedIn({
-      extra: ({ path }) =>
-        path.startsWith('/api/events?scope=hosting') ? page([walk]) : undefined,
-    });
-    renderApp('/?tab=hosting&q=board&friends=true');
+describe('what moved to My plans', () => {
+  it('has no Hosting tab, even from an old link to it', async () => {
+    const calls = signedIn({ feed: [walk] });
+    renderApp('/?tab=hosting');
 
     await card(walk.title);
-    expect(screen.queryByRole('searchbox')).toBeNull();
-    expect(screen.queryByRole('group', { name: 'Filters' })).toBeNull();
-    expect(calls.map((c) => c.path)).toContain('/api/events?scope=hosting&limit=20');
+    expect(screen.queryByRole('group', { name: 'Which events' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hosting' })).toBeNull();
+    expect(calls.some((c) => c.path.includes('scope=hosting'))).toBe(false);
   });
 });
 

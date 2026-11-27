@@ -37,7 +37,7 @@ function signedIn(servers: typeof guilds = []) {
     }
     if (call.path === '/api/push/key') return envelope('PUSH_KEY', { publicKey: 'AAAA' });
     if (call.path.startsWith('/api/events')) {
-      return envelope('EVENT_PAGE', { items: [], nextCursor: null });
+      return envelope('EVENT_PAGE', { events: [], nextCursor: null });
     }
     return undefined;
   });
@@ -60,7 +60,8 @@ function useIphone() {
 beforeEach(() => {
   vi.stubGlobal(
     'matchMedia',
-    vi.fn(() => ({ matches: false })),
+    // My plans also listens for the desktop width.
+    vi.fn(() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })),
   );
 });
 

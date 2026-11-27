@@ -292,7 +292,7 @@ test.describe('who sees what once someone is going', () => {
   });
 });
 
-test.describe('My schedule', () => {
+test.describe('My plans', () => {
   test('31. lists what you host and what you’re going to, and marks the events that overlap', async ({
     join,
   }) => {
@@ -322,7 +322,7 @@ test.describe('My schedule', () => {
 
     await me.page.goto('/');
     await me.page.getByRole('link', { name: 'My plans' }).click();
-    await expect(me.page.getByRole('heading', { level: 1, name: 'My schedule' })).toBeVisible();
+    await expect(me.page.getByRole('heading', { level: 1, name: 'My plans' })).toBeVisible();
 
     const card = (title) => me.page.getByRole('link', { name: new RegExp(`^${title}`) });
     // What I host and what I joined are listed, what I didn't join is not.
@@ -339,7 +339,59 @@ test.describe('My schedule', () => {
     await expect(card(`Photoshoot ${tag}`)).toContainText(`Overlaps with “Panel ${tag}”`);
     await expect(card(`My own table ${tag}`)).not.toContainText('Overlaps');
 
-    // The event I never joined is still in the feed, but not on my schedule.
+    // The segments narrow the same list, and say how much each holds.
+    const segment = (name) =>
+      me.page.getByRole('group', { name: 'Which plans' }).getByRole('button', { name });
+    await expect(segment('All 3')).toHaveAttribute('aria-pressed', 'true');
+    await segment('Hosting 1').click();
+    await expect(card(`My own table ${tag}`)).toBeVisible();
+    await expect(card(`Panel ${tag}`)).toHaveCount(0);
+    await segment('Going 2').click();
+    await expect(card(`Panel ${tag}`)).toContainText(`Overlaps with “Photoshoot ${tag}”`);
+    await expect(card(`My own table ${tag}`)).toHaveCount(0);
+    await segment('Waiting 0').click();
+    await expect(
+      me.page.getByRole('heading', { name: 'You’re not waiting for a spot' }),
+    ).toBeVisible();
+
+    // The event I never joined is still in the feed, but not in my plans.
     await expectFeed(me, { sees: [`Not for me ${tag}`] });
+  });
+
+  test('52. reads offline from the copy the service worker saved', async ({ join }) => {
+    const { con, host, guests } = await crowd(join, 1);
+    const [me] = guests;
+    const tag = me.user.id.slice(-6);
+    const audience = { guilds: [con.name] };
+    const saved = await createEvent(host, { title: `Saved ${tag}`, audience });
+    const later = await createEvent(host, { title: `Later ${tag}`, audience });
+    await joinEvent(me, saved, 'Joined');
+    const card = (title) => me.page.getByRole('link', { name: new RegExp(`^${title} ${tag}`) });
+
+    await me.page.goto('/plans');
+    await me.page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+    // From this load on the worker serves the page, and keeps what the page fetches.
+    await me.page.reload();
+    await expect(card('Saved')).toBeVisible();
+
+    // Joined after the copy was saved, through a request the page doesn't see.
+    expect((await apiWrite(me, 'POST', `/events/${later}/rsvp`)).status()).toBe(200);
+    await me.context.setOffline(true);
+    await me.page.reload();
+
+    await expect(me.page.getByText('You’re offline.', { exact: false })).toBeVisible();
+    await expect(me.page.getByRole('heading', { level: 1, name: 'My plans' })).toBeVisible();
+    await expect(card('Saved')).toBeVisible();
+    // The new one isn't there, so what's shown came from the saved copy, not the server.
+    await expect(card('Later')).toHaveCount(0);
+    await me.page
+      .getByRole('group', { name: 'Which plans' })
+      .getByRole('button', { name: 'Going 1' })
+      .click();
+    await expect(card('Saved')).toBeVisible();
+
+    await me.context.setOffline(false);
+    await me.page.reload();
+    await expect(card('Later')).toBeVisible();
   });
 });
