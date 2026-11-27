@@ -9,6 +9,7 @@ import {
 } from '../../api/me';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
+import { ServerIcon } from './ServerIcon';
 
 /**
  * The "Make me discoverable here" list, shared by the first-run setup and You → Servers. Everything is
@@ -89,21 +90,12 @@ function GuildRow({ guild, locked }: { guild: Guild; locked: boolean }) {
     <li className="px-3.5">
       {/* A label, so that a tap anywhere on the row works the switch. */}
       <label className="flex min-h-16 cursor-pointer items-center gap-3 py-2.5">
-        {guild.iconUrl ? (
-          <img
-            src={guild.iconUrl}
-            alt=""
-            className="rounded-control border-outline size-10 shrink-0 border-2"
-          />
-        ) : (
-          <span
-            aria-hidden="true"
-            className="rounded-control border-outline bg-surface-sunken flex size-10 shrink-0 items-center justify-center border-2 text-sm font-bold"
-          >
-            {/* By code point: half of an emoji doesn't draw. */}
-            {Array.from(guild.name)[0]?.toUpperCase()}
-          </span>
-        )}
+        <ServerIcon
+          name={guild.name}
+          url={guild.iconUrl}
+          className="rounded-control border-outline size-10 shrink-0 border-2"
+          initialClassName="bg-surface-sunken text-sm font-bold"
+        />
         <span className="min-w-0 flex-1">
           <span id={nameId} className="block font-bold break-words">
             {guild.name}

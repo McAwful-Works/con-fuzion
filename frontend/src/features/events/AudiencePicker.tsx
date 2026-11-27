@@ -5,6 +5,7 @@ import { useGuilds } from '../../api/me';
 import { AUDIENCE_MAX, type AudienceEntry } from '../../api/events';
 import { useCircles } from '../../api/social';
 import { ErrorState } from '../../components/ErrorState';
+import { ServerIcon } from '../servers/ServerIcon';
 import { PeopleSearch } from '../social/PeopleSearch';
 import { circleEntry, entryKey, entryLabel, friendsEntry, guildEntry, userEntry } from './audience';
 
@@ -175,13 +176,12 @@ export function AudiencePicker({ value, onChange }: Props) {
           <OptionCard
             key={g.id}
             icon={
-              g.iconUrl ? (
-                <img src={g.iconUrl} alt="" className={ICON} />
-              ) : (
-                <span aria-hidden="true" className={`${ICON} bg-tag text-tag-ink font-extrabold`}>
-                  {[...g.name][0]?.toUpperCase()}
-                </span>
-              )
+              <ServerIcon
+                name={g.name}
+                url={g.iconUrl}
+                className={ICON}
+                initialClassName="bg-tag text-tag-ink font-extrabold"
+              />
             }
             title={g.name}
             sub="Members who are discoverable there"

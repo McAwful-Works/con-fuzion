@@ -237,6 +237,29 @@ describe('servers', () => {
     expect(within(list).getByText('🎲')).toBeInTheDocument();
   });
 
+  it('swaps in the same placeholder when a server icon fails to load', async () => {
+    const broken = { ...guilds[0]!, iconUrl: 'https://cdn.discordapp.com/icons/1/gone.png' };
+    serverApi(({ method, path }) =>
+      method === 'GET' && path === '/api/me/guilds'
+        ? envelope('GUILD_LIST', { guilds: [broken, guilds[1]!] })
+        : undefined,
+    );
+
+    renderApp('/onboarding');
+    const list = await screen.findByRole('list', { name: 'Your servers' });
+    const icon = list.querySelector('img')!;
+    expect(icon).toHaveAttribute('src', broken.iconUrl);
+    expect(within(list).queryByText('E')).toBeNull();
+
+    fireEvent.error(icon);
+
+    expect(list.querySelector('img')).toBeNull();
+    const initial = within(list).getByText('E');
+    expect(initial).toHaveAttribute('aria-hidden', 'true');
+    // As the server with no icon has it.
+    expect(initial.className).toBe(within(list).getByText('R').className);
+  });
+
   it('shows an error state, without server text, when the list fails to load', async () => {
     serverApi(({ method, path }) =>
       method === 'GET' && path === '/api/me/guilds' ? jsonResponse(errorEnvelope, 500) : undefined,
