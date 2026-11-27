@@ -38,19 +38,13 @@ export function EventEdit() {
   }
 
   return (
-    <div className="space-y-6">
-      <Link to={back} className="text-sm underline">
-        Back to the event
-      </Link>
-      <h1 className="text-2xl font-semibold">Edit event</h1>
-      <EventForm
-        event={data}
-        defaultTimeZone={data.timeZone}
-        submitLabel="Save changes"
-        pending={update.isPending}
-        error={update.error}
-        onSubmit={(request) => update.mutate(request, { onSuccess: leave })}
-      />
-    </div>
+    <EventForm
+      event={data}
+      defaultTimeZone={data.timeZone}
+      submitLabel="Save changes"
+      pending={update.isPending}
+      error={update.error}
+      onSubmit={(request) => update.mutate(request, { onSuccess: leave })}
+    />
   );
 }

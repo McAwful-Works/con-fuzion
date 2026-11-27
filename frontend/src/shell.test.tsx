@@ -341,7 +341,7 @@ describe('detail pages', () => {
     const starts = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 16);
     fireEvent.change(screen.getByLabelText('Starts'), { target: { value: starts } });
     fireEvent.click(screen.getByLabelText('All my friends'));
-    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
     await waitFor(() => expect(where()).toBe(`/events/${ID}`));
     await goBack();
 

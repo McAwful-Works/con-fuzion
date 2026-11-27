@@ -1,8 +1,17 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { api, fillPath, type ContractPath } from './client';
-import type { components } from './schema';
+import type { components, operations } from './schema';
 
 type Schemas = components['schemas'];
+type ListQuery = NonNullable<operations['getEvents']['parameters']['query']>;
+/** Discover's search and filters. They only narrow the feed (D-017); leave out the ones not in use. */
+export type FeedFilters = Pick<ListQuery, 'q' | 'guild' | 'friends' | 'hasSpots'>;
 export type Event = Schemas['EventResponse'];
 export type EventRequest = Schemas['EventRequest'];
 export type AudienceEntry = Schemas['AudienceEntryResponse'];
@@ -27,18 +36,29 @@ export const CONFIRM_WINDOW_DEFAULT = 30;
 export const AUDIENCE_MAX = 50;
 export const FEED_PAGE_SIZE = 20;
 const PAGE_LIMIT_MAX = 50;
+/** The lengths the API accepts for a search. */
+export const SEARCH_MIN = 2;
+export const SEARCH_MAX = 100;
 
 const events = ['events'] as const;
 
-export function useEventFeed(scope: EventScope) {
+/**
+ * A list of events, a page at a time. `filters` are for `scope=feed` only (the API answers 400
+ * otherwise), and every page asks for the same ones. `enabled: false` waits.
+ */
+export function useEventFeed(scope: EventScope, filters: FeedFilters = {}, enabled = true) {
   return useInfiniteQuery({
-    queryKey: [...events, 'list', scope],
+    queryKey: [...events, 'list', scope, filters],
+    enabled,
     // My schedule is also served from the service worker's cache when offline, so let the first
     // request go out even without a connection (the default would pause it until we're back online).
     networkMode: scope === 'attending' ? 'offlineFirst' : 'online',
+    // The last list stays on screen while a new search or filter loads.
+    placeholderData: keepPreviousData,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const query = new URLSearchParams({ scope, limit: String(FEED_PAGE_SIZE) });
+      for (const [name, value] of Object.entries(filters)) query.set(name, String(value));
       if (pageParam) query.set('cursor', pageParam);
       return (await api<Schemas['ResponseRecordEventPageResponse']>(`${EVENTS}?${query}`)).body;
     },
