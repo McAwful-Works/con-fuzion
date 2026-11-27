@@ -160,7 +160,7 @@ test.describe('reports and hidden events', () => {
     await detail.getByRole('button', { name: 'Hide', exact: true }).click();
     await expect(detail.getByText('Event hidden.')).toBeVisible();
 
-    // Gone for everyone who could see it, joined or not: the API, the page, the feed and My schedule.
+    // Gone for everyone who could see it, joined or not: the API, the page, the feed and My plans.
     for (const player of [reporter, attendee, onlooker]) {
       expect(await eventStatus(player, id), player.name).toBe(404);
       expect((await player.page.request.get(`/api/events/${id}/spots`)).status()).toBe(404);

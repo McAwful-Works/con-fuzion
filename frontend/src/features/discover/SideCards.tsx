@@ -1,17 +1,17 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, CalendarCheck, Check, Timer } from 'lucide-react';
-import { useEffect, useId, type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { usePlans, type Event } from '../../api/events';
 import { useGuilds } from '../../api/me';
-import { useSpots } from '../../api/rsvp';
 import { ErrorState } from '../../components/ErrorState';
 import { dayHeading, dayKey, eventTimes } from '../events/time';
 import { useViewerZone } from '../events/useViewerZone';
-import { formatCountdown, useNow } from '../rsvp/signup';
+import { isOpenOffer, useOfferCountdown } from '../rsvp/offers';
+import { formatCountdown } from '../rsvp/signup';
 import { sortedDiscoverable } from './servers';
 
-function SideCard({ title, children }: { title: string; children: ReactNode }) {
+/** One card of a desktop side column. */
+export function SideCard({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
   return (
     <section aria-labelledby={id} className="card p-4.5">
@@ -23,22 +23,9 @@ function SideCard({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** One spot being held for you, counting down to the deadline `/spots` gives (D-014). */
+/** One spot being held for you, counting down to its deadline. */
 function Offer({ event }: { event: Event }) {
-  const queryClient = useQueryClient();
-  const query = useSpots(event);
-  const spots = query.data;
-  const expiresAt = spots?.myStatus === 'OFFERED' ? spots.offerExpiresAt : null;
-  const deadline = expiresAt ? Date.parse(expiresAt) : null;
-  const now = useNow(1000, deadline !== null);
-  // Ran out, or `/spots` (asked since this appeared) says it's gone: accepted, declined or expired.
-  const gone =
-    (deadline !== null && deadline <= now) ||
-    (query.isFetchedAfterMount && spots !== undefined && spots.myStatus !== 'OFFERED');
-
-  useEffect(() => {
-    if (gone) void queryClient.invalidateQueries({ queryKey: ['events'] });
-  }, [gone, queryClient]);
+  const { gone, left } = useOfferCountdown(event);
 
   if (gone) return null;
   return (
@@ -49,12 +36,12 @@ function Offer({ event }: { event: Event }) {
           <p className="font-bold break-words">{event.title}</p>
           <p className="text-ink-muted text-sm">
             A spot is held for you
-            {deadline !== null && (
+            {left !== null && (
               <>
                 {' for '}
                 {/* Not a live region: screen readers aren't told every second. */}
                 <span role="timer" aria-live="off" className="tabular-nums">
-                  {formatCountdown(deadline - now)}
+                  {formatCountdown(left)}
                 </span>
               </>
             )}
@@ -130,27 +117,34 @@ function Discoverable() {
   );
 }
 
+/** The offers among your plans that you can still answer. Nothing when there are none. */
+export function NeedsAnswer({ plans }: { plans: Event[] }) {
+  const offers = plans.filter(isOpenOffer);
+  if (offers.length === 0) return null;
+  return (
+    <SideCard title="Needs your answer">
+      <ul className="space-y-4">
+        {offers.map((event) => (
+          <Offer key={event.id} event={event} />
+        ))}
+      </ul>
+    </SideCard>
+  );
+}
+
 /** Discover's desktop column: open offers, what's next for you, and your discoverable servers. */
 export function SideCards() {
   const plans = usePlans();
-  // A cancelled event keeps its offers until they run out, but nothing can be accepted (D-014 rule 16).
-  const live = (plans.data ?? []).filter((event) => event.status === 'PUBLISHED');
-  const offers = live.filter((event) => event.myStatus === 'OFFERED');
-  const next = live.filter((event) => event.isHost || event.myStatus === 'CONFIRMED').slice(0, 2);
+  const next = (plans.data ?? [])
+    .filter((event) => event.status === 'PUBLISHED')
+    .filter((event) => event.isHost || event.myStatus === 'CONFIRMED')
+    .slice(0, 2);
   return (
     <>
       {plans.isError && !plans.data && (
         <ErrorState error={plans.error} onRetry={() => void plans.refetch()} />
       )}
-      {offers.length > 0 && (
-        <SideCard title="Needs your answer">
-          <ul className="space-y-4">
-            {offers.map((event) => (
-              <Offer key={event.id} event={event} />
-            ))}
-          </ul>
-        </SideCard>
-      )}
+      <NeedsAnswer plans={plans.data ?? []} />
       {next.length > 0 && (
         <SideCard title="Next up for you">
           <ul className="space-y-2">

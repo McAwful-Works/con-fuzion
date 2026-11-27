@@ -16,7 +16,6 @@ export type Event = Schemas['EventResponse'];
 export type EventRequest = Schemas['EventRequest'];
 export type AudienceEntry = Schemas['AudienceEntryResponse'];
 export type AudienceEntryRequest = Schemas['AudienceEntryRequest'];
-export type EventScope = 'feed' | 'hosting' | 'attending';
 
 const EVENTS = '/events' satisfies ContractPath;
 const EVENT = '/events/{eventId}' satisfies ContractPath;
@@ -43,21 +42,18 @@ export const SEARCH_MAX = 100;
 const events = ['events'] as const;
 
 /**
- * A list of events, a page at a time. `filters` are for `scope=feed` only (the API answers 400
- * otherwise), and every page asks for the same ones. `enabled: false` waits.
+ * Discover's feed, a page at a time. Every page asks for the same `filters`. `enabled: false`
+ * waits.
  */
-export function useEventFeed(scope: EventScope, filters: FeedFilters = {}, enabled = true) {
+export function useEventFeed(filters: FeedFilters = {}, enabled = true) {
   return useInfiniteQuery({
-    queryKey: [...events, 'list', scope, filters],
+    queryKey: [...events, 'list', 'feed', filters],
     enabled,
-    // My schedule is also served from the service worker's cache when offline, so let the first
-    // request go out even without a connection (the default would pause it until we're back online).
-    networkMode: scope === 'attending' ? 'offlineFirst' : 'online',
     // The last list stays on screen while a new search or filter loads.
     placeholderData: keepPreviousData,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
-      const query = new URLSearchParams({ scope, limit: String(FEED_PAGE_SIZE) });
+      const query = new URLSearchParams({ scope: 'feed', limit: String(FEED_PAGE_SIZE) });
       for (const [name, value] of Object.entries(filters)) query.set(name, String(value));
       if (pageParam) query.set('cursor', pageParam);
       return (await api<Schemas['ResponseRecordEventPageResponse']>(`${EVENTS}?${query}`)).body;
@@ -67,16 +63,29 @@ export function useEventFeed(scope: EventScope, filters: FeedFilters = {}, enabl
 }
 
 /**
- * What you're hosting, going to, waiting for or offered a spot in (D-014), for Discover's side cards:
- * one page, of the most events the API gives. An offer further down the list than that isn't shown.
+ * Everything upcoming that you're hosting, going to, waiting for or offered a spot in (D-014), for My
+ * plans and the side cards: every page of it, so that the counts are right. The service worker keeps
+ * these responses for reading offline.
  */
 export function usePlans() {
   return useQuery({
     queryKey: [...events, 'list', 'plans'],
+    // Let the first request go out without a connection, so the saved copy can answer it (the default
+    // would pause it until we're back online).
+    networkMode: 'offlineFirst',
     queryFn: async () => {
-      const query = new URLSearchParams({ scope: 'attending', limit: String(PAGE_LIMIT_MAX) });
-      return (await api<Schemas['ResponseRecordEventPageResponse']>(`${EVENTS}?${query}`)).body
-        .events;
+      const plans: Event[] = [];
+      let cursor: string | null = null;
+      do {
+        const query = new URLSearchParams({ scope: 'attending', limit: String(PAGE_LIMIT_MAX) });
+        if (cursor) query.set('cursor', cursor);
+        const page: Schemas['EventPageResponse'] = (
+          await api<Schemas['ResponseRecordEventPageResponse']>(`${EVENTS}?${query}`)
+        ).body;
+        plans.push(...page.events);
+        cursor = page.nextCursor;
+      } while (cursor);
+      return plans;
     },
   });
 }
