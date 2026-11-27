@@ -180,6 +180,18 @@ describe('the spots', () => {
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
+  it('removes an event’s limit when the switch is turned off', async () => {
+    const calls = signedIn();
+    renderApp(`/events/${mine.id}/edit`);
+    expect(await screen.findByLabelText('Capacity')).toHaveValue('20');
+
+    fireEvent.click(field('Limit the spots'));
+    expect(screen.queryByLabelText('Capacity')).toBeNull();
+    click('Save changes');
+
+    expect((await sent(calls, 'PATCH')).capacity).toBeNull();
+  });
+
   it('keeps an event’s own offer window as a choice', async () => {
     const calls = signedIn();
     renderApp(`/events/${mine.id}/edit`);

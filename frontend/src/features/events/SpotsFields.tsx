@@ -104,7 +104,7 @@ export function SpotsFields({
     <>
       <SwitchRow
         label="Limit the spots"
-        hint="Includes you. Off means anyone can join."
+        hint="Includes you. Off means no limit."
         checked={values.capacity !== null}
         onChange={(on) => {
           if (!on) setKept(values.capacity ?? '');
