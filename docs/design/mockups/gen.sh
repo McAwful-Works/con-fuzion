@@ -1,0 +1,16 @@
+#!/bin/sh
+# Wraps each pages/<name>.js in the mockup HTML head as <name>.html.
+cd "$(dirname "$0")"
+for f in pages/*.js; do
+  n=$(basename "$f" .js)
+  cat > "$n.html" <<HTML
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>$n — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css"><link rel="stylesheet" href="themes.css">
+</head><body><div id="app" class="app"></div>
+<script src="icons.js"></script><script src="shell.js"></script><script src="cards.js"></script>
+<script src="$f"></script></body></html>
+HTML
+done
