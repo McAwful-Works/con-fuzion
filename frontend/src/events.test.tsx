@@ -261,6 +261,10 @@ describe('the event page', () => {
       'href',
       `/events/${mine.id}/edit`,
     );
+    expect(screen.getByRole('link', { name: 'Change who can see it' })).toHaveAttribute(
+      'href',
+      `/events/${mine.id}/edit#audience`,
+    );
     const audience = screen.getByRole('region', { name: 'Who can see this' });
     expect(within(audience).getByText('Your friends')).toBeInTheDocument();
     expect(within(audience).getByText('Cosplay Corner')).toBeInTheDocument();
@@ -372,9 +376,10 @@ describe('creating an event', () => {
     fill('Location', 'Room 4');
     fill('Starts', soon());
     fireEvent.click(screen.getByLabelText('Hide the location until people are confirmed'));
+    fireEvent.click(screen.getByLabelText('Limit the spots'));
     fill('Capacity', '25');
-    expect(screen.getByLabelText('Offer window (minutes)')).toHaveValue('30');
-    fill('Offer window (minutes)', '45');
+    expect(screen.getByLabelText('Time to accept an offer')).toHaveValue('30');
+    fill('Time to accept an offer', '120');
 
     // Only the server where the host is discoverable is offered, with the opt-in note.
     expect(await screen.findByLabelText('Cosplay Corner')).toBeInTheDocument();
@@ -406,7 +411,7 @@ describe('creating an event', () => {
       locationVisibility: 'CONFIRMED',
       timeZone: 'America/Chicago',
       capacity: 25,
-      confirmWindowMinutes: 45,
+      confirmWindowMinutes: 120,
       endsAt: null,
       signupOpensAt: null,
       audience: [
@@ -584,13 +589,13 @@ describe('editing an event', () => {
 
     expect(await screen.findByLabelText('Title')).toHaveValue('My panel');
     expect(screen.getByLabelText('Hide the location until people are confirmed')).toBeChecked();
+    expect(screen.getByLabelText('Limit the spots')).toBeChecked();
     expect(screen.getByLabelText('Capacity')).toHaveValue('20');
     // The server the host is no longer discoverable in is listed, by the text we chose.
-    const extras = screen.getByRole('region', { name: 'Also included' });
-    expect(
-      await within(extras).findByText('A server you’re not discoverable in'),
-    ).toBeInTheDocument();
-    expect(within(extras).getByText('Bo')).toBeInTheDocument();
+    const extras = await screen.findByRole('region', { name: 'Also included' });
+    expect(within(extras).getByText('A server you’re not discoverable in')).toBeInTheDocument();
+    const people = screen.getByRole('list', { name: 'Added people' });
+    expect(within(people).getByRole('button', { name: 'Remove Bo' })).toBeInTheDocument();
 
     fill('Title', 'My renamed panel');
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));

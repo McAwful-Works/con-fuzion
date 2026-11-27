@@ -241,9 +241,12 @@ describe('the host view', () => {
     await findTitle();
     expect(screen.getByText('You’re hosting')).toBeInTheDocument();
     expect(facts().getByText('Hall B fountain')).toBeInTheDocument();
-    for (const name of ['Edit event', 'Change who can see it']) {
-      expect(dock().getByRole('link', { name })).toHaveAttribute('href', `/events/${mine.id}/edit`);
-    }
+    const edit = `/events/${mine.id}/edit`;
+    expect(dock().getByRole('link', { name: 'Edit event' })).toHaveAttribute('href', edit);
+    expect(dock().getByRole('link', { name: 'Change who can see it' })).toHaveAttribute(
+      'href',
+      `${edit}#audience`,
+    );
     expect(dock().getByRole('button', { name: 'Cancel event' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Spots and signup' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Who’s going' })).toBeNull();
