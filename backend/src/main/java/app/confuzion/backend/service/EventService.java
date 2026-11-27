@@ -68,6 +68,7 @@ import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.EventResponse.ReasonType;
 import app.confuzion.backend.model.record.EventResponse.Status;
 import app.confuzion.backend.model.record.EventResponse.VisibleReason;
+import app.confuzion.backend.model.record.FeedFilter;
 import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.NotificationPayload;
 import app.confuzion.backend.model.record.NotificationPayload.Change;
@@ -265,17 +266,26 @@ public class EventService {
 	 *               validated
 	 * @param cursor the previous page's cursor, or {@code null} for the first page
 	 * @param limit  the most events to return, already validated
+	 * @param filter the feed's search and filters, already validated, or
+	 *               {@link FeedFilter#NONE}
 	 * @return the page
 	 * @throws InvalidInputException when the cursor is malformed or was issued for
-	 *                               the other scope
+	 *                               the other scope, when a filter is given for
+	 *                               {@code hosting} or {@code attending}, or when
+	 *                               the {@code guild} isn't a server where the
+	 *                               viewer is discoverable
 	 */
 	@Transactional(readOnly = true)
-	public EventPageResponse getEvents(UUID viewer, String scope, String cursor, int limit) {
+	public EventPageResponse getEvents(UUID viewer, String scope, String cursor, int limit, FeedFilter filter) {
+		if (!filter.isEmpty() && (scope.equals(HOSTING) || scope.equals(ATTENDING)))
+			throw new InvalidInputException();
+		var guild = filter.guild() == null ? null : usableGuild(viewer, filter.guild());
 		var after = cursor == null ? Cursor.FIRST : Cursor.decode(scope, cursor);
 		var events = switch (scope) {
 		case HOSTING -> eventRepository.findHosting(viewer, after.startsAt(), after.id(), limit + 1);
 		case ATTENDING -> eventRepository.findAttending(viewer, after.startsAt(), after.id(), limit + 1);
-		default -> eventRepository.findFeed(viewer, after.startsAt(), after.id(), limit + 1);
+		default -> eventRepository.findFeed(viewer, after.startsAt(), after.id(), containsPattern(filter.q()), guild,
+				Boolean.TRUE.equals(filter.friends()), Boolean.TRUE.equals(filter.hasSpots()), limit + 1);
 		};
 		if (events.size() <= limit)
 			return new EventPageResponse(toResponses(viewer, events, false), null);
@@ -283,6 +293,40 @@ public class EventService {
 		var last = page.getLast();
 		return new EventPageResponse(toResponses(viewer, page, false),
 				new Cursor(last.getStartsAt(), last.getPublicId()).encode(scope));
+	}
+
+	/**
+	 * Returns the server a feed filter names, if the viewer is discoverable there.
+	 * An unknown server, one they aren't in and one where they aren't discoverable
+	 * all fail the same way, so the filter can't probe servers (D-017).
+	 *
+	 * @param viewer the viewer's user ID
+	 * @param guild  the server ID, already a snowflake
+	 * @return the server ID
+	 * @throws InvalidInputException when the viewer isn't discoverable there
+	 */
+	private long usableGuild(UUID viewer, String guild) {
+		long guildId;
+		try {
+			guildId = Long.parseLong(guild);
+		} catch (NumberFormatException e) {
+			throw new InvalidInputException(e);
+		}
+		if (!userGuildRepository.existsByUserIdAndGuildIdAndDiscoverableTrue(viewer, guildId))
+			throw new InvalidInputException();
+		return guildId;
+	}
+
+	/**
+	 * Returns an {@code ILIKE} pattern that finds the text anywhere, with its own
+	 * {@code %} and {@code _} (and the escape character {@code !}) escaped, so they
+	 * match literally.
+	 *
+	 * @param q the search text, or {@code null}
+	 * @return the pattern, or {@code null} for no search
+	 */
+	static String containsPattern(String q) {
+		return q == null ? null : "%" + q.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
 	}
 
 	/**

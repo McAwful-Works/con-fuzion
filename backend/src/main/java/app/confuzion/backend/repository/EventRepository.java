@@ -72,6 +72,43 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 			""";
 
 	/**
+	 * Whether event {@code e} gives the viewer {@code :viewer} their own reasons
+	 * for seeing it (D-017): it isn't theirs, it is published and not hidden by
+	 * moderators, and there is no block either way. With {@link #REACHES}, it is
+	 * what {@link EventAudienceRepository#findReasons} lists and what the feed's
+	 * {@code guild} and {@code friends} filters match, so a filter matches exactly
+	 * the events whose {@code visibleBecause} names it.
+	 */
+	String EXPLAINED = "e.host_id <> :viewer AND e.status = 'PUBLISHED' AND NOT e.hidden_by_moderation AND "
+			+ UNBLOCKED;
+
+	/**
+	 * The feed's search and filters (D-017), each off while its parameter is
+	 * {@code null} or {@code false}. {@code :pattern} is an {@code ILIKE} pattern
+	 * whose own wildcards are escaped with {@code !}, matched against the title,
+	 * tag and description and never the location, which can be withheld (D-013).
+	 * {@code :guild} keeps the events with an entry for that server that
+	 * {@link #REACHES} the viewer, and {@code :friends} the ones with a
+	 * {@code FRIENDS} entry that does. {@code :hasSpots} keeps unlimited events and
+	 * those with spots left. They only add conditions to {@link #findFeed}, so they
+	 * can't widen it.
+	 */
+	String FEED_FILTERS = """
+			(CAST(:pattern AS text) IS NULL OR e.title ILIKE CAST(:pattern AS text) ESCAPE '!'
+				OR e.tag ILIKE CAST(:pattern AS text) ESCAPE '!'
+				OR e.description ILIKE CAST(:pattern AS text) ESCAPE '!')
+			AND (CAST(:guild AS bigint) IS NULL OR (""" + EXPLAINED + """
+			AND EXISTS (SELECT 1 FROM event_audience a WHERE a.event_id = e.id AND a.type = 'GUILD'
+				AND a.guild_id = CAST(:guild AS bigint) AND\s""" + REACHES + """
+			)))
+			AND (NOT CAST(:friends AS boolean) OR (""" + EXPLAINED + """
+			AND EXISTS (SELECT 1 FROM event_audience a WHERE a.event_id = e.id AND a.type = 'FRIENDS'
+				AND\s""" + REACHES + """
+			)))
+			AND (NOT CAST(:hasSpots AS boolean) OR e.capacity IS NULL OR e.confirmed_count < e.capacity)
+			""";
+
+	/**
 	 * Whether the viewer {@code :viewer} may see event {@code e}: the one
 	 * visibility predicate that the detail view, the feed, My schedule and RSVP
 	 * share. The host always sees their own events. Anyone else needs no block
@@ -193,11 +230,16 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 	 * their own included. The candidates come from the viewer's audience keys (plan
 	 * B2): entries naming them, entries for circles they are in or servers where
 	 * they are discoverable, events where they hold an active RSVP, and their own
-	 * and their friends' recent events. {@link #VISIBLE} then decides.
+	 * and their friends' recent events. {@link #VISIBLE} then decides, and
+	 * {@link #FEED_FILTERS} narrows.
 	 *
 	 * @param viewer        the viewer's user ID
 	 * @param afterStartsAt the cursor's start time
 	 * @param afterId       the cursor's event public ID
+	 * @param pattern       the escaped search pattern, or {@code null}
+	 * @param guild         the server ID to filter by, or {@code null}
+	 * @param friends       whether to keep only events open to the host's friends
+	 * @param hasSpots      whether to keep only events with spots left
 	 * @param limit         the most events to return
 	 * @return the events, in {@code (starts_at, public_id)} order
 	 */
@@ -223,12 +265,13 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 					SELECT h.id FROM friendship f JOIN event h ON h.host_id = f.user_a
 						WHERE f.user_b = :viewer AND h.starts_at > now() - interval '7 days')
 				AND e.status = 'PUBLISHED'
-				AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + """
+				AND\s""" + UPCOMING + " AND " + AFTER_CURSOR + " AND " + VISIBLE + " AND " + FEED_FILTERS + """
 			ORDER BY e.starts_at, e.public_id
 			LIMIT :limit
 			""", nativeQuery = true)
 	List<Event> findFeed(@Param("viewer") UUID viewer, @Param("afterStartsAt") Instant afterStartsAt,
-			@Param("afterId") UUID afterId, @Param("limit") int limit);
+			@Param("afterId") UUID afterId, @Param("pattern") String pattern, @Param("guild") Long guild,
+			@Param("friends") boolean friends, @Param("hasSpots") boolean hasSpots, @Param("limit") int limit);
 
 	/**
 	 * Returns a page of the upcoming events a user hosts, cancelled ones included.

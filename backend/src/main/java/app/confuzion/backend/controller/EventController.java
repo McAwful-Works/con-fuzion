@@ -37,6 +37,8 @@ import org.springframework.web.bind.annotation.RestController;
 import app.confuzion.backend.model.record.EventPageResponse;
 import app.confuzion.backend.model.record.EventRequest;
 import app.confuzion.backend.model.record.EventResponse;
+import app.confuzion.backend.model.record.FeedFilter;
+import app.confuzion.backend.model.record.GuildResponse;
 import app.confuzion.backend.model.record.ResponseRecord;
 import app.confuzion.backend.service.EventService;
 import app.confuzion.backend.util.HttpUtil;
@@ -114,6 +116,10 @@ public class EventController {
 	 * @param cursor         the {@code nextCursor} from the previous page, or
 	 *                       {@code null} for the first page
 	 * @param limit          the most events to return
+	 * @param q              the feed's search text, or {@code null}
+	 * @param guild          the feed's server filter, or {@code null}
+	 * @param friends        the feed's friends filter, or {@code null}
+	 * @param hasSpots       the feed's spots-left filter, or {@code null}
 	 * @return the {@link EventPageResponse} envelope
 	 */
 	@GetMapping
@@ -121,14 +127,26 @@ public class EventController {
 			+ "3 hours) is still in the future. feed: published events visible to the user, their own included. "
 			+ "hosting: the user's own events, cancelled ones included. attending (My schedule): events where the user "
 			+ "is confirmed or waitlisted, their own included (the host always holds a spot), and cancelled ones where "
-			+ "they still are. Sorted by start time, then ID.")
+			+ "they still are. Sorted by start time, then ID. The feed takes a search (q) and filters (guild, friends, "
+			+ "hasSpots), all optional and combinable; they only narrow it, and the cursor pages through the narrowed "
+			+ "feed when the same parameters are sent again. Any of them with hosting or attending is a 400.")
 	public ResponseRecord<EventPageResponse> getEvents(@Parameter(hidden = true) Authentication authentication,
 			@Parameter(description = "feed, hosting or attending", schema = @Schema(type = "string", allowableValues = {
 					"feed", "hosting",
 					"attending" }, defaultValue = "feed")) @RequestParam(defaultValue = "feed") @Pattern(regexp = "^(feed|hosting|attending)$") String scope,
 			@Parameter(description = "The previous page's nextCursor. Opaque; a cursor that wasn't issued for this scope is a 400.") @RequestParam(required = false) @Size(max = 200) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String cursor,
-			@Parameter(description = "Events per page, 1 to 50") @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
-		return new ResponseRecord<>(eventService.getEvents(HttpUtil.userId(authentication), scope, cursor, limit));
+			@Parameter(description = "Events per page, 1 to 50") @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit,
+			@Parameter(description = "feed only. Text to find, case-insensitively, in the title, tag or description, "
+					+ "never the location; 2 to 100 characters. % and _ match themselves.") @RequestParam(required = false) @Size(min = 2, max = 100) String q,
+			@Parameter(description = "feed only. A Discord server ID (a snowflake, as a string) where the user is "
+					+ "discoverable: keeps the events whose visibleBecause names it, so never the user's own. Any other server is a "
+					+ "400.", schema = @Schema(type = "string", pattern = GuildResponse.SNOWFLAKE_PATTERN)) @RequestParam(required = false) @Pattern(regexp = GuildResponse.SNOWFLAKE_PATTERN) String guild,
+			@Parameter(description = "feed only. true keeps the events open to the host's friends whose host is the "
+					+ "user's friend (a FRIEND in visibleBecause); false is no filter.") @RequestParam(required = false) Boolean friends,
+			@Parameter(description = "feed only. true keeps unlimited events and those with spots left; false is no "
+					+ "filter.") @RequestParam(required = false) Boolean hasSpots) {
+		return new ResponseRecord<>(eventService.getEvents(HttpUtil.userId(authentication), scope, cursor, limit,
+				new FeedFilter(q, guild, friends, hasSpots)));
 	}
 
 	/**
