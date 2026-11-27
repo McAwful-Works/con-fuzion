@@ -89,6 +89,8 @@ const mine: Schemas['EventResponse'] = {
   hiddenReason: null,
   audience: [{ type: 'FRIENDS', label: null, guildId: null, circleId: null, userId: null }],
   capacity: null,
+  spotsLeft: null,
+  visibleBecause: null,
   signupOpensAt: null,
   confirmWindowMinutes: 30,
   startsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
