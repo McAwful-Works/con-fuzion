@@ -5,7 +5,8 @@ import { guild } from './support.mjs';
 test('51. on a phone a meetup is hosted in five steps, with Next in a bar at the bottom, and the event page opens the audience step', async ({
   join,
 }) => {
-  const con = guild(`51${Date.now()}`.slice(0, 18), 'Phone Con', { icon: null });
+  // A Discord-sized ID (18 digits) that no earlier run has used.
+  const con = guild(`51${Date.now()}000`, 'Phone Con', { icon: null });
   const { page } = await join('phone', [con], { discoverable: 'all' });
   const height = 640;
   await page.setViewportSize({ width: 375, height });

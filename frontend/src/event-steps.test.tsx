@@ -104,7 +104,10 @@ describe('the phone’s steps', () => {
     await newMeetup();
 
     expect(screen.getByText('Step 1 of 5 · Details')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuetext',
+      'Step 1 of 5: Details',
+    );
     expect(screen.getByRole('region', { name: 'Details' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'When' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Preview in Discover' })).toBeNull();

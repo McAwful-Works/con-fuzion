@@ -28,9 +28,12 @@ export function stepErrors(errors: FieldErrors, step: number): FieldErrors {
   );
 }
 
-/** The first step with something to fix, or -1. */
+/** The first step with something to fix, or the first step if no step claims the error. */
 export function firstStepWithErrors(errors: FieldErrors): number {
-  return STEPS.findIndex((step) => step.fields.some((field) => errors[field]));
+  return Math.max(
+    0,
+    STEPS.findIndex((step) => step.fields.some((field) => errors[field])),
+  );
 }
 
 /** Which step a phone shows. A move takes focus, and the view, to the new step's question. */
@@ -40,7 +43,10 @@ export function useSteps(desktop: boolean, atAudience: boolean) {
   // Not on arrival, unless a link asked for a step.
   const moved = useRef(atAudience);
   useEffect(() => {
-    if (desktop || !moved.current) return;
+    // Once per move: a change of width mustn't take focus from what's being typed.
+    const justMoved = moved.current;
+    moved.current = false;
+    if (desktop || !justMoved) return;
     heading.current?.focus({ preventScroll: true });
     // Optional call: jsdom has no scrollIntoView.
     heading.current?.closest('form')?.scrollIntoView?.();
@@ -62,6 +68,7 @@ export function StepHeader({ step, ref }: { step: number; ref: Ref<HTMLHeadingEl
         aria-valuemin={1}
         aria-valuemax={STEPS.length}
         aria-valuenow={step + 1}
+        aria-valuetext={`Step ${step + 1} of ${STEPS.length}: ${label}`}
         className="mb-4 flex gap-1.5"
       >
         {STEPS.map((s, index) => (
@@ -113,6 +120,8 @@ export function StepBar({
             type="button"
             className="btn btn-secondary"
             aria-label={`Back to ${STEPS[step - 1]!.label}`}
+            // Changes made while a save is on its way would be lost.
+            disabled={pending}
             onClick={onBack}
           >
             Back
@@ -123,7 +132,7 @@ export function StepBar({
           className="btn btn-primary flex-1"
           disabled={pending}
           // A double tap on the last Next mustn't also press the button that takes its place.
-          onClick={(e) => e.detail > 1 && e.preventDefault()}
+          onClick={(e) => !next && e.detail > 1 && e.preventDefault()}
         >
           {next ? (
             <>

@@ -1,5 +1,5 @@
 import { ChevronLeft, PartyPopper, Save } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ApiError } from '../../api/client';
 import { AUDIENCE_MAX, type Event, type EventRequest } from '../../api/events';
@@ -83,7 +83,11 @@ function Heading({ event }: { event?: Event }) {
 
 /** On desktop, `/events/:id/edit#audience` scrolls the page to "Who can see this". */
 function useOpenAtHash(desktop: boolean, atAudience: boolean) {
+  // Once, on arrival: widening the window later mustn't take focus from what's being typed.
+  const arrived = useRef(false);
   useEffect(() => {
+    if (arrived.current) return;
+    arrived.current = true;
     if (!desktop || !atAudience) return;
     const heading = document.getElementById('audience-heading');
     // The heading takes focus, so a keyboard or screen reader starts there too.
