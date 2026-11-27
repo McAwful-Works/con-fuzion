@@ -355,12 +355,15 @@ describe('the attendee list', () => {
     expect(going).toBeInTheDocument();
     // Remove is offered for Bo, not for the host themself, and not on the waitlist.
     expect(screen.getAllByRole('button', { name: /^Remove / })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Waitlist 2' }));
     const waitlist = screen.getByRole('list', { name: 'Waitlist (2)' });
     expect(
       within(waitlist)
         .getAllByRole('listitem')
         .map((li) => li.textContent),
     ).toEqual([expect.stringContaining('Cy'), expect.stringContaining('Ada')]);
+    expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Going 2' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove Bo' }));
     const dialog = await screen.findByRole('alertdialog');

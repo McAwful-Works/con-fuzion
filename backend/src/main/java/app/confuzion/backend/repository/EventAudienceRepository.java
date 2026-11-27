@@ -88,9 +88,8 @@ public interface EventAudienceRepository extends JpaRepository<EventAudience, Lo
 					WHERE n.guild_id = a.guild_id AND n.user_id = :viewer) END AS guildName
 			FROM event_audience a
 			JOIN event e ON e.id = a.event_id
-			WHERE a.event_id IN (:eventIds) AND e.host_id <> :viewer AND e.status = 'PUBLISHED'
-				AND NOT e.hidden_by_moderation
-				AND\s""" + EventRepository.UNBLOCKED + " AND " + EventRepository.REACHES + """
+			WHERE a.event_id IN (:eventIds)
+				AND\s""" + EventRepository.EXPLAINED + " AND " + EventRepository.REACHES + """
 			ORDER BY a.event_id, CASE a.type WHEN 'GUILD' THEN 0 WHEN 'FRIENDS' THEN 1 ELSE 2 END, guildName, a.id
 			""", nativeQuery = true)
 	List<Reason> findReasons(@Param("viewer") UUID viewer, @Param("eventIds") Collection<Long> eventIds);

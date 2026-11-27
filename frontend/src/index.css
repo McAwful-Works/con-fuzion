@@ -162,6 +162,10 @@
     html:has([data-tabbar]) {
       scroll-padding-bottom: 6rem;
     }
+    /* The event page's action bar, at its usual heights. */
+    html:has([data-actionbar]) {
+      scroll-padding-bottom: 11rem;
+    }
   }
 }
 

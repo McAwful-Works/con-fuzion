@@ -23,7 +23,7 @@ test.describe.configure({ timeout: 90_000 });
 /** The "offered a spot" wording of the inbox for an event. */
 const offeredText = (title) => new RegExp(`You were offered a spot in “${title}”`);
 
-/** The offer card on the event page: the held-spot text, the countdown and the two buttons. */
+/** The offer on the event page: the held-spot text, the countdown and the two buttons. */
 async function expectOffer(player, eventId) {
   await openEvent(player, eventId);
   await expect(panel(player).getByText('A spot is held for you.')).toBeVisible();

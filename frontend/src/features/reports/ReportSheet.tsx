@@ -69,18 +69,14 @@ export function ReportSheet({ targetType, targetId, label, blockable, onDone }: 
   };
 
   const heading = (
-    <h3 id={ids.title} ref={titleRef} tabIndex={-1} className="font-semibold">
+    <h3 id={ids.title} ref={titleRef} tabIndex={-1} className="text-lg font-extrabold break-words">
       Report {label}
     </h3>
   );
 
   if (send.isSuccess) {
     return (
-      <div
-        role="group"
-        aria-labelledby={ids.title}
-        className="border-line bg-surface-raised rounded-card space-y-3 border p-4"
-      >
+      <div role="group" aria-labelledby={ids.title} className="card space-y-3 p-4">
         {heading}
         <p role="status" className="text-sm">
           Thanks. The moderators will look at it.
@@ -103,14 +99,14 @@ export function ReportSheet({ targetType, targetId, label, blockable, onDone }: 
       aria-labelledby={ids.title}
       onSubmit={submit}
       onKeyDown={(e) => e.key === 'Escape' && !send.isPending && onDone()}
-      className="border-line bg-surface-raised rounded-card space-y-4 border p-4"
+      className="card space-y-4 p-4"
     >
       {heading}
       <p className="text-sm">
         Moderators read every report. The person you report isn’t told it was you.
       </p>
       <fieldset className="space-y-1">
-        <legend className="mb-1 text-sm font-medium">What’s the problem?</legend>
+        <legend className="field-label mb-1">What’s the problem?</legend>
         {REASONS.map((r) => (
           <label key={r.value} className="flex min-h-11 items-center gap-3">
             <input
@@ -119,14 +115,14 @@ export function ReportSheet({ targetType, targetId, label, blockable, onDone }: 
               value={r.value}
               checked={reason === r.value}
               onChange={() => setReason(r.value)}
-              className="size-5 shrink-0"
+              className="accent-accent size-5 shrink-0"
             />
             <span>{r.label}</span>
           </label>
         ))}
       </fieldset>
-      <div className="space-y-1">
-        <label htmlFor={ids.note} className="block text-sm font-medium">
+      <div className="field">
+        <label htmlFor={ids.note} className="field-label">
           Anything else we should know? (optional)
         </label>
         <textarea
@@ -136,9 +132,9 @@ export function ReportSheet({ targetType, targetId, label, blockable, onDone }: 
           maxLength={REPORT_NOTE_MAX}
           aria-describedby={ids.count}
           onChange={(e) => setNote(e.target.value)}
-          className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3 py-2"
+          className="field-control"
         />
-        <p id={ids.count} className="text-ink-muted text-sm">
+        <p id={ids.count} className="hint">
           {note.length} of {REPORT_NOTE_MAX} characters. Plain text only.
         </p>
       </div>
@@ -148,7 +144,7 @@ export function ReportSheet({ targetType, targetId, label, blockable, onDone }: 
             type="checkbox"
             checked={alsoBlock}
             onChange={(e) => setAlsoBlock(e.target.checked)}
-            className="mt-2.5 size-5 shrink-0"
+            className="accent-accent mt-2.5 size-5 shrink-0"
           />
           <span className="py-2">
             Also block {blockable.displayName}. You won’t see each other’s events, and they aren’t

@@ -8,6 +8,7 @@ import {
   errorType,
   expectSpots,
   expectStatus,
+  facts,
   fullEvent,
   goingHeading,
   joinEvent,
@@ -16,7 +17,7 @@ import {
   panel,
   removeAttendee,
   userId,
-  waitlistHeading,
+  waitlistTab,
 } from './rsvp.mjs';
 
 // Each test signs in several users and makes a handful of joins, so the default 30 seconds is tight on a slow runner.
@@ -36,32 +37,32 @@ test.describe('joining and the waitlist', () => {
 
     // The host holds the first spot: 1 of 3 is taken before anyone joins.
     await expectSpots(a, id, 'Spots left: 2');
-    await expect(panel(a).getByText('1 going')).toBeVisible();
+    await expect(facts(a).getByText('1 of 3 spots taken')).toBeVisible();
 
     await joinEvent(a, id, 'Joined');
     await expectSpots(a, id, 'Spots left: 1');
     await joinEvent(b, id, 'Joined');
     await expectSpots(b, id, /^Full$/);
-    await expect(panel(b).getByText('3 going')).toBeVisible();
+    await expect(facts(b).getByText('3 of 3 spots taken')).toBeVisible();
 
     // The third guest is told the event is full, joins, and sees a place in line.
     await openEvent(c, id);
     await expect(panel(c).getByText(/This event is full/)).toBeVisible();
     await joinEvent(c, id, 'Waitlisted #1');
     await joinEvent(d, id, 'Waitlisted #2');
-    await expectSpots(d, id, '3 going, 2 on the waitlist');
+    await expectSpots(d, id, '3 of 3 spots taken, 2 on the waitlist');
 
     // A reload keeps the position, and each person sees only their own.
     await expectStatus(c, id, 'Waitlisted #1');
     await expectStatus(d, id, 'Waitlisted #2');
     // (Waitlisted guests get no attendee list, so nobody else's place is on their page.)
-    await expect(c.page.getByRole('heading', { name: /^Waitlist \(/ })).toHaveCount(0);
+    await expect(c.page.getByRole('button', { name: /^Waitlist / })).toHaveCount(0);
     await expect(c.page.getByText('Waitlisted #2')).toHaveCount(0);
 
     // The host sees both lists, the waitlist in queue order; nobody has been turned away.
     await openEvent(host, id);
     await expect(goingHeading(host, 3)).toBeVisible();
-    await expect(waitlistHeading(host, 2)).toBeVisible();
+    await expect(waitlistTab(host, 2)).toBeVisible();
     await expectAttendees(host, {
       confirmed: [host.name, a.name, b.name],
       waitlist: [c.name, d.name],
@@ -80,7 +81,7 @@ test.describe('joining and the waitlist', () => {
     await acceptOffer(c, id);
     await expectStatus(c, id, 'Joined');
     await expectStatus(d, id, 'Waitlisted #1');
-    await expectSpots(d, id, '3 going, 1 on the waitlist');
+    await expectSpots(d, id, '3 of 3 spots taken, 1 on the waitlist');
 
     await openEvent(host, id);
     await expectAttendees(host, {
@@ -115,7 +116,7 @@ test.describe('joining and the waitlist', () => {
     await acceptOffer(c, id);
     await openEvent(host, id);
     await expect(goingHeading(host, 3)).toBeVisible();
-    await expect(waitlistHeading(host, 1)).toBeVisible();
+    await expect(waitlistTab(host, 1)).toBeVisible();
     await expectAttendees(host, {
       confirmed: [host.name, b.name, c.name],
       waitlist: [d.name],
@@ -152,7 +153,7 @@ test.describe('capacity edits', () => {
     await expect(host.page).toHaveURL(/\/edit$/);
     await openEvent(host, id);
     await expect(goingHeading(host, 3)).toBeVisible();
-    await expect(waitlistHeading(host, 2)).toBeVisible();
+    await expect(waitlistTab(host, 2)).toBeVisible();
 
     // Raising it by one offers the new spot to the first in line, who takes it, and the next moves up.
     await host.page.goto(`/events/${id}/edit`);
@@ -162,7 +163,7 @@ test.describe('capacity edits', () => {
     await acceptOffer(c, id);
     await openEvent(host, id);
     await expect(goingHeading(host, 4)).toBeVisible();
-    await expect(waitlistHeading(host, 1)).toBeVisible();
+    await expect(waitlistTab(host, 1)).toBeVisible();
     await expectStatus(c, id, 'Joined');
     await expectStatus(d, id, 'Waitlisted #1');
   });
@@ -251,7 +252,7 @@ test.describe('who sees what once someone is going', () => {
       confirmed: [host.name, going.name],
       waitlist: [],
     });
-    await expect(going.page.getByRole('heading', { name: /^Waitlist \(/ })).toHaveCount(0);
+    await expect(going.page.getByRole('button', { name: /^Waitlist / })).toHaveCount(0);
     await expectFeed(going, { sees: [title] });
     await expect(going.page.getByText(place)).toBeVisible();
 
