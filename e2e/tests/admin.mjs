@@ -88,13 +88,14 @@ export async function findUser({ page }, player) {
   return card;
 }
 
+/** In the desktop table named `queue`, the report link whose text includes `text`. */
+export const queueEntry = ({ page }, queue, text) =>
+  page.getByRole('table', { name: queue }).getByRole('link').filter({ hasText: text });
+
 /** From the open queue (oldest first, a page at a time), opens the report whose entry shows `text`. */
 export async function openReport({ page }, text) {
   await expect(page.getByRole('heading', { level: 2, name: 'Reports' })).toBeVisible();
-  const entry = page
-    .getByRole('list', { name: 'Open reports' })
-    .getByRole('link')
-    .filter({ hasText: text });
+  const entry = queueEntry({ page }, 'Open reports', text);
   await expect(async () => {
     // A local database keeps earlier runs' open reports, so the new one may be some pages down.
     if (!(await entry.isVisible())) {
