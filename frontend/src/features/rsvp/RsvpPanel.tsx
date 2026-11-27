@@ -1,31 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { Ban, CalendarX, Check, CircleCheck, Hourglass, Lock, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
 import type { Event } from '../../api/events';
-import { useAccept, useJoin, useLeave, useSpots, type Spots } from '../../api/rsvp';
+import { useAccept, useJoin, useLeave, useSpots } from '../../api/rsvp';
 import { ConfirmPanel } from '../../components/ConfirmPanel';
 import { ErrorState } from '../../components/ErrorState';
 import { formatCountdown, formatDeadline, useNow, useSignupUnlocked } from './signup';
 import { useOnline } from './useOnline';
-
-/** "Spots left: 3", "Full" or "Unlimited spots", plus how many are going and waiting. */
-export function SpotsBadge({ spots }: { spots: Spots }) {
-  const headline =
-    spots.spotsLeft === null
-      ? 'Unlimited spots'
-      : spots.spotsLeft === 0
-        ? 'Full'
-        : `Spots left: ${spots.spotsLeft}`;
-  return (
-    <p className="flex flex-wrap items-center gap-2">
-      <span className="border-line rounded-control border px-2 font-medium">{headline}</span>
-      <span className="text-ink-muted text-sm">
-        {spots.confirmed} going
-        {spots.waitlisted > 0 && `, ${spots.waitlisted} on the waitlist`}
-      </span>
-    </p>
-  );
-}
 
 function LeaveEvent({
   event,
@@ -42,7 +24,7 @@ function LeaveEvent({
     return (
       <button
         type="button"
-        className="btn btn-secondary"
+        className={`btn ${kind === 'offered' ? 'btn-ghost' : 'btn-secondary'}`}
         disabled={!online}
         onClick={() => setAsking(true)}
       >
@@ -52,29 +34,41 @@ function LeaveEvent({
   }
   const declining = kind === 'offered';
   return (
-    <ConfirmPanel
-      title={declining ? `Decline the spot in “${event.title}”?` : `Leave “${event.title}”?`}
-      confirmLabel={declining ? 'Decline' : 'Leave'}
-      cancelLabel={declining ? 'Keep the offer' : 'Stay'}
-      pending={leave.isPending}
-      error={leave.error}
-      onCancel={() => setAsking(false)}
-      onConfirm={() => leave.mutate(undefined, { onSuccess: () => setAsking(false) })}
-    >
-      {declining ? (
-        <p>
-          You’ll give up the spot, and the next person in line is offered it. You can join again
-          later, at the back of the line.
-        </p>
-      ) : kind === 'waitlisted' ? (
-        <p>You’ll lose your place in line. You can join again later, at the back of the line.</p>
-      ) : (
-        <p>
-          You’ll give up your spot, and the next person in line gets it. You can join again later if
-          there’s room, otherwise at the back of the waitlist.
-        </p>
-      )}
-    </ConfirmPanel>
+    <div className="w-full">
+      <ConfirmPanel
+        title={declining ? `Decline the spot in “${event.title}”?` : `Leave “${event.title}”?`}
+        confirmLabel={declining ? 'Decline' : 'Leave'}
+        cancelLabel={declining ? 'Keep the offer' : 'Stay'}
+        pending={leave.isPending}
+        error={leave.error}
+        onCancel={() => setAsking(false)}
+        onConfirm={() => leave.mutate(undefined, { onSuccess: () => setAsking(false) })}
+      >
+        {declining ? (
+          <p>
+            You’ll give up the spot, and the next person in line is offered it. You can join again
+            later, at the back of the line.
+          </p>
+        ) : kind === 'waitlisted' ? (
+          <p>You’ll lose your place in line. You can join again later, at the back of the line.</p>
+        ) : (
+          <p>
+            You’ll give up your spot, and the next person in line gets it. You can join again later
+            if there’s room, otherwise at the back of the waitlist.
+          </p>
+        )}
+      </ConfirmPanel>
+    </div>
+  );
+}
+
+/** A state with nothing to press: removed, cancelled or started. */
+function Notice({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <p role="status" className="flex items-start gap-2 text-sm font-semibold">
+      <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <span>{children}</span>
+    </p>
   );
 }
 
@@ -114,19 +108,32 @@ function OfferedSpot({
   if (expired) return <JoinButton key="rejoin" event={event} full={full} />;
   return (
     <div className="space-y-3">
-      <p className="font-semibold">A spot is held for you.</p>
-      {deadline !== null && expiresAt && (
-        <>
-          <p className="text-ink-muted text-sm">Accept before {formatDeadline(expiresAt)}.</p>
-          <p role="timer" aria-live="off" className="text-sm font-medium">
-            Offer ends in {formatCountdown(deadline - now)}
+      {/* Side by side in the phone bar; the countdown goes on top in the desktop card. */}
+      <div className="flex items-center gap-3 lg:flex-col-reverse lg:items-start">
+        <div className="min-w-0 flex-1">
+          <p className="font-head text-lg leading-snug font-extrabold">A spot is held for you.</p>
+          {deadline !== null && expiresAt && (
+            <p className="text-ink-muted text-sm">Accept before {formatDeadline(expiresAt)}.</p>
+          )}
+        </div>
+        {deadline !== null && (
+          <p
+            role="timer"
+            aria-live="off"
+            className="text-ink-muted shrink-0 text-right text-xs font-semibold lg:text-left"
+          >
+            Offer ends in{' '}
+            <span className="font-head text-accent-text block text-2xl font-extrabold tabular-nums">
+              {formatCountdown(deadline - now)}
+            </span>
           </p>
-        </>
-      )}
-      <div className="flex flex-col gap-2 sm:flex-row">
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <LeaveEvent event={event} kind="offered" />
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary flex-1"
           disabled={!online || accept.isPending}
           onClick={() =>
             accept.mutate(undefined, {
@@ -136,9 +143,9 @@ function OfferedSpot({
             })
           }
         >
+          <Check aria-hidden="true" className="size-4.5" />
           Accept spot
         </button>
-        <LeaveEvent event={event} kind="offered" />
       </div>
       {accept.isError && <ErrorState error={accept.error} />}
     </div>
@@ -156,7 +163,7 @@ function JoinButton({ event, full }: { event: Event; full: boolean }) {
   return (
     <div className="space-y-2">
       {!unlocked && (
-        <p role="timer" className="text-ink-muted text-sm">
+        <p role="timer" className="text-center text-sm font-semibold">
           {remaining > 0 ? `Signup opens in ${formatCountdown(remaining)}` : 'Signup is opening…'}
         </p>
       )}
@@ -167,10 +174,11 @@ function JoinButton({ event, full }: { event: Event; full: boolean }) {
       )}
       <button
         type="button"
-        className="btn btn-primary w-full sm:w-auto"
+        className="btn btn-primary w-full"
         disabled={!unlocked || !online || join.isPending}
         onClick={() => join.mutate()}
       >
+        {!unlocked && <Lock aria-hidden="true" className="size-4.5" />}
         Join
       </button>
       {join.isError && <ErrorState error={join.error} />}
@@ -178,7 +186,10 @@ function JoinButton({ event, full }: { event: Event; full: boolean }) {
   );
 }
 
-/** Spots and the viewer's own RSVP: Join, Joined, Waitlisted #N, an offer to accept or decline, and Leave. */
+/**
+ * The viewer's own RSVP: Join, Joined, Waitlisted #N, an offer to accept or decline, and Leave. Not
+ * for the host, who holds a spot and cancels the event instead of leaving.
+ */
 export function RsvpPanel({ event }: { event: Event }) {
   const cancelled = event.status === 'CANCELLED';
   const spotsQuery = useSpots(event);
@@ -203,31 +214,32 @@ export function RsvpPanel({ event }: { event: Event }) {
   const now = useNow(1000, !cancelled && status === 'NONE');
   const started = Date.parse(event.startsAt) <= now;
 
-  let action: ReactNode = null;
-  if (event.isHost) {
-    // The host holds a spot and can't leave: they cancel the event instead.
-    action = null;
-  } else if (status === 'CONFIRMED') {
+  let action: ReactNode;
+  if (status === 'CONFIRMED') {
     action = (
-      <>
-        <p role="status" className="font-semibold">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p role="status" className="pill pill-going">
+          <CircleCheck aria-hidden="true" />
           Joined
         </p>
         <LeaveEvent event={event} kind="confirmed" />
-      </>
+      </div>
     );
   } else if (status === 'WAITLISTED') {
     action = (
-      <>
-        <p role="status" className="font-semibold">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p role="status" className="pill pill-waitlisted">
+          <Hourglass aria-hidden="true" />
           {position === null ? 'Waitlisted' : `Waitlisted #${position}`}
         </p>
         <LeaveEvent event={event} kind="waitlisted" />
-      </>
+      </div>
     );
   } else if (status === 'OFFERED' && cancelled) {
     // D-014 rule 16: the offer stays open until its deadline, but nothing can be accepted any more.
-    action = <p role="status">You were offered a spot, but this event was cancelled.</p>;
+    action = (
+      <Notice icon={CalendarX}>You were offered a spot, but this event was cancelled.</Notice>
+    );
   } else if (status === 'OFFERED') {
     action = (
       <OfferedSpot
@@ -238,20 +250,21 @@ export function RsvpPanel({ event }: { event: Event }) {
       />
     );
   } else if (status === 'REMOVED') {
-    action = <p role="status">You can’t rejoin this event.</p>;
-  } else if (!cancelled) {
+    action = <Notice icon={Ban}>You can’t rejoin this event.</Notice>;
+  } else if (cancelled) {
+    action = <Notice icon={CalendarX}>Signup is closed because the event was cancelled.</Notice>;
+  } else {
     action = started ? (
-      <p role="status">Signup is closed because the event has started.</p>
+      <Notice icon={Lock}>Signup is closed because the event has started.</Notice>
     ) : (
       <JoinButton key={event.signupOpensAt} event={event} full={spots?.spotsLeft === 0} />
     );
   }
 
   return (
-    <section aria-label="Spots and signup" className="space-y-3">
-      {!cancelled && spots && <SpotsBadge spots={spots} />}
+    <section aria-label="Spots and signup" className="flex flex-col gap-2">
       {/* Always mounted, so a screen reader announces the text when it appears. */}
-      <p role="status" className={showLapsed ? 'font-semibold' : undefined}>
+      <p role="status" className="text-sm font-semibold empty:sr-only">
         {showLapsed ? 'Your offer expired. The spot went to the next person in line.' : null}
       </p>
       {action}
