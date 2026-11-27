@@ -73,7 +73,7 @@ function EmptyDiscover() {
           <Plus aria-hidden="true" className="size-5" />
           Host a meetup
         </Link>
-        <Link to="/you" className="btn btn-secondary">
+        <Link to="/onboarding" className="btn btn-secondary">
           Turn on servers
         </Link>
       </div>

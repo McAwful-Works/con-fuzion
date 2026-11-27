@@ -597,7 +597,10 @@ describe('the side cards', () => {
     expect(servers.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
       'Cosplay Corner',
     ]);
-    expect(servers.getByRole('link', { name: 'Manage servers' })).toHaveAttribute('href', '/you');
+    expect(servers.getByRole('link', { name: 'Manage servers' })).toHaveAttribute(
+      'href',
+      '/onboarding',
+    );
     // With no plans, there is nothing to answer and nothing next.
     expect(screen.queryByRole('region', { name: 'Next up for you' })).toBeNull();
   });

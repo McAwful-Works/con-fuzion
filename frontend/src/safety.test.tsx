@@ -278,7 +278,7 @@ describe('the 2FA note', () => {
   it('is absent for everyone else', async () => {
     signedIn();
     renderApp('/settings');
-    await screen.findByRole('heading', { name: /Settings/ });
+    await screen.findByRole('heading', { level: 1, name: 'Con Goer' });
     expect(screen.queryByRole('note')).toBeNull();
   });
 });

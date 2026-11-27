@@ -135,7 +135,7 @@ describe('the old paths', () => {
     ['/friends', '/people', '', 'People'],
     ['/circles', '/people', '?tab=circles', 'People'],
     ['/notifications', '/inbox', '', 'Inbox'],
-    ['/settings', '/you', '', 'Settings'],
+    ['/settings', '/you', '', 'Con Goer'],
   ])('replaces %s with %s%s', async (from, pathname, search, heading) => {
     signedIn();
     const router = renderApp(from);
@@ -367,15 +367,14 @@ describe('detail pages', () => {
 });
 
 describe('around the page', () => {
-  it('puts the footer on You only, once signed in', async () => {
+  it('has no footer once signed in: You says what the app is under About', async () => {
     signedIn();
-    const router = renderApp('/');
+    renderApp('/you');
     await findSidebar();
+
+    const about = await screen.findByRole('region', { name: 'About' });
+    expect(about).toHaveTextContent('Free meetups for convention-goers.');
     expect(screen.queryByRole('contentinfo')).toBeNull();
-
-    await router.navigate('/you');
-
-    expect(await screen.findByRole('contentinfo')).toHaveTextContent('Free meetups');
   });
 
   it('gives a signed-out visitor no navigation, and the footer', async () => {

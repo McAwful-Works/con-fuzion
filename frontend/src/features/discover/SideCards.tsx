@@ -107,7 +107,7 @@ function Discoverable() {
         </ul>
       )}
       <Link
-        to="/you"
+        to="/onboarding"
         className="text-ink-muted rounded-control mt-1.5 inline-flex min-h-11 items-center gap-1 text-sm font-semibold"
       >
         Manage servers

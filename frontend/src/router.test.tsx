@@ -109,7 +109,7 @@ describe('auth state', () => {
     expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
   });
 
-  it('logs out everywhere with a single POST and returns to the landing page', async () => {
+  it('signs out everywhere with a single POST and returns to the landing page', async () => {
     const calls = mockApi(({ method, path }) => {
       if (path === '/api/me') return envelope('ME', me);
       if (path === '/api/me/guilds') return envelope('GUILD_LIST', { guilds });
@@ -120,7 +120,7 @@ describe('auth state', () => {
     });
 
     const router = renderApp('/settings');
-    fireEvent.click(await screen.findByRole('button', { name: 'Log out everywhere' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out everywhere' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/welcome'));
     expect(calls.filter((c) => c.path === '/api/auth/logout-everywhere')).toHaveLength(1);
@@ -283,7 +283,7 @@ describe('servers', () => {
       return undefined;
     });
 
-    const router = renderApp('/settings');
+    const router = renderApp('/onboarding');
     fireEvent.click(await screen.findByRole('switch', { name: /Example Con Community/ }));
     await findSignIn();
 
@@ -343,13 +343,15 @@ describe('servers', () => {
     expect(calls.filter((c) => c.path === '/api/auth/logout')).toHaveLength(1);
   });
 
-  it('reuses the same list under Settings → Servers', async () => {
+  it('reaches the same list from You → Servers, without the setup around it', async () => {
     serverApi();
+    renderApp('/you');
 
-    renderApp('/settings');
+    fireEvent.click(await screen.findByRole('link', { name: /^Servers/ }));
 
     expect(await screen.findByRole('switch', { name: /Retro Gamers/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Servers' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Setup steps' })).toBeNull();
   });
 
   it('explains an empty list', async () => {
