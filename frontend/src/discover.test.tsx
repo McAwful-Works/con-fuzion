@@ -216,8 +216,10 @@ describe('Discover', () => {
     signedIn();
     renderApp('/');
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Discover' })).toBeInTheDocument();
-    expect(await within(screen.getByRole('main')).findByText('Cosplay Corner')).toBeInTheDocument();
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Discover' });
+    await waitFor(() =>
+      expect(heading.previousElementSibling).toHaveTextContent(/^Cosplay Corner$/),
+    );
   });
 
   it('heads each day with its weekday and date', async () => {
@@ -259,6 +261,206 @@ describe('Discover', () => {
 
     await card(walk.title);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('search and filters', () => {
+  const [alpha, beta] = ['81384788765712385', '81384788765712386'];
+  const servers: Schemas['GuildResponse'][] = [
+    { id: '81384788765712384', name: 'Quiet Server', iconUrl: null, discoverable: false },
+    { id: beta, name: 'Test Con', iconUrl: null, discoverable: true },
+    { id: alpha, name: 'Anime Weekend', iconUrl: null, discoverable: true },
+  ];
+  const FEED = '/api/events?scope=feed&limit=20';
+
+  /** Signed in with those servers. `answer` may take over the feed. */
+  function filtering(answer: (path: string) => Response | undefined = () => undefined) {
+    return signedIn({
+      feed: [walk],
+      extra: ({ path }) => {
+        if (path === '/api/me/guilds') return envelope('GUILD_LIST', { guilds: servers });
+        return path.startsWith('/api/events?scope=feed') ? answer(path) : undefined;
+      },
+    });
+  }
+
+  const feedCalls = (calls: RecordedCall[]) =>
+    calls.map((c) => c.path).filter((path) => path.startsWith('/api/events?scope=feed'));
+  const box = () => screen.findByRole('searchbox', { name: 'Search meetups' });
+  const chips = async () => within(await screen.findByRole('group', { name: 'Filters' }));
+  const chip = async (name: string) => (await chips()).findByRole('button', { name });
+  const pressed = async () =>
+    (await chips()).getAllByRole('button', { pressed: true }).map((button) => button.textContent);
+
+  it('offers All, each server you’re discoverable in, Friends and Has spots', async () => {
+    filtering();
+    renderApp('/');
+
+    await chip('Test Con');
+    const names = (await chips()).getAllByRole('button').map((button) => button.textContent);
+    expect(names).toEqual(['All', 'Anime Weekend', 'Test Con', 'Friends', 'Has spots']);
+    expect(await pressed()).toEqual(['All']);
+  });
+
+  it('searches after a pause in typing, trimmed, keeping what was typed', async () => {
+    const calls = filtering();
+    const router = renderApp('/');
+    await card(walk.title);
+    const search = await box();
+
+    fireEvent.change(search, { target: { value: 'bo' } });
+    fireEvent.change(search, { target: { value: ' board ' } });
+
+    await waitFor(() => expect(feedCalls(calls)).toEqual([FEED, `${FEED}&q=board`]));
+    expect(router.state.location.search).toBe('?q=board');
+    expect(router.state.historyAction).toBe('REPLACE');
+    expect(search).toHaveValue(' board ');
+    expect(search).toHaveAttribute('maxlength', '100');
+  });
+
+  it('searches at once on Enter', async () => {
+    filtering();
+    const router = renderApp('/');
+
+    fireEvent.change(await box(), { target: { value: 'ramen' } });
+    fireEvent.submit(screen.getByRole('search'));
+
+    await waitFor(() => expect(router.state.location.search).toBe('?q=ramen'));
+  });
+
+  it('keeps a single character in the URL without asking for it', async () => {
+    const calls = filtering();
+    const router = renderApp('/');
+    await card(walk.title);
+
+    fireEvent.change(await box(), { target: { value: 'a' } });
+
+    await waitFor(() => expect(router.state.location.search).toBe('?q=a'));
+    await card(walk.title);
+    expect(feedCalls(calls).some((path) => path.includes('q='))).toBe(false);
+  });
+
+  it('puts each chip in the URL and the request, one server at a time', async () => {
+    const calls = filtering();
+    const router = renderApp('/?q=board');
+    const click = async (name: string) => fireEvent.click(await chip(name));
+    const url = (search: string) =>
+      waitFor(() => expect(router.state.location.search).toBe(search));
+
+    await click('Test Con');
+    await url(`?q=board&guild=${beta}`);
+    await click('Anime Weekend');
+    await url(`?q=board&guild=${alpha}`);
+    await click('Friends');
+    await url(`?q=board&guild=${alpha}&friends=true`);
+    await click('Has spots');
+    await url(`?q=board&guild=${alpha}&friends=true&hasSpots=true`);
+    await waitFor(() =>
+      expect(feedCalls(calls).at(-1)).toBe(
+        `${FEED}&q=board&guild=${alpha}&friends=true&hasSpots=true`,
+      ),
+    );
+    expect(await pressed()).toEqual(['Anime Weekend', 'Friends', 'Has spots']);
+
+    // Pressing a chip again turns it off.
+    await click('Anime Weekend');
+    await url('?q=board&friends=true&hasSpots=true');
+    // All clears the chips and leaves the search.
+    await click('All');
+    await url('?q=board');
+    expect(await pressed()).toEqual(['All']);
+  });
+
+  it('opens a filtered URL as it stands, once it knows the server is yours', async () => {
+    const calls = filtering();
+    renderApp(`/?q=board&guild=${beta}&hasSpots=true`);
+
+    await card(walk.title);
+    // Nothing is asked until the servers are known.
+    expect(feedCalls(calls)).toEqual([`${FEED}&q=board&guild=${beta}&hasSpots=true`]);
+    expect(await box()).toHaveValue('board');
+    expect(await pressed()).toEqual(['Test Con', 'Has spots']);
+  });
+
+  it('leaves out a server you aren’t discoverable in, and values that aren’t true', async () => {
+    const calls = filtering();
+    renderApp('/?guild=81384788765712384&friends=false&hasSpots=1');
+
+    await card(walk.title);
+    expect(feedCalls(calls)).toEqual([FEED]);
+    expect(await pressed()).toEqual(['All']);
+  });
+
+  it('keeps the search and filters when loading more', async () => {
+    const calls = filtering((path) =>
+      path.includes('cursor=') ? page([event('Second page')]) : page([walk], 'next-1'),
+    );
+    renderApp('/?q=board&friends=true');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+
+    await card('Second page');
+    expect(feedCalls(calls).at(-1)).toBe(`${FEED}&q=board&friends=true&cursor=next-1`);
+  });
+
+  it('says when nothing matches, and clears the search and filters', async () => {
+    const calls = filtering((path) => (path === FEED ? undefined : page([])));
+    const router = renderApp('/?q=zzz&friends=true');
+
+    expect(await screen.findByRole('heading', { name: 'No meetups match' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'No upcoming meetups yet' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+
+    await card(walk.title);
+    // The button has gone; the focus stays with the filters.
+    expect(await chip('All')).toHaveFocus();
+    expect(router.state.location.search).toBe('');
+    expect(await box()).toHaveValue('');
+    expect(await pressed()).toEqual(['All']);
+    expect(feedCalls(calls).at(-1)).toBe(FEED);
+  });
+
+  it.each<[string, EventBody[], string | null, string]>([
+    ['nothing', [], null, 'No meetups match'],
+    ['one', [walk], null, '1 meetup matches'],
+    ['several', [walk, event('Other')], null, '2 meetups match'],
+    ['more than a page', [walk, event('Other')], 'next-1', 'More than 2 meetups match'],
+  ])('tells a screen reader when a search finds %s', async (_what, events, cursor, words) => {
+    filtering((path) => (path === FEED ? undefined : page(events, cursor)));
+    renderApp('/');
+    await card(walk.title);
+    // There before the search, and quiet: only a change to it is announced.
+    const result = within(screen.getByRole('main')).getByRole('status');
+    expect(result).toBeEmptyDOMElement();
+
+    fireEvent.change(await box(), { target: { value: 'walk' } });
+
+    await waitFor(() => expect(result).toHaveTextContent(words));
+    expect(result).toBeInTheDocument();
+  });
+
+  it('empties the search box when the Discover link drops the search', async () => {
+    filtering();
+    const router = renderApp('/?q=board');
+    expect(await box()).toHaveValue('board');
+
+    await router.navigate('/');
+
+    await waitFor(async () => expect(await box()).toHaveValue(''));
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('has none of it on the Hosting tab, which asks for no filters', async () => {
+    const calls = signedIn({
+      extra: ({ path }) =>
+        path.startsWith('/api/events?scope=hosting') ? page([walk]) : undefined,
+    });
+    renderApp('/?tab=hosting&q=board&friends=true');
+
+    await card(walk.title);
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Filters' })).toBeNull();
+    expect(calls.map((c) => c.path)).toContain('/api/events?scope=hosting&limit=20');
   });
 });
 
