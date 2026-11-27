@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useSearchParams } from 'react-router';
 import type { EventScope } from '../api/events';
 import { useDesktop } from '../components/shell/useDesktop';
@@ -19,6 +20,7 @@ export function Home() {
   const setScope = (next: EventScope) =>
     setParams(next === 'feed' ? {} : { tab: next }, { replace: true });
   const search = useFeedFilters();
+  const allChip = useRef<HTMLButtonElement>(null);
   const { servers } = search;
   const desktop = useDesktop();
   return (
@@ -53,13 +55,17 @@ export function Home() {
         </div>
         {scope === 'feed' ? (
           <>
-            <FilterBar {...search} />
+            <FilterBar {...search} allRef={allChip} />
             <EventFeed
               key="feed"
               scope="feed"
               filters={search.filters}
               waiting={search.waiting}
-              onClearFilters={search.clear}
+              onClearFilters={() => {
+                search.clear();
+                // The button pressed is about to go; don't drop the keyboard to the top of the page.
+                allChip.current?.focus();
+              }}
             />
           </>
         ) : (

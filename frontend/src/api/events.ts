@@ -60,7 +60,7 @@ export function useEventFeed(scope: EventScope, filters: FeedFilters = {}, enabl
 
 /**
  * What you're hosting, going to, waiting for or offered a spot in (D-014), for Discover's side cards:
- * one page, of the most events the API gives.
+ * one page, of the most events the API gives. An offer further down the list than that isn't shown.
  */
 export function usePlans() {
   return useQuery({

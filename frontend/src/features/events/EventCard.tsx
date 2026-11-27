@@ -35,6 +35,15 @@ interface Status {
   icon?: LucideIcon;
 }
 
+/** Sign-up runs from its opening time, if it has one, to the start. A cancelled event takes no one. */
+function takesSignups(event: Event, now: number): boolean {
+  return (
+    event.status === 'PUBLISHED' &&
+    Date.parse(event.startsAt) > now &&
+    (!event.signupOpensAt || Date.parse(event.signupOpensAt) <= now)
+  );
+}
+
 /** Where the viewer stands, or that joining a full event means waiting. */
 function status(event: Event, now: number): Status | undefined {
   if (event.isHost) return { text: 'Hosting', variant: 'pill-hosting', icon: Sparkles };
@@ -48,10 +57,7 @@ function status(event: Event, now: number): Status | undefined {
     case 'REMOVED':
       return { text: 'Removed', variant: 'pill-full', icon: Ban };
     case 'NONE':
-      // Sign-up closes at the start, and a cancelled event takes no one.
-      return event.status === 'PUBLISHED' &&
-        event.spotsLeft === 0 &&
-        Date.parse(event.startsAt) > now
+      return event.spotsLeft === 0 && takesSignups(event, now)
         ? { text: 'Full · join waitlist', variant: 'pill-full' }
         : undefined;
   }

@@ -1,5 +1,5 @@
 import { Globe, Search, Users, type LucideIcon } from 'lucide-react';
-import { useEffect, useEffectEvent, useState } from 'react';
+import { useEffect, useEffectEvent, useState, type Ref } from 'react';
 import { SEARCH_MAX } from '../../api/events';
 import type { useFeedFilters } from './useFeedFilters';
 
@@ -64,14 +64,22 @@ function Chip({
   icon: Icon,
   label,
   onClick,
+  ref,
 }: {
+  ref?: Ref<HTMLButtonElement>;
   pressed: boolean;
   icon?: LucideIcon;
   label: string;
   onClick: () => void;
 }) {
   return (
-    <button type="button" aria-pressed={pressed} className="chip shrink-0" onClick={onClick}>
+    <button
+      ref={ref}
+      type="button"
+      aria-pressed={pressed}
+      className="chip shrink-0"
+      onClick={onClick}
+    >
       {Icon && <Icon aria-hidden="true" className="size-4 shrink-0" />}
       <span className="max-w-56 truncate">{label}</span>
     </button>
@@ -84,7 +92,11 @@ export function FilterBar({
   text,
   servers,
   change,
-}: Pick<ReturnType<typeof useFeedFilters>, 'filters' | 'text' | 'servers' | 'change'>) {
+  allRef,
+}: Pick<ReturnType<typeof useFeedFilters>, 'filters' | 'text' | 'servers' | 'change'> & {
+  /** The All chip, which takes the focus after Clear filters. */
+  allRef: Ref<HTMLButtonElement>;
+}) {
   const { guild, friends, hasSpots } = filters;
   return (
     <div className="space-y-2.5">
@@ -96,6 +108,7 @@ export function FilterBar({
         className="-mx-4 flex gap-2 overflow-x-auto px-4 py-1 lg:mx-0 lg:flex-wrap lg:px-0"
       >
         <Chip
+          ref={allRef}
           label="All"
           pressed={!guild && !friends && !hasSpots}
           onClick={() => change({ guild: undefined, friends: undefined, hasSpots: undefined })}

@@ -118,6 +118,10 @@ describe('the event card', () => {
       'a full event has started',
       { spotsLeft: 0, startsAt: new Date(Date.now() - HOUR).toISOString() },
     ],
+    [
+      'a full event’s sign-up hasn’t opened',
+      { spotsLeft: 0, signupOpensAt: new Date(Date.now() + HOUR).toISOString() },
+    ],
   ])('shows a newcomer no pill when %s', async (_when, extra) => {
     signedIn({ feed: [event('Panel', extra)] });
     renderApp('/');
@@ -408,10 +412,31 @@ describe('search and filters', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
 
     await card(walk.title);
+    // The button has gone; the focus stays with the filters.
+    expect(await chip('All')).toHaveFocus();
     expect(router.state.location.search).toBe('');
     expect(await box()).toHaveValue('');
     expect(await pressed()).toEqual(['All']);
     expect(feedCalls(calls).at(-1)).toBe(FEED);
+  });
+
+  it.each<[string, EventBody[], string | null, string]>([
+    ['nothing', [], null, 'No meetups match'],
+    ['one', [walk], null, '1 meetup matches'],
+    ['several', [walk, event('Other')], null, '2 meetups match'],
+    ['more than a page', [walk, event('Other')], 'next-1', 'More than 2 meetups match'],
+  ])('tells a screen reader when a search finds %s', async (_what, events, cursor, words) => {
+    filtering((path) => (path === FEED ? undefined : page(events, cursor)));
+    renderApp('/');
+    await card(walk.title);
+    // There before the search, and quiet: only a change to it is announced.
+    const result = within(screen.getByRole('main')).getByRole('status');
+    expect(result).toBeEmptyDOMElement();
+
+    fireEvent.change(await box(), { target: { value: 'walk' } });
+
+    await waitFor(() => expect(result).toHaveTextContent(words));
+    expect(result).toBeInTheDocument();
   });
 
   it('empties the search box when the Discover link drops the search', async () => {
