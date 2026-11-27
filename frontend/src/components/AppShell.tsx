@@ -27,7 +27,7 @@ export function AppShell() {
               <Link
                 to="/admin"
                 aria-label="Moderation"
-                className="focus-visible:outline-accent rounded-control flex min-h-11 min-w-11 items-center justify-center focus-visible:outline-2"
+                className="focus-visible:outline-focus rounded-control flex min-h-11 min-w-11 items-center justify-center focus-visible:outline-2"
               >
                 <Shield aria-hidden="true" className="size-5" />
               </Link>
@@ -37,7 +37,7 @@ export function AppShell() {
               aria-label={
                 unread > 0 ? `Notifications, ${formatUnread(unread)} unread` : 'Notifications'
               }
-              className="focus-visible:outline-accent rounded-control relative flex min-h-11 min-w-11 items-center justify-center focus-visible:outline-2"
+              className="focus-visible:outline-focus rounded-control relative flex min-h-11 min-w-11 items-center justify-center focus-visible:outline-2"
             >
               <Bell aria-hidden="true" className="size-5" />
               {unread > 0 && (
@@ -51,7 +51,7 @@ export function AppShell() {
             </Link>
             <Link
               to="/settings"
-              className="focus-visible:outline-accent rounded-control flex min-h-11 min-w-0 items-center gap-2 focus-visible:outline-2"
+              className="focus-visible:outline-focus rounded-control flex min-h-11 min-w-0 items-center gap-2 focus-visible:outline-2"
             >
               <img src={user.avatarUrl} alt="" className="size-8 shrink-0 rounded-full" />
               <span className="max-w-40 truncate text-sm font-medium">

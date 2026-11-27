@@ -17,9 +17,9 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
-        // Keep in sync with --color-surface-inverse in src/index.css.
-        theme_color: '#18181b',
-        background_color: '#fafafa',
+        // Keep in sync with --color-surface in src/index.css.
+        theme_color: '#fff6ea',
+        background_color: '#fff6ea',
         // No icons until the artist delivers them (frontend/ASSETS.md); installability is
         // incomplete without 192px and 512px icons.
         icons: [],

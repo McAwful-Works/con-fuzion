@@ -3,8 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <!-- Keep in sync with --color-surface-inverse in src/index.css and the manifest in vite.config.ts. -->
-    <meta name="theme-color" content="#18181b" />
+    <!-- Keep in sync with --color-surface in src/index.css, public/appearance.js and vite.config.ts. -->
+    <meta name="theme-color" content="#fff6ea" />
+    <!-- Light or dark, before the first paint. Keep it blocking, and after the theme-color meta. -->
+    <script src="/appearance.js"></script>
     <meta name="description" content="Host and join convention meetups." />
     <title>Con-Fuzion</title>
   </head>

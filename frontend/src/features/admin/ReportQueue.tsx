@@ -12,7 +12,7 @@ function Entry({ report }: { report: Report }) {
     <li>
       <Link
         to={`/admin/reports/${report.id}`}
-        className="border-line bg-surface-raised rounded-card focus-visible:outline-accent block space-y-1 border p-4 focus-visible:outline-2"
+        className="border-line bg-surface-raised rounded-card focus-visible:outline-focus block space-y-1 border p-4 focus-visible:outline-2"
       >
         <span className="block font-semibold">{reasonLabel(report.reason)}</span>
         <span className="block break-words">{targetName(report)}</span>

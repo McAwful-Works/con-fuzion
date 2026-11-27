@@ -6,12 +6,14 @@ Claude never creates art. The owner or the hired artist adds the files and the r
 
 Put the file's path relative to `frontend/` in backticks in the first column.
 
-| File                | Source          | Author                  | License | Notes                                                                                             |
-| ------------------- | --------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------- |
-| `public/push-sw.js` | This repository | Con-Fuzion contributors | MIT     | Code, not art: the service worker's push handlers. Listed because `check-assets` walks `public/`. |
+| File                   | Source          | Author                  | License | Notes                                                                                             |
+| ---------------------- | --------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `public/push-sw.js`    | This repository | Con-Fuzion contributors | MIT     | Code, not art: the service worker's push handlers. Listed because `check-assets` walks `public/`. |
+| `public/appearance.js` | This repository | Con-Fuzion contributors | MIT     | Code, not art: applies light or dark before the first paint.                                      |
 
 ## Not files, so not listed above
 
+- Bricolage Grotesque (variable, headings): the `@fontsource-variable/bricolage-grotesque` npm package. SIL OFL 1.1.
 - Inter (variable): the `@fontsource-variable/inter` npm package. SIL OFL 1.1.
 - Icons: the `lucide-react` npm package. ISC.
 - The text wordmark "Con-Fuzion" is plain text styled with the theme tokens in `src/index.css`.
