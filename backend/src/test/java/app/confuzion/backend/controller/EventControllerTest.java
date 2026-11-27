@@ -62,6 +62,7 @@ import app.confuzion.backend.model.record.EventRequest;
 import app.confuzion.backend.model.record.EventResponse;
 import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
 import app.confuzion.backend.model.record.EventResponse.Status;
+import app.confuzion.backend.model.record.FeedFilter;
 import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.PersonResponse;
 import app.confuzion.backend.service.EventService;
@@ -85,6 +86,11 @@ class EventControllerTest {
 	 * The signed-in user's ID.
 	 */
 	private static final UUID USER_ID = UUID.randomUUID();
+
+	/**
+	 * A list request with no search and no filters.
+	 */
+	private static final FeedFilter NO_FILTER = new FeedFilter(null, null, null, null);
 
 	/**
 	 * The signed-in user's {@link Authentication}.
@@ -154,7 +160,7 @@ class EventControllerTest {
 		when(eventService.createEvent(eq(USER_ID), any())).thenReturn(RESPONSE);
 		when(eventService.getEvent(eq(USER_ID), any(), eq(false))).thenReturn(RESPONSE);
 		when(eventService.updateEvent(eq(USER_ID), any(), any())).thenReturn(RESPONSE);
-		when(eventService.getEvents(eq(USER_ID), any(), any(), anyInt()))
+		when(eventService.getEvents(eq(USER_ID), any(), any(), anyInt(), any()))
 				.thenReturn(new EventPageResponse(List.of(RESPONSE), null));
 
 		mockMvc.perform(request).andExpect(status().is2xxSuccessful());
@@ -167,14 +173,15 @@ class EventControllerTest {
 	@Test
 	void testCreateAndListDefaults() throws Exception {
 		when(eventService.createEvent(eq(USER_ID), any())).thenReturn(RESPONSE);
-		when(eventService.getEvents(USER_ID, "feed", null, 20)).thenReturn(new EventPageResponse(List.of(), null));
+		when(eventService.getEvents(USER_ID, "feed", null, 20, NO_FILTER))
+				.thenReturn(new EventPageResponse(List.of(), null));
 
 		mockMvc.perform(json(post("/api/events"), body(Map.of())).principal(AUTHENTICATION))
 				.andExpect(status().isCreated()).andExpect(jsonPath("$.responseType").value("EVENT"))
 				.andExpect(jsonPath("$.body.isHost").value(true));
 		mockMvc.perform(get("/api/events").principal(AUTHENTICATION)).andExpect(status().isOk())
 				.andExpect(jsonPath("$.responseType").value("EVENT_PAGE"));
-		verify(eventService).getEvents(USER_ID, "feed", null, 20);
+		verify(eventService).getEvents(USER_ID, "feed", null, 20, NO_FILTER);
 	}
 
 	/**
@@ -248,9 +255,26 @@ class EventControllerTest {
 	 */
 	@ParameterizedTest
 	@ValueSource(strings = { "scope=going", "scope=ATTENDING", "scope=FEED", "limit=0", "limit=51", "limit=ten",
-			"cursor=a%20b", "cursor=abc%3D" })
+			"cursor=a%20b", "cursor=abc%3D", "q=a", "guild=123", "guild=abc", "friends=maybe", "hasSpots=2" })
 	void testListRejectsBadQuery(String query) throws Exception {
 		assertError(mockMvc, get("/api/events?" + query), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Tests that the feed's search and filters reach the service as sent, and that
+	 * a search longer than 100 characters doesn't.
+	 */
+	@Test
+	void testFeedFiltersReachService() throws Exception {
+		var filter = new FeedFilter("50%_off", "81384788765712384", true, false);
+		when(eventService.getEvents(USER_ID, "feed", null, 20, filter))
+				.thenReturn(new EventPageResponse(List.of(), null));
+		mockMvc.perform(get("/api/events").param("q", "50%_off").param("guild", "81384788765712384")
+				.param("friends", "true").param("hasSpots", "false").principal(AUTHENTICATION))
+				.andExpect(status().isOk());
+		verify(eventService).getEvents(USER_ID, "feed", null, 20, filter);
+
+		assertError(mockMvc, get("/api/events").param("q", "x".repeat(101)), HttpStatus.BAD_REQUEST);
 	}
 
 	/**
@@ -258,10 +282,11 @@ class EventControllerTest {
 	 */
 	@Test
 	void testAttendingScope() throws Exception {
-		when(eventService.getEvents(USER_ID, "attending", null, 20)).thenReturn(new EventPageResponse(List.of(), null));
+		when(eventService.getEvents(USER_ID, "attending", null, 20, NO_FILTER))
+				.thenReturn(new EventPageResponse(List.of(), null));
 		mockMvc.perform(get("/api/events").param("scope", "attending").principal(AUTHENTICATION))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("EVENT_PAGE"));
-		verify(eventService).getEvents(USER_ID, "attending", null, 20);
+		verify(eventService).getEvents(USER_ID, "attending", null, 20, NO_FILTER);
 	}
 
 	/**

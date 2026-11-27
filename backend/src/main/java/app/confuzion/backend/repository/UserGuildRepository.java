@@ -38,4 +38,13 @@ public interface UserGuildRepository extends JpaRepository<UserGuild, UserGuild.
 	 * @return the servers
 	 */
 	List<UserGuild> findByUserIdOrderByGuildNameAscGuildIdAsc(UUID userId);
+
+	/**
+	 * Returns whether a user is in a server and discoverable there.
+	 *
+	 * @param userId  the user ID
+	 * @param guildId the server ID
+	 * @return {@code true} when they are discoverable there
+	 */
+	boolean existsByUserIdAndGuildIdAndDiscoverableTrue(UUID userId, long guildId);
 }
