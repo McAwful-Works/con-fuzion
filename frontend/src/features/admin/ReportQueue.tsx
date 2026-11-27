@@ -5,6 +5,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { useDesktop } from '../../components/shell/useDesktop';
 import { useNow } from '../rsvp/signup';
 import { duration, STATUS_LABELS, targetName } from './labels';
+import { LoadMore } from './LoadMore';
 import { ReasonPill } from './ReasonPill';
 
 const STATUSES = Object.keys(STATUS_LABELS) as ReportStatus[];
@@ -169,19 +170,7 @@ export function ReportQueue({ selected }: { selected?: string }) {
           }
         />
       )}
-      {reports.isFetchNextPageError && (
-        <ErrorState error={reports.error} onRetry={() => void reports.fetchNextPage()} />
-      )}
-      {reports.hasNextPage && (
-        <button
-          type="button"
-          className="btn btn-secondary w-full sm:w-auto"
-          disabled={reports.isFetchingNextPage}
-          onClick={() => void reports.fetchNextPage()}
-        >
-          {reports.isFetchingNextPage ? 'Loading…' : 'Load more'}
-        </button>
-      )}
+      <LoadMore query={reports} />
     </section>
   );
 }

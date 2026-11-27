@@ -77,16 +77,25 @@ export async function expectSignInRefused(player) {
   expect((await page.request.get('/api/me')).status()).toBe(401);
 }
 
-/** On the admin area's Users page: searches for the player's Discord ID and returns their card. */
+/**
+ * On the admin area's Users page: searches for the player's Discord ID and returns their part of the desktop table,
+ * a row group holding their facts and their actions.
+ */
 export async function findUser({ page }, player) {
   await page.goto('/admin/users');
   await page.getByLabel('Name, user ID or Discord ID').fill(player.user.id);
   await page.getByRole('button', { name: 'Search' }).click();
-  const card = page.getByRole('list', { name: 'Search results' }).getByRole('listitem');
-  await expect(card).toHaveCount(1);
-  await expect(card.getByRole('heading', { name: player.name })).toBeVisible();
-  return card;
+  const person = page.getByRole('table', { name: 'Search results' }).locator('tbody');
+  await expect(person).toHaveCount(1);
+  await expect(person.getByRole('heading', { name: player.name })).toBeVisible();
+  return person;
 }
+
+/** Whether the page is no wider than the window, so nothing scrolls sideways. */
+export const fitsWidth = ({ page }) =>
+  page.evaluate(
+    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+  );
 
 /** In the desktop table named `queue`, the report link whose text includes `text`. */
 export const queueEntry = ({ page }, queue, text) =>

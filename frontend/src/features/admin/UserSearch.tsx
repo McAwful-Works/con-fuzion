@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   isSearchable,
@@ -10,6 +10,7 @@ import {
 import { isAdmin, useMe } from '../../api/me';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
+import { useDesktop } from '../../components/shell/useDesktop';
 import { useNow } from '../rsvp/signup';
 import { BanAction } from './BanAction';
 import { Fact, When } from './Fact';
@@ -27,15 +28,15 @@ function SearchForm({ initial, onSearch }: { initial: string; onSearch: (q: stri
   };
 
   return (
-    <form role="search" onSubmit={submit} className="space-y-2">
-      <label className="block space-y-1 sm:max-w-md">
-        <span className="text-sm font-medium">Name, user ID or Discord ID</span>
+    <form role="search" onSubmit={submit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <label className="field sm:max-w-md sm:flex-1">
+        <span className="field-label">Name, user ID or Discord ID</span>
         <input
           type="search"
           value={text}
           maxLength={USER_QUERY_MAX}
           onChange={(e) => setText(e.target.value)}
-          className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3"
+          className="field-control"
         />
       </label>
       <button
@@ -49,63 +50,160 @@ function SearchForm({ initial, onSearch }: { initial: string; onSearch: (q: stri
   );
 }
 
-/** Exactly what D-015 lets a moderator see about a person, and no more. */
-function UserCard({ user, now }: { user: AdminUser; now: number }) {
-  const name = user.globalName ?? user.username;
-  const suspended = user.suspendedUntil && Date.parse(user.suspendedUntil) > now;
-  const admin = isAdmin(useMe().data);
+const nameOf = (user: AdminUser) => user.globalName ?? user.username;
 
+/**
+ * With `Identity`, exactly what D-015 lets a moderator see about a person, and no more. A column of
+ * the table, or a fact on a card.
+ */
+const RECORD: {
+  label: string;
+  width: string;
+  value: (user: AdminUser, now: number) => ReactNode;
+}[] = [
+  { label: 'Joined', width: 'w-[13%]', value: (user) => <When iso={user.createdAt} /> },
+  { label: 'Last signed in', width: 'w-[13%]', value: (user) => <When iso={user.lastLoginAt} /> },
+  {
+    label: 'Suspension',
+    width: 'w-[18%]',
+    value: ({ suspendedUntil }, now) =>
+      suspendedUntil ? (
+        <>
+          {Date.parse(suspendedUntil) > now ? 'Suspended until ' : 'Ended '}
+          <When iso={suspendedUntil} />
+        </>
+      ) : (
+        'None'
+      ),
+  },
+  {
+    label: 'Ban',
+    width: 'w-[18%]',
+    value: ({ ban }) =>
+      ban ? (
+        <>
+          Banned <When iso={ban.createdAt} />. Reason: {ban.reason}
+        </>
+      ) : (
+        'None'
+      ),
+  },
+  { label: 'Reports against them', width: 'w-[11%]', value: (user) => user.reportCount },
+];
+
+/** For inside a `<dl>`. */
+function Identity({ user }: { user: AdminUser }) {
   return (
-    <li className="border-line bg-surface-raised rounded-card space-y-3 border p-4">
-      <h3 className="font-semibold break-words">{name}</h3>
-      <dl className="grid gap-2 sm:grid-cols-2">
-        <Fact label="Username">{user.username}</Fact>
-        <Fact label="Discord ID">{user.discordId}</Fact>
-        <Fact label="Joined">
-          <When iso={user.createdAt} />
-        </Fact>
-        <Fact label="Last signed in">
-          <When iso={user.lastLoginAt} />
-        </Fact>
-        <Fact label="Suspension">
-          {user.suspendedUntil ? (
-            <>
-              {suspended ? 'Suspended until ' : 'Ended '}
-              <When iso={user.suspendedUntil} />
-            </>
-          ) : (
-            'None'
-          )}
-        </Fact>
-        <Fact label="Ban">
-          {user.ban ? (
-            <>
-              Banned <When iso={user.ban.createdAt} />. Reason: {user.ban.reason}
-            </>
-          ) : (
-            'None'
-          )}
-        </Fact>
-        <Fact label="Reports against them">{user.reportCount}</Fact>
-      </dl>
-      {/* The action buttons fill their column, which would be far too wide across the card. */}
-      <div className="max-w-md space-y-3">
-        <SuspendAction userId={user.id} name={name} />
-        {admin && (
-          <>
-            <BanAction discordId={user.discordId} name={name} banned={user.ban !== null} />
-            <RolesAction userId={user.id} name={name} />
-          </>
-        )}
-      </div>
-    </li>
+    <>
+      <Fact label="Username">{user.username}</Fact>
+      <Fact label="Discord ID">{user.discordId}</Fact>
+    </>
+  );
+}
+
+/** Suspending, and for an admin bans and roles. */
+function UserActions({ user, className }: { user: AdminUser; className: string }) {
+  const admin = isAdmin(useMe().data);
+  const name = nameOf(user);
+  return (
+    <div className={className}>
+      <SuspendAction userId={user.id} name={name} />
+      {admin && (
+        <>
+          <BanAction discordId={user.discordId} name={name} banned={user.ban !== null} />
+          <RolesAction userId={user.id} name={name} />
+        </>
+      )}
+    </div>
+  );
+}
+
+interface ResultsProps {
+  users: AdminUser[];
+  now: number;
+}
+
+/**
+ * Each person is a row group: a row of facts, and under it their actions. Crossing the desktop width
+ * swaps this for the cards, which closes an open form.
+ */
+function UserTable({ users, now }: ResultsProps) {
+  const cell = 'px-2 py-3 wrap-anywhere xl:px-4';
+  return (
+    <div className="card overflow-hidden">
+      <table aria-label="Search results" className="w-full table-fixed text-left text-sm">
+        <thead className="text-ink-muted text-xs uppercase xl:tracking-wider">
+          <tr>
+            <th scope="col" className="w-[27%] px-2 py-3 xl:px-4">
+              Name
+            </th>
+            {RECORD.map(({ label, width }) => (
+              <th key={label} scope="col" className={`px-2 py-3 xl:px-4 ${width}`}>
+                {label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        {users.map((user) => (
+          <tbody key={user.id} className="border-line border-t-2 align-top">
+            <tr>
+              <th scope="rowgroup" className={`${cell} font-normal`}>
+                <h3 className="text-base font-extrabold">{nameOf(user)}</h3>
+                <dl className="mt-1 space-y-1">
+                  <Identity user={user} />
+                </dl>
+              </th>
+              {RECORD.map(({ label, value }) => (
+                <td key={label} className={cell}>
+                  {value(user, now)}
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <td colSpan={RECORD.length + 1} className="px-2 pb-2 xl:px-4">
+                {/* Side by side, until one opens its form. */}
+                <UserActions
+                  user={user}
+                  className="grid grid-cols-3 items-start gap-x-3 *:has-[form]:col-span-full *:has-[form]:max-w-xl"
+                />
+              </td>
+            </tr>
+          </tbody>
+        ))}
+      </table>
+    </div>
+  );
+}
+
+function UserCards({ users, now }: ResultsProps) {
+  return (
+    <ul aria-label="Search results" className="space-y-3">
+      {users.map((user) => (
+        <li key={user.id} className="card space-y-4 p-4 sm:p-5">
+          <h3 className="text-lg font-extrabold wrap-anywhere">{nameOf(user)}</h3>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <Identity user={user} />
+            {RECORD.map(({ label, value }) => (
+              <Fact key={label} label={label}>
+                {value(user, now)}
+              </Fact>
+            ))}
+          </dl>
+          {/* The buttons fill their column, which would be too wide across a tablet's card. */}
+          <UserActions
+            user={user}
+            className="border-line max-w-md space-y-1 border-t border-dashed pt-4"
+          />
+        </li>
+      ))}
+    </ul>
   );
 }
 
 /** A Discord ID can be banned before it signs up, and stays banned if the account goes (D-015). */
 function NoAccount({ discordId }: { discordId: string }) {
   return (
-    <div className="max-w-md space-y-3">
+    <div className="card max-w-md space-y-3 p-4 sm:p-5">
       <p className="text-sm">
         No account here has this Discord ID. You can still ban it, or lift a ban on it.
       </p>
@@ -116,6 +214,7 @@ function NoAccount({ discordId }: { discordId: string }) {
 
 /** Find people by name or ID. The query is in the address, so a report can link straight to one. */
 export function UserSearch() {
+  const desktop = useDesktop();
   const [params, setParams] = useSearchParams();
   const q = (params.get('q') ?? '').trim();
   const search = useUserSearch(q);
@@ -123,10 +222,11 @@ export function UserSearch() {
   const admin = isAdmin(useMe().data);
   // Only "suspended until" against "ended" depends on the time, so a slow clock is enough.
   const now = useNow(30_000);
+  const Results = desktop ? UserTable : UserCards;
 
   return (
     <section aria-labelledby="users-heading" className="space-y-4">
-      <h2 id="users-heading" className="text-xl font-semibold">
+      <h2 id="users-heading" className="sr-only">
         Users
       </h2>
       <SearchForm key={q} initial={q} onSearch={(next) => setParams({ q: next })} />
@@ -153,11 +253,7 @@ export function UserSearch() {
           <p className="text-ink-muted text-sm">
             Up to 20 matches, by username. Narrow the search to find others.
           </p>
-          <ul aria-label="Search results" className="space-y-3">
-            {search.data.map((user) => (
-              <UserCard key={user.id} user={user} now={now} />
-            ))}
-          </ul>
+          <Results users={search.data} now={now} />
         </>
       )}
     </section>
