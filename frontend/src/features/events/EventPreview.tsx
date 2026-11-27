@@ -52,7 +52,10 @@ function previewEvent(
   };
 }
 
-/** The live preview of the Discover card. It can't be clicked or focused. */
+/**
+ * The live preview of the Discover card. It's `inert`, so the card's link can't lead away from the
+ * form. Screen readers skip it too: the fields and "Visible to" already say what it shows.
+ */
 export function EventPreview({ values, original }: { values: EventFormValues; original?: Event }) {
   const user = useMe().data;
   const [now] = useState(() => Date.now());

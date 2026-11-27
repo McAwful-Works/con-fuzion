@@ -28,6 +28,7 @@ import { WhenFields } from './WhenFields';
 
 const INPUT = 'border-line bg-surface-raised rounded-control min-h-11 w-full border px-3';
 
+/** The older field, which Spots still uses until it moves to `formFields.tsx`. */
 function Field({
   label,
   hint,
