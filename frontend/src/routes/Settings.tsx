@@ -67,16 +67,17 @@ export function Settings() {
 function TimeZoneSetting() {
   const zone = useViewerZone();
   const save = useSetTimeZone();
+  // The choice being saved, so the field doesn't flick back to the old one.
+  const shown = save.isPending ? save.variables : zone;
   return (
     <section aria-labelledby="time-heading" className="space-y-2">
       <GroupHeading id="time-heading">Time</GroupHeading>
       <div className="card p-3.5">
         <TimeZonePicker
           label="Your time zone"
-          // The choice being saved, so the field doesn't flick back to the old one.
-          value={save.isPending ? save.variables : zone}
+          value={shown}
           onChange={(next) => {
-            if (next !== zone) save.mutate(next);
+            if (next !== shown) save.mutate(next);
           }}
           hint="Meetups in another zone also show their times in yours."
           error={save.isError ? 'Couldn’t save your time zone. Try again.' : undefined}

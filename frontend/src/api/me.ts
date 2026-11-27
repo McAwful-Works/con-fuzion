@@ -51,6 +51,8 @@ export function useMe() {
 export function useSetTimeZone() {
   const queryClient = useQueryClient();
   return useMutation({
+    // One at a time, so that the last zone chosen is the one that stays.
+    scope: { id: 'time-zone' },
     mutationFn: async (timeZone: string) =>
       (
         await api<Schemas['ResponseRecordMeResponse']>('/me', {

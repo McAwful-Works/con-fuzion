@@ -301,6 +301,7 @@ describe('the inbox', () => {
 
     await waitFor(() => expect(document.querySelectorAll('[data-unread]')).toHaveLength(0));
     expect(screen.queryByText('2 unread')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('All marked as read.');
     expect(button).toHaveAttribute('aria-disabled', 'true');
     expect(button).toHaveFocus();
     const posts = calls.filter((c) => c.method === 'POST');

@@ -102,6 +102,45 @@ describe('You', () => {
     expect((box as HTMLInputElement).value).toMatch(/^Europe\/Paris/);
   });
 
+  it('saves quick choices one after the other, ending on the last', async () => {
+    const releases: (() => void)[] = [];
+    const sent: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method !== 'PATCH') {
+          if (String(input) === '/api/me') return envelope('ME', me);
+          return jsonResponse(errorEnvelope, 404);
+        }
+        const { timeZone } = JSON.parse(String(init.body)) as { timeZone: string };
+        sent.push(timeZone);
+        await new Promise<void>((resolve) => releases.push(resolve));
+        return envelope('ME', { ...me, timeZone });
+      }),
+    );
+    renderApp('/you');
+    const box = (await screen.findByRole('combobox', {
+      name: 'Your time zone',
+    })) as HTMLInputElement;
+    const choose = (zone: string) => {
+      fireEvent.click(box);
+      fireEvent.change(box, { target: { value: zone } });
+      fireEvent.keyDown(box, { key: 'Enter' });
+    };
+
+    choose('Europe/Paris');
+    await waitFor(() => expect(sent).toEqual(['Europe/Paris']));
+    choose('America/Chicago');
+    // The second waits for the first, and the field shows it meanwhile.
+    await waitFor(() => expect(box.value).toMatch(/^America\/Chicago/));
+    expect(sent).toEqual(['Europe/Paris']);
+    act(() => releases[0]!());
+    await waitFor(() => expect(sent).toEqual(['Europe/Paris', 'America/Chicago']));
+    act(() => releases[1]!());
+
+    await waitFor(() => expect(box.value).toMatch(/^America\/Chicago/));
+  });
+
   it('says so when the time zone can’t be saved', async () => {
     signedIn(({ method }) => (method === 'PATCH' ? jsonResponse(errorEnvelope, 500) : undefined));
     renderApp('/you');

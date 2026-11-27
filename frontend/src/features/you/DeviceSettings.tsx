@@ -66,7 +66,7 @@ export function AppearanceChoice() {
   const { appearance, setAppearance } = useAppearance();
   const id = useId();
   return (
-    <section className="space-y-2">
+    <section aria-labelledby={id} className="space-y-2">
       <GroupHeading id={id}>Appearance</GroupHeading>
       <div role="radiogroup" aria-labelledby={id} aria-describedby={`${id}-hint`} className="seg">
         {APPEARANCES.map(({ value, label }) => (

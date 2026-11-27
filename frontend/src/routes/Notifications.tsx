@@ -45,6 +45,10 @@ export function Notifications() {
           </button>
         )}
       </div>
+      {/* Always here, so that a screen reader hears it when it fills. */}
+      <p role="status" className="sr-only">
+        {markRead.isSuccess && !anyUnread ? 'All marked as read.' : ''}
+      </p>
       {markRead.isError && <ErrorState error={markRead.error} />}
       <NotificationList />
     </div>
