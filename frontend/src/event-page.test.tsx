@@ -114,6 +114,12 @@ describe('the hero', () => {
     await findTitle();
     expect(screen.getByText('Hosted by Ada').parentElement).toHaveTextContent(/^Hosted by Ada$/);
   });
+
+  it('puts the tag’s cover behind the title', async () => {
+    open(walk);
+    const header = (await findTitle()).closest('header')!;
+    expect(header.firstElementChild).toHaveClass('placeholder-cover-photoshoot');
+  });
 });
 
 describe('the facts card', () => {
