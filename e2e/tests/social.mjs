@@ -65,7 +65,7 @@ export async function setDiscoverable({ page }, guildName, on) {
 /** On /people: makes an invite link and returns the URL the page shows. */
 export async function makeInvite({ page }, baseURL) {
   await page.goto('/people');
-  await page.getByRole('button', { name: /^(Invite a friend|Make a new link)$/ }).click();
+  await page.getByRole('button', { name: /^(Make an invite link|Make a new link)$/ }).click();
   const shown = page.getByText(/\/invite\/[\w-]{22}$/);
   await expect(shown).toBeVisible();
   const url = (await shown.textContent()).trim();
@@ -90,13 +90,23 @@ export async function befriend(from, to, baseURL) {
 /** Opens the friends list (/people) and waits for it to load. */
 export async function openFriends({ page }) {
   await page.goto('/people');
-  await expect(page.getByRole('heading', { name: 'Your friends' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'People' })).toBeVisible();
   await expect(page.getByRole('status', { name: 'Loading your friends' })).toHaveCount(0);
 }
 
 /** The friends list row for `who`. */
 export const friendRow = ({ page }, who) =>
-  page.getByRole('listitem').filter({ hasText: who.name });
+  page
+    .getByRole('list', { name: 'Your friends' })
+    .getByRole('listitem')
+    .filter({ hasText: who.name });
+
+/** On the friends list: blocks `who` from their "…" menu and confirms. */
+export async function blockFriend({ page }, who) {
+  await page.getByRole('button', { name: `More actions for ${who.name}` }).click();
+  await page.getByRole('button', { name: `Block ${who.name}` }).click();
+  await page.getByRole('button', { name: 'Block', exact: true }).click();
+}
 
 /** Makes a circle on /people?tab=circles, opens it and adds `members` by searching for them. Returns nothing. */
 export async function makeCircle({ page }, circleName, members) {

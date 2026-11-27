@@ -8,6 +8,7 @@ import {
   type Person,
 } from '../../api/social';
 import { ApiError } from '../../api/client';
+import { CardList } from '../../components/CardList';
 import { ErrorState } from '../../components/ErrorState';
 import { PersonRow } from './PersonRow';
 
@@ -79,7 +80,7 @@ export function PeopleSearch({
         <p className="text-ink-muted">No one found.</p>
       )}
       {!tooShort && results.data && results.data.length > 0 && (
-        <ul aria-label="Search results" className="space-y-2">
+        <CardList aria-label="Search results">
           {results.data.map((person) => (
             <PersonRow key={person.id} person={person}>
               {chosenIds.has(person.id) ? (
@@ -87,7 +88,7 @@ export function PeopleSearch({
               ) : (
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary btn-sm"
                   aria-label={`Add ${person.displayName}`}
                   disabled={pending}
                   onClick={() => onPick(person)}
@@ -97,7 +98,7 @@ export function PeopleSearch({
               )}
             </PersonRow>
           ))}
-        </ul>
+        </CardList>
       )}
     </div>
   );

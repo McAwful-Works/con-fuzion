@@ -1,6 +1,7 @@
 import { expect, test } from './hooks.mjs';
 import {
   befriend,
+  blockFriend,
   createEvent,
   eventStatus,
   expectFeed,
@@ -291,8 +292,7 @@ test.describe('blocks', () => {
 
     // A blocks B from the friends list.
     await openFriends(a);
-    await a.page.getByRole('button', { name: `Block ${b.name}` }).click();
-    await a.page.getByRole('button', { name: 'Block', exact: true }).click();
+    await blockFriend(a, b);
     await expect(friendRow(a, b)).toHaveCount(0);
 
     // No longer friends, from either side.
@@ -327,8 +327,7 @@ test.describe('blocks', () => {
     expect(await eventStatus(b, id)).toBe(200);
 
     await openFriends(b);
-    await b.page.getByRole('button', { name: `Block ${a.name}` }).click();
-    await b.page.getByRole('button', { name: 'Block', exact: true }).click();
+    await blockFriend(b, a);
     await expect(friendRow(b, a)).toHaveCount(0);
 
     await expectFeed(b, { hidden: [title] });

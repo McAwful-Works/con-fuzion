@@ -27,7 +27,7 @@ function QrCode({ value }: { value: string }) {
       role="img"
       aria-label="QR code for your invite link"
       viewBox={`${-quiet} ${-quiet} ${size + quiet * 2} ${size + quiet * 2}`}
-      className="size-64 max-w-full bg-white text-black"
+      className="rounded-control mx-auto aspect-square w-full max-w-56 bg-white text-black"
       shapeRendering="crispEdges"
     >
       <path d={path} fill="currentColor" />
@@ -67,12 +67,20 @@ function InviteLink({ invite }: { invite: Invite }) {
     <div className="space-y-3">
       <QrCode value={invite.url} />
       <p className="text-sm break-all">{invite.url}</p>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button type="button" className="btn btn-secondary gap-2" onClick={() => void copy()}>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm flex-1"
+          onClick={() => void copy()}
+        >
           <Copy aria-hidden className="size-4" /> Copy link
         </button>
         {canShare && (
-          <button type="button" className="btn btn-secondary gap-2" onClick={() => void share()}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm flex-1"
+            onClick={() => void share()}
+          >
             <Share2 aria-hidden className="size-4" /> Share
           </button>
         )}
@@ -89,27 +97,28 @@ function InviteLink({ invite }: { invite: Invite }) {
   );
 }
 
-/** "Invite a friend": makes a link only when asked, and again only when asked for a new one. */
+/** "Add a friend": makes a link only when asked, and again only when asked for a new one. */
 export function InvitePanel() {
   const create = useCreateInvite();
   const invite = create.data;
 
   return (
-    <section aria-labelledby="invite-heading" className="space-y-3">
-      <h2 id="invite-heading" className="text-xl font-semibold">
-        Invite a friend
+    <section aria-labelledby="invite-heading" className="card space-y-3 p-4">
+      <h2 id="invite-heading" className="text-lg font-extrabold">
+        Add a friend
       </h2>
       <p className="text-ink-muted text-sm">
-        Make a link, then have them scan the QR code with their phone camera, or send them the link.
+        Show your code at the con for them to scan with their phone camera, or send the link. It
+        works once and expires in 24 hours.
       </p>
       {invite && <InviteLink invite={invite} />}
       <button
         type="button"
-        className={invite ? 'btn btn-secondary' : 'btn btn-primary'}
+        className={`btn w-full ${invite ? 'btn-secondary' : 'btn-primary'}`}
         disabled={create.isPending}
         onClick={() => create.mutate()}
       >
-        {invite ? 'Make a new link' : 'Invite a friend'}
+        {invite ? 'Make a new link' : 'Make an invite link'}
       </button>
       {create.isError && <ErrorState error={create.error} />}
     </section>

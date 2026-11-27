@@ -29,18 +29,18 @@ export function CircleForm({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-2">
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">{label}</span>
+    <form onSubmit={submit} className="space-y-3">
+      <label className="field">
+        <span className="field-label">{label}</span>
         <input
           type="text"
           value={name}
           maxLength={CIRCLE_NAME_MAX}
           onChange={(e) => setName(e.target.value)}
-          className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3"
+          className="field-control"
         />
       </label>
-      <button type="submit" className="btn btn-primary" disabled={pending || !trimmed}>
+      <button type="submit" className="btn btn-primary btn-sm" disabled={pending || !trimmed}>
         {submitLabel}
       </button>
       {error !== null && error !== undefined && (

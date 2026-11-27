@@ -1,4 +1,5 @@
 import { useBlocks, useUnblock } from '../../api/social';
+import { CardList } from '../../components/CardList';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
 import { PersonRow } from './PersonRow';
@@ -31,12 +32,12 @@ export function BlockedList() {
 
   return (
     <div className="space-y-3">
-      <ul className="space-y-2">
+      <CardList aria-label="Blocked people">
         {blocks.data.map((person) => (
           <PersonRow key={person.id} person={person}>
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-sm"
               aria-label={`Unblock ${person.displayName}`}
               disabled={unblock.isPending}
               onClick={() => unblock.mutate(person.id)}
@@ -45,7 +46,7 @@ export function BlockedList() {
             </button>
           </PersonRow>
         ))}
-      </ul>
+      </CardList>
       {unblock.isError && <ErrorState error={unblock.error} />}
     </div>
   );

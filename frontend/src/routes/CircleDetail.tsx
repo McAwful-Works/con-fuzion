@@ -1,3 +1,4 @@
+import { Ban, ChevronLeft, Flag, UserMinus } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ApiError } from '../api/client';
@@ -9,6 +10,7 @@ import {
   type Circle,
   type Person,
 } from '../api/social';
+import { CardList } from '../components/CardList';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorState } from '../components/ErrorState';
 import { Skeleton } from '../components/Skeleton';
@@ -16,12 +18,14 @@ import { CircleForm } from '../features/social/CircleForm';
 import { CirclePeopleSearch } from '../features/social/PeopleSearch';
 import { ReportSheet } from '../features/reports/ReportSheet';
 import { BlockConfirm } from '../features/social/PersonActions';
+import { PersonMenu } from '../features/social/PersonMenu';
 import { PersonRow } from '../features/social/PersonRow';
 
 function MemberRow({ circle, person }: { circle: Circle; person: Person }) {
   const remove = useRemoveCircleMember(circle.id);
   const [asking, setAsking] = useState<'block' | 'report' | null>(null);
   const done = () => setAsking(null);
+  const name = person.displayName;
   return (
     <PersonRow
       person={person}
@@ -32,7 +36,7 @@ function MemberRow({ circle, person }: { circle: Circle; person: Person }) {
             <ReportSheet
               targetType="USER"
               targetId={person.id}
-              label={person.displayName}
+              label={name}
               blockable={person}
               onDone={done}
             />
@@ -40,31 +44,25 @@ function MemberRow({ circle, person }: { circle: Circle; person: Person }) {
         </>
       }
     >
-      <button
-        type="button"
-        className="btn btn-secondary"
-        aria-label={`Remove ${person.displayName} from ${circle.name}`}
-        disabled={remove.isPending}
-        onClick={() => remove.mutate(person.id)}
-      >
-        Remove
-      </button>
-      <button
-        type="button"
-        className="btn btn-secondary"
-        aria-label={`Block ${person.displayName}`}
-        onClick={() => setAsking('block')}
-      >
-        Block
-      </button>
-      <button
-        type="button"
-        className="btn btn-secondary"
-        aria-label={`Report ${person.displayName}`}
-        onClick={() => setAsking('report')}
-      >
-        Report
-      </button>
+      <PersonMenu
+        name={name}
+        actions={[
+          {
+            text: 'Remove',
+            label: `Remove ${name} from ${circle.name}`,
+            icon: UserMinus,
+            disabled: remove.isPending,
+            onSelect: () => remove.mutate(person.id),
+          },
+          { text: 'Block', label: `Block ${name}`, icon: Ban, onSelect: () => setAsking('block') },
+          {
+            text: 'Report',
+            label: `Report ${name}`,
+            icon: Flag,
+            onSelect: () => setAsking('report'),
+          },
+        ]}
+      />
     </PersonRow>
   );
 }
@@ -76,7 +74,7 @@ function DeleteCircle({ circle }: { circle: Circle }) {
 
   if (!asking) {
     return (
-      <button type="button" className="btn btn-secondary" onClick={() => setAsking(true)}>
+      <button type="button" className="btn btn-danger btn-sm" onClick={() => setAsking(true)}>
         Delete circle
       </button>
     );
@@ -120,7 +118,7 @@ export function CircleDetail() {
   ) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">Circle not found</h1>
+        <h1 className="text-[1.75rem] leading-tight font-extrabold">Circle not found</h1>
         <Link to="/people?tab=circles" className="btn btn-secondary">
           Back to your circles
         </Link>
@@ -132,14 +130,23 @@ export function CircleDetail() {
 
   const data = circle.data;
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="space-y-3">
-        <Link to="/people?tab=circles" className="text-sm underline">
-          All circles
+        {/* Phones have Back in the top bar. */}
+        <Link
+          to="/people?tab=circles"
+          className="text-ink-muted inline-flex min-h-11 items-center gap-1 text-sm font-bold max-lg:hidden"
+        >
+          <ChevronLeft aria-hidden="true" className="size-4" /> All circles
         </Link>
-        <h1 className="text-2xl font-semibold break-words">{data.name}</h1>
+        <div>
+          <p className="text-ink-muted text-xs font-bold tracking-wider uppercase">Circle</p>
+          <h1 className="text-[1.75rem] leading-tight font-extrabold break-words lg:text-[2.125rem]">
+            {data.name}
+          </h1>
+        </div>
         {renaming ? (
-          <div className="space-y-2">
+          <div className="card space-y-3 p-4">
             <CircleForm
               label="Circle name"
               submitLabel="Save name"
@@ -148,34 +155,42 @@ export function CircleDetail() {
               error={rename.error}
               onSubmit={(name) => rename.mutate(name, { onSuccess: () => setRenaming(false) })}
             />
-            <button type="button" className="btn btn-secondary" onClick={() => setRenaming(false)}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setRenaming(false)}
+            >
               Cancel
             </button>
           </div>
         ) : (
-          <button type="button" className="btn btn-secondary" onClick={() => setRenaming(true)}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setRenaming(true)}
+          >
             Rename
           </button>
         )}
       </div>
 
       <section aria-labelledby="members-heading" className="space-y-3">
-        <h2 id="members-heading" className="text-xl font-semibold">
+        <h2 id="members-heading" className="text-lg font-extrabold">
           Members
         </h2>
         {data.members.length === 0 ? (
           <p className="text-ink-muted">No one in this circle yet.</p>
         ) : (
-          <ul className="space-y-2">
+          <CardList aria-label="Members">
             {data.members.map((person) => (
               <MemberRow key={person.id} circle={data} person={person} />
             ))}
-          </ul>
+          </CardList>
         )}
       </section>
 
       <section aria-labelledby="add-heading" className="space-y-3">
-        <h2 id="add-heading" className="text-xl font-semibold">
+        <h2 id="add-heading" className="text-lg font-extrabold">
           Add people
         </h2>
         <CirclePeopleSearch circle={data} />
