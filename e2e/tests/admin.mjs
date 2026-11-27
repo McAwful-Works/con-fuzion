@@ -8,7 +8,7 @@ import { newUser, signIn, useScenario } from './support.mjs';
 /** The Discord ID in `con-fuzion.admin.bootstrap-discord-ids` (application-e2e.properties). */
 const BOOTSTRAP_ADMIN_ID = '400000000000000001';
 
-/** Waits until the app knows who is signed in (the header's Settings link), so the CSRF cookie is set too. */
+/** Waits until the app knows who is signed in (the sidebar's Settings link), so the CSRF cookie is set too. */
 const expectSignedIn = ({ page }) =>
   expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
 

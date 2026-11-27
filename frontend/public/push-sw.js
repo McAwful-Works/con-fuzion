@@ -41,7 +41,7 @@ function describePush(data) {
     body: text.slice(0, MAX_TEXT) || FALLBACK_BODY,
     // One notification per kind of news about an event, so a newer one of the same kind replaces it.
     tag: `${typeof data.type === 'string' ? data.type : 'push'}:${eventId ?? 'none'}`,
-    url: eventId ? `/events/${eventId}` : '/notifications',
+    url: eventId ? `/events/${eventId}` : '/inbox',
   };
 }
 

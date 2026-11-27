@@ -19,7 +19,7 @@ const WHEN = new Intl.DateTimeFormat(undefined, {
 /** Where an entry leads: its event, the friends list for a friend invite, or the admin area for a report. */
 function targetOf(n: Notification): string | null {
   if (n.eventId) return `/events/${n.eventId}`;
-  if (n.type === 'FRIEND_ACCEPTED') return '/friends';
+  if (n.type === 'FRIEND_ACCEPTED') return '/people';
   return n.type === 'REPORT_RECEIVED' ? '/admin' : null;
 }
 

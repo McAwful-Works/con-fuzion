@@ -153,6 +153,16 @@
   :focus-visible {
     @apply outline-focus outline-2 outline-offset-2;
   }
+
+  /* Scroll a focused element clear of the top bar and the tab bar, which stay on screen. */
+  html:has([data-topbar]) {
+    scroll-padding-top: 4.5rem;
+  }
+  @media (width < 64rem) {
+    html:has([data-tabbar]) {
+      scroll-padding-bottom: 6rem;
+    }
+  }
 }
 
 /*

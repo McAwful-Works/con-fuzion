@@ -54,14 +54,14 @@ test.describe('offers', () => {
     // Nobody has been told anything yet: joining sends no notification.
     await openInbox(c);
     await expect(c.page.getByText('Nothing yet.')).toBeVisible();
-    await expect(bell(c)).toHaveAccessibleName('Notifications');
+    await expect(bell(c)).toHaveAccessibleName('Inbox');
 
     await openEvent(a, id);
     await leaveEvent(a);
 
     // c was first in line: the spot is held for them, with a deadline and a countdown.
     await expectOffer(c, id);
-    await expect(bell(c)).toHaveAccessibleName('Notifications, 1 unread');
+    await expect(bell(c)).toHaveAccessibleName('Inbox, 1 unread');
 
     // The held spot counts as taken, so the person behind c still waits, now first in line.
     await expectStatus(d, id, 'Waitlisted #1');
@@ -77,7 +77,7 @@ test.describe('offers', () => {
     await expect(c.page.getByRole('listitem')).toHaveCount(1);
     await expect(c.page.getByRole('listitem')).toContainText(offeredText(title));
     await expect(c.page.getByRole('listitem')).toContainText('New');
-    await expect(bell(c)).toHaveAccessibleName('Notifications');
+    await expect(bell(c)).toHaveAccessibleName('Inbox');
 
     // Leaving, joining and accepting sent nothing to anyone else.
     for (const quiet of [a, d, host]) {
@@ -102,7 +102,7 @@ test.describe('offers', () => {
 
     // d is next: the spot is offered to them, and their inbox says so.
     await expectOffer(d, id);
-    await expect(bell(d)).toHaveAccessibleName('Notifications, 1 unread');
+    await expect(bell(d)).toHaveAccessibleName('Inbox, 1 unread');
     await openInbox(d);
     await expect(d.page.getByRole('listitem')).toHaveCount(1);
     await expect(d.page.getByRole('listitem')).toContainText(offeredText(title));
@@ -156,7 +156,7 @@ test.describe('the inbox', () => {
     });
     await joinEvent(going, id, 'Joined');
     await joinEvent(waiting, id, 'Waitlisted #1');
-    await expect(bell(going)).toHaveAccessibleName('Notifications');
+    await expect(bell(going)).toHaveAccessibleName('Inbox');
 
     await openEvent(host, id);
     await host.page.getByRole('button', { name: 'Cancel event' }).click();
@@ -170,7 +170,7 @@ test.describe('the inbox', () => {
     for (const player of [going, waiting]) {
       await expect(async () => {
         await player.page.goto('/');
-        await expect(bell(player)).toHaveAccessibleName('Notifications, 1 unread', {
+        await expect(bell(player)).toHaveAccessibleName('Inbox, 1 unread', {
           timeout: 1_500,
         });
       }).toPass({ timeout: 20_000 });
@@ -179,7 +179,7 @@ test.describe('the inbox', () => {
       await expect(player.page.getByRole('listitem')).toHaveCount(1);
       await expect(player.page.getByRole('listitem')).toContainText(`“${title}” was cancelled.`);
       await expect(player.page.getByRole('listitem')).toContainText('New');
-      await expect(bell(player)).toHaveAccessibleName('Notifications');
+      await expect(bell(player)).toHaveAccessibleName('Inbox');
       await player.page.reload();
       await expect(player.page.getByRole('listitem')).not.toContainText('New');
     }
@@ -243,7 +243,7 @@ test.describe('push', () => {
     const mine = await userId(me);
     expect(pushEndpoints(mine)).toEqual([]);
 
-    await me.page.goto('/settings');
+    await me.page.goto('/you');
     const subscribed = me.page.waitForResponse(
       (r) => r.request().method() === 'POST' && r.url().endsWith('/api/push/subscriptions'),
     );
