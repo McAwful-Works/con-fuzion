@@ -49,8 +49,8 @@ export function SuspendAction({ userId, name }: { userId: string; name: string }
         <p className="text-sm">
           They’re signed out and can’t sign in until then. Their events and RSVPs stay as they are.
         </p>
-        <div className="space-y-1">
-          <label htmlFor={dateId} className="block text-sm font-medium">
+        <div className="field">
+          <label htmlFor={dateId} className="field-label">
             Suspended until
           </label>
           <input
@@ -61,9 +61,9 @@ export function SuspendAction({ userId, name }: { userId: string; name: string }
             max={last}
             required
             onChange={(e) => setDate(e.target.value)}
-            className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3 sm:w-auto"
+            className="field-control"
           />
-          <p className="text-ink-muted text-sm">
+          <p className="hint">
             It ends at the start of that day, your time. Suspensions last less than a year.
           </p>
         </div>

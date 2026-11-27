@@ -50,8 +50,8 @@ function BanButton({ discordId, name, banned, onStart, onDone }: Props) {
           ? 'This Discord account can sign in again. Nothing the ban did is undone.'
           : 'This Discord account can’t sign in. If it’s in use here, it’s signed out, its upcoming events are cancelled and its RSVPs end. Unbanning undoes none of that.'}
       </p>
-      <div className="space-y-1">
-        <label htmlFor={id} className="block text-sm font-medium break-all">
+      <div className="field">
+        <label htmlFor={id} className="field-label break-words">
           Type the Discord ID {discordId} to confirm
         </label>
         <input
@@ -61,7 +61,7 @@ function BanButton({ discordId, name, banned, onStart, onDone }: Props) {
           autoComplete="off"
           required
           onChange={(e) => setEntry({ banned, text: e.target.value })}
-          className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3"
+          className="field-control"
         />
       </div>
     </ModAction>

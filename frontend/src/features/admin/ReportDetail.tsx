@@ -1,5 +1,6 @@
+import { Check, Lock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import {
   REASON_MAX,
   RESOLUTION_NOTE_MAX,
@@ -10,14 +11,14 @@ import {
   type Resolution,
 } from '../../api/admin';
 import { ErrorState } from '../../components/ErrorState';
-import { NotFound } from '../../components/NotFound';
 import { Skeleton } from '../../components/Skeleton';
 import { Fact, When } from './Fact';
-import { reasonLabel, STATUS_LABELS, targetName } from './labels';
+import { STATUS_LABELS, targetName } from './labels';
 import { ModAction } from './ModAction';
+import { ReasonPill } from './ReasonPill';
 import { SuspendAction } from './SuspendAction';
 
-const link = 'inline-flex min-h-11 items-center underline';
+const link = 'inline-flex min-h-11 items-center font-bold underline underline-offset-4';
 
 /** User search matches an exact ID, which is how a report's people are looked up (D-015 rule 14). */
 function LookUp({ userId, label }: { userId: string; label: string }) {
@@ -44,8 +45,11 @@ function EventActions({ eventId }: { eventId: string }) {
   });
 
   return (
-    <>
+    <div className="grid grid-cols-2 gap-x-3">
       <ModAction
+        className="col-span-full mb-3"
+        primary
+        icon={Lock}
         label="Hide event"
         confirm="Hide"
         mutation={hide}
@@ -83,10 +87,10 @@ function EventActions({ eventId }: { eventId: string }) {
         </p>
       </ModAction>
       {/* Always there, so screen readers announce the text when it arrives. */}
-      <p role="status" className="text-sm font-medium">
+      <p role="status" className="col-span-full text-sm font-medium not-empty:mt-3">
         {done}
       </p>
-    </>
+    </div>
   );
 }
 
@@ -112,6 +116,7 @@ function Resolve({ report }: { report: Report }) {
   }
   return (
     <ModAction
+      icon={Check}
       label="Resolve report"
       confirm="Resolve"
       mutation={resolve}
@@ -129,7 +134,7 @@ function Resolve({ report }: { report: Report }) {
         Act first, then resolve. The reporter is told it was reviewed, and nothing else.
       </p>
       <fieldset>
-        <legend className="text-sm font-medium">How did it end?</legend>
+        <legend className="field-label">How did it end?</legend>
         {(['ACTIONED', 'DISMISSED'] as const).map((value) => (
           <label key={value} className="flex min-h-11 items-center gap-3">
             <input
@@ -137,7 +142,7 @@ function Resolve({ report }: { report: Report }) {
               name="resolution"
               checked={resolution === value}
               onChange={() => setResolution(value)}
-              className="size-5 shrink-0"
+              className="accent-accent-text size-5 shrink-0"
             />
             <span>{STATUS_LABELS[value]}</span>
           </label>
@@ -149,6 +154,14 @@ function Resolve({ report }: { report: Report }) {
 
 function ReportView({ reportId }: { reportId: string }) {
   const query = useReport(reportId);
+  const location = useLocation();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // Chosen from the queue: move to the report, which on desktop is further on than the next row.
+  const chosen = (location.state as { select?: boolean } | null)?.select === true;
+  const loaded = query.data !== undefined;
+  useEffect(() => {
+    if (chosen && loaded) headingRef.current?.focus();
+  }, [chosen, loaded, location.key]);
 
   if (query.isPending) {
     return (
@@ -163,16 +176,20 @@ function ReportView({ reportId }: { reportId: string }) {
   const report = query.data;
 
   return (
-    <article className="space-y-6">
-      <Link to="/admin" className={`${link} text-sm`}>
+    <article className="card space-y-4 p-4 sm:p-5">
+      <Link to={{ pathname: '/admin', search: location.search }} className={`${link} text-sm`}>
         Back to reports
       </Link>
-      <h2 className="text-xl font-semibold">Report {report.id}</h2>
-      <dl className="space-y-3">
+      <h2 ref={headingRef} tabIndex={-1} className="text-xl font-extrabold">
+        Report {report.id}
+      </h2>
+      <dl className="grid grid-cols-2 gap-3">
         <Fact label="Status">{STATUS_LABELS[report.status]}</Fact>
-        <Fact label="Reason">{reasonLabel(report.reason)}</Fact>
-        <Fact label="Reported">
-          {targetName(report)}
+        <Fact label="Reason">
+          <ReasonPill reason={report.reason} />
+        </Fact>
+        <Fact label="Reported" className="col-span-full">
+          <span className="font-bold">{targetName(report)}</span>
           {report.targetLabel !== null && (
             <span className="block">
               {report.targetType === 'EVENT' ? (
@@ -185,6 +202,12 @@ function ReportView({ reportId }: { reportId: string }) {
             </span>
           )}
         </Fact>
+        <Fact
+          label="Reporter’s note"
+          className="rounded-control border-control-outline bg-surface-sunken col-span-full border-2 px-3 py-2.5"
+        >
+          {report.note ?? 'None'}
+        </Fact>
         <Fact label="Sent">
           <When iso={report.createdAt} />
         </Fact>
@@ -195,10 +218,9 @@ function ReportView({ reportId }: { reportId: string }) {
             'Account deleted'
           )}
         </Fact>
-        <Fact label="Reporter’s note">{report.note ?? 'None'}</Fact>
         {report.handledAt && (
           <>
-            <Fact label="Resolved">
+            <Fact label="Resolved" className="col-span-full">
               <When iso={report.handledAt} />
               {report.handledBy && (
                 <span className="block">
@@ -206,7 +228,9 @@ function ReportView({ reportId }: { reportId: string }) {
                 </span>
               )}
             </Fact>
-            <Fact label="Resolution note">{report.resolutionNote ?? 'None'}</Fact>
+            <Fact label="Resolution note" className="col-span-full">
+              {report.resolutionNote ?? 'None'}
+            </Fact>
           </>
         )}
       </dl>
@@ -226,7 +250,5 @@ function ReportView({ reportId }: { reportId: string }) {
 
 export function ReportDetail() {
   const { reportId = '' } = useParams();
-  // Report IDs are positive whole numbers. Anything else isn't worth asking the server about.
-  if (!/^[1-9]\d{0,17}$/.test(reportId)) return <NotFound />;
   return <ReportView key={reportId} reportId={reportId} />;
 }

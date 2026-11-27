@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminUser } from './api/admin';
 import type { components } from './api/schema';
+import { duration } from './features/admin/labels';
 import { localDay } from './features/admin/SuspendAction';
 import {
   envelope,
@@ -892,9 +893,214 @@ describe('the audit log', () => {
     expect(await screen.findByText('Nothing recorded yet.')).toBeInTheDocument();
   });
 
+  it('is a table on desktop, a page at a time', async () => {
+    onDesktop();
+    signedIn(admin, ({ path }) => {
+      if (path === AUDIT) return log([entry], 'abc');
+      return path === `${AUDIT}&cursor=abc` ? log([system]) : undefined;
+    });
+    await openAdmin('/admin/audit');
+    const table = within(await screen.findByRole('table', { name: 'Audit entries' }));
+    expect(table.getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
+      'When',
+      'Action',
+      'By',
+      'Target',
+      'Details',
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    await waitFor(() => expect(table.getAllByRole('row')).toHaveLength(3));
+
+    const [, first, second] = table.getAllByRole('row');
+    expect(cells(first!).slice(1, 4)).toEqual(['User suspended', REPORTER_ID, `User${USER_ID}`]);
+    expect(within(first!).getByText('<img src=x> ACCOUNT_BANNED')).toBeInTheDocument();
+    expect(cells(second!).slice(1, 4)).toEqual([
+      'Roles changed',
+      'The system',
+      `Discord account${BAN_ID}`,
+    ]);
+    expect(screen.queryByRole('list', { name: 'Audit entries' })).toBeNull();
+  });
+
   it('answers a 403 with the not-found page', async () => {
     signedIn(admin, ({ path }) => (path === AUDIT ? failure(403, 'FORBIDDEN') : undefined));
     await openAdmin('/admin/audit');
     expect(await notFound()).toBeInTheDocument();
+  });
+});
+
+/** jsdom has no `matchMedia`, so a test sees the phone layout unless it asks for the desktop one. */
+function onDesktop() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(min-width: 64rem)',
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
+/** Sent this long ago, with some slack so a slow run doesn't tip into the next minute. */
+const ago = (ms: number) => new Date(Date.now() - ms - 5_000).toISOString();
+const HOUR = 3_600_000;
+
+const cells = (row: HTMLElement) =>
+  within(row)
+    .getAllByRole('cell')
+    .map((cell) => cell.textContent);
+
+describe('the queue and the selected report on desktop', () => {
+  /** An open queue of an event report and a report about a person, and each report by its ID. */
+  function desktopQueue() {
+    onDesktop();
+    const open = [{ ...eventReport, createdAt: ago(2 * HOUR) }, userReport];
+    return signedIn(moderator, ({ path }) => {
+      if (path === OPEN_QUEUE) return page(open);
+      const report = open.find((r) => path === `/api/admin/reports/${r.id}`);
+      return report && envelope('REPORT', report);
+    });
+  }
+
+  it('is a table of what was reported, the reason and how long it has waited', async () => {
+    const calls = desktopQueue();
+    await openAdmin('/admin');
+
+    const table = within(await screen.findByRole('table', { name: 'Open reports' }));
+    expect(table.getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
+      'Reported',
+      'Reason',
+      'Waiting',
+    ]);
+    expect(cells(table.getAllByRole('row')[1]!)).toEqual([
+      'Event: Cosplay photo walkReport 12',
+      'Unsafe or dangerous',
+      '2 hr',
+    ]);
+    expect(screen.queryByRole('list', { name: 'Open reports' })).toBeNull();
+    expect(screen.getByText('Choose a report to see it here.')).toBeInTheDocument();
+    expect(adminCalls(calls).map((c) => c.path)).toEqual([OPEN_QUEUE]);
+  });
+
+  it('opens a report beside the queue, and moves to it', async () => {
+    const calls = desktopQueue();
+    await openAdmin('/admin');
+    const row = await screen.findByRole('link', { name: /Cosplay photo walk/ });
+    fireEvent.click(row);
+
+    const heading = await screen.findByRole('heading', { name: 'Report 12' });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.getByRole('table', { name: 'Open reports' })).toContainElement(row);
+    expect(row).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('aria-current', 'true');
+    expect(screen.queryByText('Choose a report to see it here.')).toBeNull();
+
+    // Anywhere in a row follows its link, and the queue isn't asked for again.
+    fireEvent.click(screen.getByRole('cell', { name: 'Harassment or bullying' }));
+    const next = await screen.findByRole('heading', { name: 'Report 13' });
+    await waitFor(() => expect(next).toHaveFocus());
+    expect(row).not.toHaveAttribute('aria-current');
+    expect(adminCalls(calls).map((c) => c.path)).toEqual([
+      OPEN_QUEUE,
+      '/api/admin/reports/12',
+      '/api/admin/reports/13',
+    ]);
+  });
+
+  it('keeps the filter, and says how long a resolved report had waited', async () => {
+    onDesktop();
+    const dismissed: Schemas['ReportResponse'] = {
+      ...eventReport,
+      status: 'DISMISSED',
+      createdAt: '2026-11-20T10:00:00Z',
+      handledAt: '2026-11-23T11:00:00Z',
+    };
+    signedIn(moderator, ({ path }) => {
+      if (path === '/api/admin/reports?status=DISMISSED&limit=20') return page([dismissed]);
+      return path === '/api/admin/reports/12' ? envelope('REPORT', dismissed) : undefined;
+    });
+    const router = await openAdmin('/admin?status=DISMISSED');
+
+    const table = within(await screen.findByRole('table', { name: 'Dismissed reports' }));
+    expect(table.getByRole('columnheader', { name: 'Waited' })).toBeInTheDocument();
+    expect(table.getByRole('cell', { name: '3 days' })).toBeInTheDocument();
+    fireEvent.click(table.getByRole('link', { name: /Cosplay photo walk/ }));
+
+    expect(await screen.findByRole('link', { name: 'Back to reports' })).toHaveAttribute(
+      'href',
+      '/admin?status=DISMISSED',
+    );
+    expect(router.state.location.pathname).toBe('/admin/reports/12');
+    expect(screen.getByRole('table', { name: 'Dismissed reports' })).toBeInTheDocument();
+  });
+
+  it('takes a resolved report out of the open queue, with the report still beside it', async () => {
+    onDesktop();
+    let current = eventReport;
+    signedIn(moderator, ({ method, path }) => {
+      if (path === OPEN_QUEUE) return page(current.status === 'OPEN' ? [current] : []);
+      if (method === 'GET' && path === '/api/admin/reports/12') return envelope('REPORT', current);
+      if (path !== '/api/admin/reports/12/resolve') return undefined;
+      current = { ...eventReport, status: 'ACTIONED', handledAt: '2026-11-25T10:00:00Z' };
+      return envelope('REPORT', current);
+    });
+    await openAdmin('/admin/reports/12');
+    expect(await screen.findByRole('table', { name: 'Open reports' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Resolve report' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Actioned' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve' }));
+
+    expect(await screen.findByText('No open reports.')).toBeInTheDocument();
+    expect(screen.getByText('Report resolved.')).toHaveFocus();
+    expect(screen.getByRole('heading', { name: 'Report 12' })).toBeInTheDocument();
+  });
+
+  it('asks the server nothing for an ID no report can have', async () => {
+    const calls = desktopQueue();
+    await openAdmin('/admin/reports/abc');
+    expect(await notFound()).toBeInTheDocument();
+    expect(adminCalls(calls)).toEqual([]);
+  });
+});
+
+describe('the queue and a report on a phone', () => {
+  it('shows cards, and a card opens its report in their place', async () => {
+    signedIn(moderator, ({ path }) => {
+      if (path === OPEN_QUEUE) return page([{ ...eventReport, createdAt: ago(14 * 60_000) }]);
+      return path === '/api/admin/reports/12' ? envelope('REPORT', eventReport) : undefined;
+    });
+    await openAdmin('/admin');
+    const list = within(await screen.findByRole('list', { name: 'Open reports' }));
+    const card = list.getByRole('link');
+    expect(card).toHaveTextContent('Unsafe or dangerous');
+    expect(card).toHaveTextContent('Waiting 14 min');
+    expect(card).toHaveTextContent('Event: Cosplay photo walk');
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.queryByText('Choose a report to see it here.')).toBeNull();
+    fireEvent.click(card);
+
+    const heading = await screen.findByRole('heading', { name: 'Report 12' });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.queryByRole('list', { name: 'Open reports' })).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Back to reports' }));
+    expect(await screen.findByRole('list', { name: 'Open reports' })).toBeInTheDocument();
+  });
+
+  it('asks only for the report when one is opened by its address, and takes no focus', async () => {
+    const calls = await openReport(eventReport);
+    expect(adminCalls(calls).map((c) => c.path)).toEqual(['/api/admin/reports/12']);
+    expect(screen.getByRole('heading', { name: 'Report 12' })).not.toHaveFocus();
+  });
+});
+
+describe('how long a report has waited', () => {
+  it.each([
+    [-5_000, '<1 min'],
+    [59_999, '<1 min'],
+    [60_000, '1 min'],
+    [HOUR - 1, '59 min'],
+    [HOUR, '1 hr'],
+    [24 * HOUR - 1, '23 hr'],
+    [24 * HOUR, '1 day'],
+    [72 * HOUR, '3 days'],
+  ])('puts %i ms as %s', (ms, text) => {
+    expect(duration(ms)).toBe(text);
   });
 });

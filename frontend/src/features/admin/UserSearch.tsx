@@ -27,15 +27,15 @@ function SearchForm({ initial, onSearch }: { initial: string; onSearch: (q: stri
   };
 
   return (
-    <form role="search" onSubmit={submit} className="space-y-2">
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">Name, user ID or Discord ID</span>
+    <form role="search" onSubmit={submit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <label className="field sm:max-w-md sm:flex-1">
+        <span className="field-label">Name, user ID or Discord ID</span>
         <input
           type="search"
           value={text}
           maxLength={USER_QUERY_MAX}
           onChange={(e) => setText(e.target.value)}
-          className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3"
+          className="field-control"
         />
       </label>
       <button
@@ -56,9 +56,9 @@ function UserCard({ user, now }: { user: AdminUser; now: number }) {
   const admin = isAdmin(useMe().data);
 
   return (
-    <li className="border-line bg-surface-raised rounded-card space-y-3 border p-4">
-      <h3 className="font-semibold break-words">{name}</h3>
-      <dl className="grid gap-2 sm:grid-cols-2">
+    <li className="card space-y-4 p-4 sm:p-5">
+      <h3 className="text-lg font-extrabold wrap-anywhere">{name}</h3>
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <Fact label="Username">{user.username}</Fact>
         <Fact label="Discord ID">{user.discordId}</Fact>
         <Fact label="Joined">
@@ -88,13 +88,15 @@ function UserCard({ user, now }: { user: AdminUser; now: number }) {
         </Fact>
         <Fact label="Reports against them">{user.reportCount}</Fact>
       </dl>
-      <SuspendAction userId={user.id} name={name} />
-      {admin && (
-        <>
-          <BanAction discordId={user.discordId} name={name} banned={user.ban !== null} />
-          <RolesAction userId={user.id} name={name} />
-        </>
-      )}
+      <div className="border-line max-w-md space-y-1 border-t border-dashed pt-4">
+        <SuspendAction userId={user.id} name={name} />
+        {admin && (
+          <>
+            <BanAction discordId={user.discordId} name={name} banned={user.ban !== null} />
+            <RolesAction userId={user.id} name={name} />
+          </>
+        )}
+      </div>
     </li>
   );
 }
@@ -102,7 +104,7 @@ function UserCard({ user, now }: { user: AdminUser; now: number }) {
 /** A Discord ID can be banned before it signs up, and stays banned if the account goes (D-015). */
 function NoAccount({ discordId }: { discordId: string }) {
   return (
-    <div className="space-y-3">
+    <div className="card max-w-md space-y-3 p-4 sm:p-5">
       <p className="text-sm">
         No account here has this Discord ID. You can still ban it, or lift a ban on it.
       </p>
@@ -123,7 +125,7 @@ export function UserSearch() {
 
   return (
     <section aria-labelledby="users-heading" className="space-y-4">
-      <h2 id="users-heading" className="text-xl font-semibold">
+      <h2 id="users-heading" className="sr-only">
         Users
       </h2>
       <SearchForm key={q} initial={q} onSearch={(next) => setParams({ q: next })} />
