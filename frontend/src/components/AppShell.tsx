@@ -71,7 +71,7 @@ export function AppShell() {
           </div>
         )}
         <main
-          className={`mx-auto w-full max-w-3xl flex-1 px-4 py-6 has-[>[data-event-page]]:flex has-[>[data-event-page]]:flex-col ${user ? 'lg:mx-0 lg:max-w-[52.5rem] lg:px-10 lg:py-8 lg:has-[>[data-event-page]]:max-w-[70rem]' : ''}`}
+          className={`mx-auto w-full max-w-3xl flex-1 px-4 py-6 has-[>[data-event-page]]:flex has-[>[data-event-page]]:flex-col ${user ? 'lg:mx-0 lg:max-w-[52.5rem] lg:px-10 lg:py-8 lg:has-[>[data-discover]]:max-w-[70rem] lg:has-[>[data-event-page]]:max-w-[70rem]' : ''}`}
         >
           {unavailable ? <MaintenancePage /> : <Outlet />}
         </main>

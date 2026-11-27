@@ -68,7 +68,7 @@ test('4. returning sign-in goes to /', async ({ page }) => {
   await expect(page).toHaveURL(/\/welcome$/);
 
   await signIn(page, user, mixedGuilds(), '/');
-  await expect(page.getByRole('heading', { name: 'Events', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Discover', level: 1 })).toBeVisible();
 });
 
 test('9. sign out lands on /welcome and ends the session', async ({ page }) => {

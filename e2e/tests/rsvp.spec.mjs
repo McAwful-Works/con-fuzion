@@ -321,7 +321,7 @@ test.describe('My schedule', () => {
     await joinEvent(me, second, 'Joined');
 
     await me.page.goto('/');
-    await me.page.getByRole('link', { name: 'My schedule' }).click();
+    await me.page.getByRole('link', { name: 'My plans' }).click();
     await expect(me.page.getByRole('heading', { level: 1, name: 'My schedule' })).toBeVisible();
 
     const card = (title) => me.page.getByRole('link', { name: new RegExp(`^${title}`) });
