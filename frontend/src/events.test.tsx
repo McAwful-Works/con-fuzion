@@ -145,14 +145,20 @@ describe('the event feed', () => {
     expect(screen.queryByText(/Your time:/)).toBeNull();
   });
 
-  it('says so, in text, when there is nothing yet', async () => {
+  it('says so when there is nothing yet, and offers hosting and servers', async () => {
     signedIn(({ path }) => (path.startsWith('/api/events?') ? page([]) : undefined));
     renderApp('/');
-    expect(await screen.findByText(/No upcoming events yet/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Create an event' })).toHaveAttribute(
+    expect(
+      await screen.findByRole('heading', { name: 'No upcoming meetups yet' }),
+    ).toBeInTheDocument();
+    // The navigation has a Host link of its own.
+    const main = within(screen.getByRole('main'));
+    expect(main.getByRole('link', { name: 'Host a meetup' })).toHaveAttribute(
       'href',
       '/events/new',
     );
+    expect(main.getByText(/Turn on the servers you’re in/)).toBeInTheDocument();
+    expect(main.getByRole('link', { name: 'Turn on servers' })).toHaveAttribute('href', '/you');
   });
 
   it('loads more with the cursor the server gave', async () => {

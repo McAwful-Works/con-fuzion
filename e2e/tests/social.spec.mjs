@@ -125,7 +125,9 @@ test.describe('event audiences and visibility', () => {
     expect(await eventStatus(friend, id)).toBe(200);
 
     await expectFeed(stranger, { hidden: [title] });
-    await expect(stranger.page.getByText(/No upcoming events yet/)).toBeVisible();
+    await expect(
+      stranger.page.getByRole('heading', { name: 'No upcoming meetups yet' }),
+    ).toBeVisible();
     expect(await eventStatus(stranger, id)).toBe(404);
     await stranger.page.goto(`/events/${id}`);
     await expect(stranger.page.getByRole('heading', { name: 'Event not found' })).toBeVisible();

@@ -26,6 +26,7 @@ export const CONFIRM_WINDOW_MAX = 1440;
 export const CONFIRM_WINDOW_DEFAULT = 30;
 export const AUDIENCE_MAX = 50;
 export const FEED_PAGE_SIZE = 20;
+const PAGE_LIMIT_MAX = 50;
 
 const events = ['events'] as const;
 
@@ -42,6 +43,21 @@ export function useEventFeed(scope: EventScope) {
       return (await api<Schemas['ResponseRecordEventPageResponse']>(`${EVENTS}?${query}`)).body;
     },
     getNextPageParam: (page) => page.nextCursor ?? undefined,
+  });
+}
+
+/**
+ * What you're hosting, going to, waiting for or offered a spot in (D-014), for Discover's side cards:
+ * one page, of the most events the API gives. An offer further down the list than that isn't shown.
+ */
+export function usePlans() {
+  return useQuery({
+    queryKey: [...events, 'list', 'plans'],
+    queryFn: async () => {
+      const query = new URLSearchParams({ scope: 'attending', limit: String(PAGE_LIMIT_MAX) });
+      return (await api<Schemas['ResponseRecordEventPageResponse']>(`${EVENTS}?${query}`)).body
+        .events;
+    },
   });
 }
 
