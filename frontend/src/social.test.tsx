@@ -47,12 +47,48 @@ const preview: Schemas['InvitePreviewResponse'] = {
 
 const noContent = () => new Response(null, { status: 204 });
 
+/** Picks `action` from a person's "…" menu. */
+async function choose(person: string, action: string) {
+  fireEvent.click(await screen.findByRole('button', { name: `More actions for ${person}` }));
+  fireEvent.click(screen.getByRole('button', { name: action }));
+}
+
+/** The phone layout's Add button, then the panel's own button. */
+async function makeLink() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Add a friend' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Make an invite link' }));
+}
+
+/** From 1024px up. jsdom has no `matchMedia`, so without this the window is a phone's. */
+function onDesktop() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(min-width: 64rem)',
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
+/** Answers the three People lists: two friends, one circle and one blocked person. */
+const peopleLists = ({ method, path }: RecordedCall) => {
+  if (method !== 'GET') return undefined;
+  if (path === '/api/friends') return envelope('PERSON_LIST', { people: [ada, bo] });
+  if (path === '/api/circles') return envelope('CIRCLE_LIST', { circles: [crew] });
+  if (path === '/api/blocks') return envelope('PERSON_LIST', { people: [cy] });
+  return undefined;
+};
+
 /** Signed in, with `extra` answering the social calls a test cares about. */
 function signedIn(extra: (call: RecordedCall) => Response | undefined) {
   return mockApi((call) => {
     const custom = extra(call);
     if (custom) return custom;
     if (call.path === '/api/me') return envelope('ME', me);
+    if (call.method === 'GET' && (call.path === '/api/friends' || call.path === '/api/blocks')) {
+      return envelope('PERSON_LIST', { people: [] });
+    }
+    if (call.method === 'GET' && call.path === '/api/circles') {
+      return envelope('CIRCLE_LIST', { circles: [] });
+    }
     return undefined;
   });
 }
@@ -63,7 +99,100 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
+describe('the People tabs', () => {
+  it('counts each list, and switches tab without adding to history', async () => {
+    signedIn(peopleLists);
+    const router = renderApp('/people');
+
+    const tabs = within(await screen.findByRole('navigation', { name: 'People lists' }));
+    const friends = tabs.getByRole('link', { name: /^Friends/ });
+    await waitFor(() => expect(friends).toHaveTextContent('Friends 2'));
+    expect(tabs.getByRole('link', { name: /^Circles/ })).toHaveTextContent('Circles 1');
+    expect(tabs.getByRole('link', { name: /^Blocked/ })).toHaveTextContent('Blocked 1');
+    expect(friends).toHaveAttribute('aria-current', 'page');
+    expect(await screen.findByText('Bo')).toBeInTheDocument();
+
+    fireEvent.click(tabs.getByRole('link', { name: /^Circles/ }));
+    expect(await screen.findByRole('link', { name: /Cosplay crew/ })).toHaveAttribute(
+      'href',
+      `/circles/${crew.id}`,
+    );
+    expect(router.state.location.search).toBe('?tab=circles');
+    expect(router.state.historyAction).toBe('REPLACE');
+    // Adding a friend belongs to the Friends tab.
+    expect(screen.queryByRole('button', { name: 'Add a friend' })).toBeNull();
+
+    fireEvent.click(tabs.getByRole('link', { name: /^Blocked/ }));
+    expect(await screen.findByRole('button', { name: 'Unblock Cy' })).toBeInTheDocument();
+  });
+
+  it('closes a friend’s menu on Escape and on a press elsewhere', async () => {
+    signedIn(peopleLists);
+    renderApp('/people');
+
+    const more = await screen.findByRole('button', { name: 'More actions for Ada' });
+    expect(screen.queryByRole('button', { name: 'Unfriend Ada' })).toBeNull();
+    fireEvent.click(more);
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Unfriend Ada' }), { key: 'Escape' });
+    expect(screen.queryByRole('button', { name: 'Unfriend Ada' })).toBeNull();
+    expect(more).toHaveFocus();
+
+    fireEvent.click(more);
+    fireEvent.pointerDown(document.body);
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('gives focus back to the "…" button when a confirmation closes', async () => {
+    signedIn(peopleLists);
+    renderApp('/people');
+
+    await choose('Ada', 'Block Ada');
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }),
+    );
+
+    expect(screen.getByRole('button', { name: 'More actions for Ada' })).toHaveFocus();
+  });
+});
+
 describe('invite a friend', () => {
+  it('is behind the Add button on phones, and keeps the link when closed', async () => {
+    const calls = signedIn(({ method, path }) =>
+      method === 'POST' && path === '/api/friends/invites' ? envelope('INVITE', invite) : undefined,
+    );
+    renderApp('/people');
+
+    const add = await screen.findByRole('button', { name: 'Add a friend' });
+    expect(add).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Make an invite link' })).toBeNull();
+
+    await makeLink();
+    await screen.findByRole('img', { name: 'QR code for your invite link' });
+    fireEvent.click(add);
+    expect(screen.queryByRole('button', { name: 'Make a new link' })).toBeNull();
+    fireEvent.click(add);
+    expect(screen.getByRole('button', { name: 'Make a new link' })).toBeInTheDocument();
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+  });
+
+  it('sits beside the friends list on desktop, with your circles', async () => {
+    onDesktop();
+    signedIn(peopleLists);
+    renderApp('/people');
+
+    const side = within(
+      await screen.findByRole('complementary', { name: 'Add a friend, and circles' }),
+    );
+    expect(side.getByRole('button', { name: 'Make an invite link' })).toBeInTheDocument();
+    expect(await side.findByRole('link', { name: /Cosplay crew/ })).toBeInTheDocument();
+    expect(side.getByRole('link', { name: 'New circle' })).toHaveAttribute(
+      'href',
+      '/people?tab=circles',
+    );
+    expect(screen.queryByRole('button', { name: 'Add a friend' })).toBeNull();
+  });
+
   it('makes no invite until asked, then shows QR, link, expiry and copies it', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
@@ -78,7 +207,7 @@ describe('invite a friend', () => {
     await screen.findByText(/No friends yet/);
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Invite a friend' }));
+    await makeLink();
 
     const qr = await screen.findByRole('img', { name: 'QR code for your invite link' });
     expect(qr.querySelector('path')?.getAttribute('d')).toBeTruthy();
@@ -107,7 +236,7 @@ describe('invite a friend', () => {
     });
 
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Invite a friend' }));
+    await makeLink();
     fireEvent.click(await screen.findByRole('button', { name: /Share/ }));
 
     await waitFor(() =>
@@ -129,7 +258,7 @@ describe('invite a friend', () => {
     });
 
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Invite a friend' }));
+    await makeLink();
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/invite links that nobody has used/);
   });
@@ -259,7 +388,7 @@ describe('friends, removing and blocking', () => {
     );
 
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove Ada' }));
+    await choose('Ada', 'Unfriend Ada');
 
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveTextContent(/out of the other’s circles/);
@@ -279,7 +408,7 @@ describe('friends, removing and blocking', () => {
     );
 
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Block Bo' }));
+    await choose('Bo', 'Block Bo');
 
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveTextContent('both ways');
@@ -292,7 +421,7 @@ describe('friends, removing and blocking', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Block Bo' }));
+    await choose('Bo', 'Block Bo');
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Block' }));
     await waitFor(() =>
       expect(calls.filter((c) => c.method === 'PUT').map((c) => c.path)).toEqual([
@@ -408,7 +537,7 @@ describe('circles', () => {
     );
 
     renderApp(`/circles/${crew.id}`);
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove Ada from Cosplay crew' }));
+    await choose('Ada', 'Remove Ada from Cosplay crew');
 
     await waitFor(() =>
       expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual([

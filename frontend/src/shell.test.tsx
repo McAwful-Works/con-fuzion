@@ -132,8 +132,8 @@ const current = (element: HTMLElement) =>
 describe('the old paths', () => {
   it.each([
     ['/schedule', '/plans', '', 'My plans'],
-    ['/friends', '/people', '', 'Friends'],
-    ['/circles', '/people', '?tab=circles', 'Circles'],
+    ['/friends', '/people', '', 'People'],
+    ['/circles', '/people', '?tab=circles', 'People'],
     ['/notifications', '/inbox', '', 'Notifications'],
     ['/settings', '/you', '', 'Settings'],
   ])('replaces %s with %s%s', async (from, pathname, search, heading) => {
@@ -161,8 +161,8 @@ describe('the old paths', () => {
     signedIn();
     renderApp('/people?tab=blocked');
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Blocked' })).toBeInTheDocument();
     expect(await screen.findByText('You haven’t blocked anyone.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Blocked/ })).toHaveAttribute('aria-current', 'page');
   });
 });
 

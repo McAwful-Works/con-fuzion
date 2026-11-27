@@ -70,6 +70,11 @@ function pickReason(name: RegExp | string) {
 
 describe('reporting a person', () => {
   const friends = () => envelope('PERSON_LIST', { people: [ada] });
+  /** Report, from the friend's "…" menu. */
+  const openReport = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions for Ada' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Report Ada' }));
+  };
 
   it('sends the reason and note, then the block, and thanks the reporter', async () => {
     const calls = signedIn(({ method, path }) => {
@@ -78,7 +83,7 @@ describe('reporting a person', () => {
       return undefined;
     });
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Report Ada' }));
+    await openReport();
 
     const send = screen.getByRole('button', { name: 'Send report' });
     expect(send).toBeDisabled();
@@ -115,7 +120,7 @@ describe('reporting a person', () => {
       return undefined;
     });
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Report Ada' }));
+    await openReport();
     pickReason('Something else');
     fireEvent.change(screen.getByLabelText(/Anything else/), { target: { value: '   ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send report' }));
@@ -136,7 +141,7 @@ describe('reporting a person', () => {
       return undefined;
     });
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Report Ada' }));
+    await openReport();
     pickReason('Spam or a scam');
     fireEvent.click(screen.getByRole('checkbox', { name: /Also block Ada/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Send report' }));
@@ -156,7 +161,7 @@ describe('reporting a person', () => {
       return undefined;
     });
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Report Ada' }));
+    await openReport();
     pickReason('Unsafe or dangerous');
     fireEvent.click(screen.getByRole('button', { name: 'Send report' }));
 
@@ -169,7 +174,7 @@ describe('reporting a person', () => {
       method === 'GET' && path === '/api/friends' ? friends() : undefined,
     );
     renderApp('/friends');
-    fireEvent.click(await screen.findByRole('button', { name: 'Report Ada' }));
+    await openReport();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('button', { name: 'Send report' })).toBeNull();
     expect(calls.some((c) => c.method === 'POST')).toBe(false);

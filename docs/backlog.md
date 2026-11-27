@@ -62,3 +62,5 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | "Saved for offline" side card on My plans | The mockup has one beside "Needs your answer"; #117 asks only for that and "Get a nudge" |
 | Say when nothing is saved for offline | Opened offline with no saved copy, My plans keeps showing its loading cards (as My schedule did). With more than 50 plans it also does when a later page has no saved copy for the first page's cursor (#117 loads every page): show the pages that did load |
 | Two columns of Discover cards on desktop | The Discover mockup puts the cover cards two to a row; the app lists them one to a row (#116), so each cover banner is about 690px wide at 1440px |
+| "Friends since" on friend rows | The People mockup shows the date under each name (#121), but `PersonResponse` has none, so it needs an API change |
+| Keep keyboard focus when a person's row goes away | Removing, unfriending or blocking from a row's menu drops focus to the page, as the old row buttons did (#121). Move it to the list's heading or the next row |
