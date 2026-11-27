@@ -32,6 +32,8 @@ export function AppShell() {
   const unread = useUnreadCount(Boolean(user)).data ?? 0;
   const page = useShellPage(isModerator(user));
   const onYou = useMatch('/you') !== null;
+  // Discover has a column of side cards, so it takes more room.
+  const onDiscover = useMatch('/') !== null;
   const tabs = Boolean(user) && !page?.detail;
 
   return (
@@ -71,7 +73,7 @@ export function AppShell() {
           </div>
         )}
         <main
-          className={`mx-auto w-full max-w-3xl flex-1 px-4 py-6 ${user ? 'lg:mx-0 lg:max-w-[52.5rem] lg:px-10 lg:py-8' : ''}`}
+          className={`mx-auto w-full max-w-3xl flex-1 px-4 py-6 ${user ? `lg:mx-0 lg:px-10 lg:py-8 ${onDiscover ? 'lg:max-w-[70rem]' : 'lg:max-w-[52.5rem]'}` : ''}`}
         >
           {unavailable ? <MaintenancePage /> : <Outlet />}
         </main>

@@ -156,23 +156,28 @@ export async function createEvent(
   return page.url().split('/').pop();
 }
 
-/** The feed's event cards, once it has loaded (an empty feed shows its message instead). */
+/** Discover's event cards, in their day sections. The side cards beside them link to events too. */
+const feedCards = (page) => page.locator('main section[aria-labelledby^="day-"] a');
+
+/** Opens Discover and waits for the feed to load (an empty feed shows its message instead). */
 export async function openFeed({ page }) {
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: 'Events' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Discover' })).toBeVisible();
   await expect(page.getByRole('status', { name: 'Loading events' })).toHaveCount(0);
   // A feed that failed to load shows an error, not events: "hidden" must not pass on that.
   await expect(page.getByRole('alert')).toHaveCount(0);
-  const cards = page.locator('main a[href^="/events/"]:not([href="/events/new"])');
-  await expect(cards.first().or(page.getByText(/No upcoming events yet/))).toBeVisible();
+  await expect(
+    feedCards(page).first().or(page.getByRole('heading', { name: 'No upcoming meetups yet' })),
+  ).toBeVisible();
 }
 
 /** Asserts what the viewer's feed shows: every title in `sees` is there, every title in `hidden` is not. */
 export async function expectFeed(viewer, { sees = [], hidden = [] }) {
   await openFeed(viewer);
   for (const title of sees) {
-    await expect(viewer.page.getByRole('link', { name: literal(title) })).toBeVisible();
+    await expect(feedCards(viewer.page).filter({ hasText: title })).toBeVisible();
   }
+  // Nowhere on the page, side cards included.
   for (const title of hidden) {
     await expect(viewer.page.getByRole('link', { name: literal(title) })).toHaveCount(0);
   }

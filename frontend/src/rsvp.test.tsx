@@ -420,12 +420,12 @@ describe('cards and My schedule', () => {
     renderApp('/');
 
     const going = await screen.findByRole('link', { name: /Going one/ });
-    expect(within(going).getByText('Joined')).toBeInTheDocument();
+    expect(within(going).getByText('Going')).toBeInTheDocument();
     expect(
       within(screen.getByRole('link', { name: /Waiting one/ })).getByText('Waitlisted'),
     ).toBeInTheDocument();
     expect(
-      within(screen.getByRole('link', { name: /Open one/ })).queryByText(/Joined|Waitlisted/),
+      within(screen.getByRole('link', { name: /Open one/ })).queryByText(/Going|Waitlisted/),
     ).toBeNull();
     expect(calls.some((c) => c.path.includes('/spots'))).toBe(false);
   });
@@ -483,15 +483,6 @@ describe('cards and My schedule', () => {
     );
     renderApp('/schedule');
     expect(await screen.findByText(/Nothing on your schedule yet/)).toBeInTheDocument();
-  });
-
-  it('is reachable from the home page', async () => {
-    signedIn((call) => (call.path.startsWith('/api/events?') ? page([]) : undefined));
-    renderApp('/');
-    expect(await screen.findByRole('link', { name: 'My schedule' })).toHaveAttribute(
-      'href',
-      '/schedule',
-    );
   });
 });
 

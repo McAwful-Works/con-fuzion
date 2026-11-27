@@ -1,5 +1,9 @@
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import type { EventScope } from '../api/events';
+import { useGuilds } from '../api/me';
+import { useDesktop } from '../components/shell/useDesktop';
+import { SideCards } from '../features/discover/SideCards';
+import { sortedDiscoverable } from '../features/discover/servers';
 import { EventFeed } from '../features/events/EventFeed';
 
 const TABS: { scope: EventScope; label: string }[] = [
@@ -7,50 +11,48 @@ const TABS: { scope: EventScope; label: string }[] = [
   { scope: 'hosting', label: 'Hosting' },
 ];
 
+/** Discover: the meetups you can see, with your offers, plans and servers beside them on desktop. */
 export function Home() {
   // In the URL so Back from an event returns to the tab it was opened from.
   const [params, setParams] = useSearchParams();
   const scope: EventScope = params.get('tab') === 'hosting' ? 'hosting' : 'feed';
   const setScope = (next: EventScope) =>
     setParams(next === 'feed' ? {} : { tab: next }, { replace: true });
+  const servers = sortedDiscoverable(useGuilds().data ?? []);
+  const desktop = useDesktop();
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Events</h1>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/schedule" className="btn btn-secondary">
-            My schedule
-          </Link>
-          <Link to="/events/new" className="btn btn-primary">
-            Create an event
-          </Link>
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start lg:gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="min-w-0 space-y-4">
+        <div>
+          {servers.length > 0 && (
+            <p className="text-ink-muted truncate text-xs font-bold tracking-wider uppercase">
+              {servers.map((guild) => guild.name).join(' · ')}
+            </p>
+          )}
+          <h1 className="text-[1.75rem] leading-tight font-extrabold lg:text-[2.125rem]">
+            Discover
+          </h1>
         </div>
+        <div role="group" aria-label="Which events" className="seg">
+          {TABS.map((tab) => (
+            <button
+              key={tab.scope}
+              type="button"
+              aria-pressed={scope === tab.scope}
+              className="seg-item"
+              onClick={() => setScope(tab.scope)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <EventFeed key={scope} scope={scope} />
       </div>
-      <div role="group" aria-label="Which events" className="flex gap-2">
-        {TABS.map((tab) => (
-          <button
-            key={tab.scope}
-            type="button"
-            aria-pressed={scope === tab.scope}
-            className={`btn ${scope === tab.scope ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setScope(tab.scope)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <EventFeed key={scope} scope={scope} />
-      <nav aria-label="More" className="flex flex-col gap-3 sm:flex-row">
-        <Link to="/people" className="btn btn-secondary">
-          Friends
-        </Link>
-        <Link to="/people?tab=circles" className="btn btn-secondary">
-          Circles
-        </Link>
-        <Link to="/onboarding" className="btn btn-secondary">
-          Choose where you’re discoverable
-        </Link>
-      </nav>
+      {desktop && (
+        <aside aria-label="Your plans and servers" className="space-y-4">
+          <SideCards />
+        </aside>
+      )}
     </div>
   );
 }
