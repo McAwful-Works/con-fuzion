@@ -1,21 +1,37 @@
 import { useId, type ReactNode } from 'react';
 
-/** One of the form's section cards. Its heading can be focused, for links straight to a section. */
+/**
+ * One of the form's sections: a card on desktop, whose heading can be focused for links straight to
+ * it. On a phone it's one step, `plain`, under the step's own heading.
+ */
 export function SectionCard({
   id,
   title,
   sub,
+  plain,
+  hidden,
   children,
 }: {
   id: string;
   title: string;
   sub: string;
+  plain: boolean;
+  hidden: boolean;
   children: ReactNode;
 }) {
   return (
-    <section id={id} aria-labelledby={`${id}-heading`} className="card space-y-4 p-4 lg:p-5">
+    <section
+      id={id}
+      aria-labelledby={`${id}-heading`}
+      hidden={hidden}
+      className={plain ? 'space-y-4' : 'card space-y-4 p-4 lg:p-5'}
+    >
       <div>
-        <h2 id={`${id}-heading`} tabIndex={-1} className="text-xl font-extrabold">
+        <h2
+          id={`${id}-heading`}
+          tabIndex={-1}
+          className={plain ? 'sr-only' : 'text-xl font-extrabold'}
+        >
           {title}
         </h2>
         <p className="text-ink-muted text-sm">{sub}</p>
