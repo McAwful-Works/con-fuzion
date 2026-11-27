@@ -21,7 +21,8 @@ terms forbid scripting it. Nothing here touches the real Discord, and no credent
   IDs and they share a server. Friends, circles and events are made through the UI too (`tests/social.mjs`), and a
   hidden event is asserted both in the feed and as a 404 from `/api/events/{id}`.
 - `tests/rsvp.spec.mjs` (M3) uses the same fixture for joining, the waitlist, removal, capacity edits, signup gating,
-  the `CONFIRMED` location and My schedule (helpers in `tests/rsvp.mjs`). The spots counts can lag a join by up to
+  the `CONFIRMED` location and My plans, offline reading included (helpers in `tests/rsvp.mjs`). The spots
+  counts can lag a join by up to
   a second (the backend's counts cache), so counts are read with `expectSpots`, which reloads until they match.
   The create form only takes whole minutes, so the signup-gating test creates its event through the API with the
   CSRF header (`apiWrite`).

@@ -35,7 +35,7 @@ export function isAdmin(me: Me | undefined): boolean {
 export function useMe() {
   return useQuery({
     queryKey: meKey,
-    // Like My schedule, it can come from the service worker's cache, so a cold start offline still
+    // Like My plans, it can come from the service worker's cache, so a cold start offline still
     // gets past the sign-in gate. Without this the query would wait for a connection that isn't coming.
     networkMode: 'offlineFirst',
     queryFn: async () => {
@@ -130,7 +130,7 @@ export function useSignOut(everywhere: boolean) {
     // Drop everything cached for the old session so nothing leaks into the next sign-in.
     onSuccess: () => {
       queryClient.clear();
-      // The service worker keeps the last My schedule response for offline use; it must not outlive the session.
+      // The service worker keeps the last My plans response for offline use; it must not outlive the session.
       endOfflineSession();
     },
   });

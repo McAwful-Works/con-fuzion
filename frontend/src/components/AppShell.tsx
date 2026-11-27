@@ -82,7 +82,7 @@ export function AppShell() {
           className={
             setup
               ? 'flex w-full flex-1 flex-col'
-              : `mx-auto w-full max-w-3xl flex-1 px-4 py-6 has-[>[data-event-page]]:flex has-[>[data-event-page]]:flex-col has-[>[data-welcome-page]]:max-w-[80rem] lg:has-[>[data-welcome-page]]:px-12 ${user ? 'lg:mx-0 lg:max-w-[52.5rem] lg:px-10 lg:py-8 lg:has-[>[data-discover-page]]:max-w-[70rem] lg:has-[>[data-event-page]]:max-w-[70rem] lg:has-[>[data-people-page]]:max-w-[70rem]' : ''}`
+              : `mx-auto w-full max-w-3xl flex-1 px-4 py-6 has-[>[data-event-page]]:flex has-[>[data-event-page]]:flex-col has-[>[data-welcome-page]]:max-w-[80rem] lg:has-[>[data-welcome-page]]:px-12 ${user ? 'lg:mx-0 lg:max-w-[52.5rem] lg:px-10 lg:py-8 lg:has-[>[data-discover-page]]:max-w-[70rem] lg:has-[>[data-people-page]]:max-w-[70rem] lg:has-[>[data-plans-page]]:max-w-[70rem] lg:has-[>[data-event-page]]:max-w-[70rem]' : ''}`
           }
         >
           {unavailable ? <MaintenancePage /> : <Outlet />}

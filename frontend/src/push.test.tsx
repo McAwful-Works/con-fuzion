@@ -109,7 +109,7 @@ function pushApi(
     if (call.path === '/api/me') return envelope('ME', { ...me, pushEnabled });
     if (call.path === '/api/me/guilds') return envelope('GUILD_LIST', { guilds: [] });
     if (call.path.startsWith('/api/events'))
-      return envelope('EVENT_PAGE', { items: [], nextCursor: null });
+      return envelope('EVENT_PAGE', { events: [], nextCursor: null });
     if (call.path === '/api/push/key') return typeof key === 'function' ? key() : key;
     if (call.path === '/api/push/subscriptions') return noContent();
     return undefined;
