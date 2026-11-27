@@ -83,7 +83,7 @@ test.describe('friends via an invite link', () => {
       // First sign-in: onboarding comes first, and the accept page waits behind it.
       await expect(page).toHaveURL(/\/onboarding$/);
       // The suite's jar has VAPID keys (M4), so a notifications step follows the servers.
-      await page.getByRole('button', { name: 'Next' }).click();
+      await page.getByRole('button', { name: 'Continue' }).click();
       await expect(page.getByRole('heading', { name: 'Want a heads-up?' })).toBeVisible();
       await page.getByRole('link', { name: 'Continue' }).click();
 

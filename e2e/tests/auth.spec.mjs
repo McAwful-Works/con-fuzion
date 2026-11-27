@@ -8,9 +8,9 @@ import {
 } from './support.mjs';
 import { expect, test } from './hooks.mjs';
 
-/** Open You from the sidebar (the Settings link) and press one of the Account buttons. */
+/** Open You (the first sign-in's setup has no navigation to it) and press one of the Account buttons. */
 async function pressAccountButton(page, name) {
-  await page.getByRole('link', { name: 'Settings' }).click();
+  await page.goto('/you');
   await page.getByRole('button', { name }).click();
 }
 
@@ -64,7 +64,8 @@ test('3. first sign-in goes to /onboarding, creates the user, and every server s
   const guilds = await apiGuilds(page.request);
   expect(guilds).toHaveLength(mixedGuilds().length);
   expect(guilds.every((g) => g.discoverable === false)).toBe(true);
-  await expect(page.getByRole('switch')).toHaveCount(guilds.length);
+  const servers = page.getByRole('list', { name: 'Your servers' });
+  await expect(servers.getByRole('switch')).toHaveCount(guilds.length);
   await expect(page.getByRole('switch', { checked: true })).toHaveCount(0);
 });
 

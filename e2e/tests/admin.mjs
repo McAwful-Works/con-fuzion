@@ -8,9 +8,16 @@ import { newUser, signIn, signInLink, useScenario } from './support.mjs';
 /** The Discord ID in `con-fuzion.admin.bootstrap-discord-ids` (application-e2e.properties). */
 const BOOTSTRAP_ADMIN_ID = '400000000000000001';
 
-/** Waits until the app knows who is signed in (the sidebar's Settings link), so the CSRF cookie is set too. */
+/**
+ * Waits until the app knows who is signed in, so the CSRF cookie is set too: the sidebar's Settings link, or the
+ * first sign-in's setup, which has no sidebar.
+ */
 const expectSignedIn = ({ page }) =>
-  expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
+  expect(
+    page
+      .getByRole('link', { name: 'Settings' })
+      .or(page.getByRole('button', { name: 'Skip for now' })),
+  ).toBeVisible();
 
 /**
  * The bootstrap admin, signed in with 2FA on. It is one account for every test and run, so its first sign-in may or

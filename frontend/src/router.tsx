@@ -40,7 +40,12 @@ export const routes: RouteObject[] = [
         element: <RequireAuth />,
         children: [
           { index: true, element: <Home /> },
-          { path: '/onboarding', element: <Onboarding /> },
+          {
+            path: '/onboarding',
+            element: <Onboarding />,
+            // The top bar of a return visit. The first-run setup has its own header.
+            handle: { title: 'Servers', parent: () => '/you' } satisfies ShellPage,
+          },
           { path: '/plans', element: <Schedule /> },
           { path: '/people', element: <People /> },
           { path: '/inbox', element: <Notifications /> },
