@@ -112,10 +112,11 @@ export function Plans() {
         )}
       </div>
       {desktop && (
-        <aside aria-label="Offers and notifications" className="space-y-4">
+        // Each card is a region of its own, and there may be none.
+        <div className="space-y-4">
           <NeedsAnswer plans={events ?? []} />
           <NudgeCard />
-        </aside>
+        </div>
       )}
     </div>
   );

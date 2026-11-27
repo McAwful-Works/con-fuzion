@@ -1,4 +1,5 @@
 import { Bell } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { useMe } from '../../api/me';
 import { useHasSubscription } from '../../api/push';
 import { ErrorState } from '../../components/ErrorState';
@@ -23,11 +24,16 @@ export function NudgeCard() {
   const me = useMe();
   const subscribed = useHasSubscription(Boolean(key.data));
   const turnOn = useTurnPushOn();
+  const answer = useRef<HTMLParagraphElement>(null);
+  // The button pressed is gone or disabled by now; don't drop the keyboard to the top of the page.
+  useEffect(() => {
+    if (turnOn.data) answer.current?.focus();
+  }, [turnOn.data]);
 
   const publicKey = key.data;
   if (!publicKey || !me.data || subscribed.data === undefined) return null;
   const on = turnOn.data === 'on';
-  // Having just turned it on here, say so rather than vanish from under the keyboard.
+  // Having just turned it on here, say so rather than vanish.
   if (!on && me.data.pushEnabled && subscribed.data) return null;
   // Read each render: it changes when the user re-enables notifications in the browser's settings.
   const blocked = Notification.permission === 'denied';
@@ -59,7 +65,7 @@ export function NudgeCard() {
           </>
         )}
         {/* Always here, so that a screen reader hears the answer when it arrives. */}
-        <p role="status" className="text-sm empty:hidden">
+        <p ref={answer} role="status" tabIndex={-1} className="text-sm empty:hidden">
           {turnOn.data && OUTCOME[turnOn.data]}
         </p>
         {turnOn.isError && <ErrorState error={turnOn.error} />}

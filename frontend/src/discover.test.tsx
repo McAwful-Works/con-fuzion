@@ -484,6 +484,18 @@ describe('search and filters', () => {
   });
 });
 
+describe('what moved to My plans', () => {
+  it('has no Hosting tab, even from an old link to it', async () => {
+    const calls = signedIn({ feed: [walk] });
+    renderApp('/?tab=hosting');
+
+    await card(walk.title);
+    expect(screen.queryByRole('group', { name: 'Which events' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hosting' })).toBeNull();
+    expect(calls.some((c) => c.path.includes('scope=hosting'))).toBe(false);
+  });
+});
+
 describe('the side cards', () => {
   const offer = event('Board games', { myStatus: 'OFFERED', spotsLeft: 0 });
   const spots = (extra: Partial<Schemas['SpotsResponse']> = {}) =>

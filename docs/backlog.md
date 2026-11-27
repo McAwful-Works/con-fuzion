@@ -59,4 +59,4 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | Right spot count in the preview when an unlimited event gets a limit | #120's edit preview counts only the host for an event that was unlimited, because its card data has no confirmed count. `/spots` has it. Saving a limit that is too low still gets the capacity 409 |
 | Offer countdown inside the event card | The My plans mockup puts "Spot offered · 24:12" in the card's pill (#117). #124 was changing `EventCard` in parallel, so the countdown is a line under the card. Move it into the pill through a card prop |
 | "Saved for offline" side card on My plans | The mockup has one beside "Needs your answer"; #117 asks only for that and "Get a nudge" |
-| Say when nothing is saved for offline | Opened offline with no saved copy, My plans keeps showing its loading cards (as My schedule did) |
+| Say when nothing is saved for offline | Opened offline with no saved copy, My plans keeps showing its loading cards (as My schedule did). With more than 50 plans it also does when a later page has no saved copy for the first page's cursor (#117 loads every page): show the pages that did load |

@@ -1,5 +1,5 @@
 import { onlineManager } from '@tanstack/react-query';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { components } from './api/schema';
 import {
@@ -342,6 +342,7 @@ describe('the My plans side column', () => {
       unsubscribe: async () => true,
     };
     let current = subscribed ? subscription : null;
+    const getSubscription = vi.fn(async () => current);
     const requestPermission = vi.fn(async () => {
       Notice.permission = answer;
       return answer;
@@ -349,7 +350,7 @@ describe('the My plans side column', () => {
     const Notice = Object.assign(function () {}, { permission, requestPermission });
     const registration = {
       pushManager: {
-        getSubscription: async () => current,
+        getSubscription,
         subscribe: async () => (current = subscription),
       },
     };
@@ -359,7 +360,7 @@ describe('the My plans side column', () => {
     });
     vi.stubGlobal('PushManager', class {});
     vi.stubGlobal('Notification', Notice);
-    return { requestPermission };
+    return { requestPermission, getSubscription };
   }
 
   /** Signed in on a server with push keys. It remembers the setting, as the real one does. */
@@ -400,7 +401,9 @@ describe('the My plans side column', () => {
     expect(browser.requestPermission).not.toHaveBeenCalled();
     fireEvent.click(button);
 
-    expect(await screen.findByText('Notifications are on for this device.')).toBeInTheDocument();
+    const answer = await screen.findByText('Notifications are on for this device.');
+    // The button has gone; the focus stays in the card.
+    await waitFor(() => expect(answer).toHaveFocus());
     expect(screen.queryByRole('button', { name: 'Turn on notifications' })).toBeNull();
     expect(calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual([
       'POST /api/push/subscriptions',
@@ -416,24 +419,47 @@ describe('the My plans side column', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Turn on notifications' }));
 
-    expect(await screen.findByText(/Notifications are blocked/)).toBeInTheDocument();
+    const answer = await screen.findByText(/Notifications are blocked/);
+    await waitFor(() => expect(answer).toHaveFocus());
     expect(screen.getByRole('button', { name: 'Turn on notifications' })).toBeDisabled();
   });
 
-  it.each<[string, () => unknown, boolean]>([
-    ['push is already on', () => pushBrowser({ permission: 'granted', subscribed: true }), true],
-    ['the browser blocks notifications', () => pushBrowser({ permission: 'denied' }), false],
-    ['the browser can’t do push', () => undefined, false],
-  ])('offers no nudge when %s', async (_when, browser, enabled) => {
+  it.each<[string, Parameters<typeof pushBrowser>[0], boolean]>([
+    ['push is already on', { permission: 'granted', subscribed: true }, true],
+    ['the browser blocks notifications', { permission: 'denied' }, false],
+  ])('offers no nudge when %s', async (_when, options, enabled) => {
     onDesktop();
-    browser();
+    const browser = pushBrowser(options);
     pushServer(enabled);
     renderApp('/plans');
 
+    // Asked only once the server's key is in: from here the card has all it decides on.
+    await waitFor(() => expect(browser.getSubscription).toHaveBeenCalled());
     await screen.findByRole('region', { name: 'Needs your answer' });
-    // Give the key and the subscription time to answer.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
     expect(nudge()).toBeNull();
+  });
+
+  it.each<[string, boolean, boolean]>([
+    ['this browser has no subscription, though the account has push on', false, true],
+    ['push is off for the account', true, false],
+  ])('offers the nudge when %s', async (_when, subscribed, enabled) => {
+    onDesktop();
+    pushBrowser({ permission: 'granted', subscribed });
+    pushServer(enabled);
+    renderApp('/plans');
+
+    expect(await screen.findByRole('region', { name: 'Get a nudge' })).toBeInTheDocument();
+  });
+
+  it('offers no nudge, and asks for no key, when the browser can’t do push', async () => {
+    onDesktop();
+    const calls = pushServer();
+    renderApp('/plans');
+
+    await screen.findByRole('region', { name: 'Needs your answer' });
+    expect(nudge()).toBeNull();
+    expect(calls.some((c) => c.path === '/api/push/key')).toBe(false);
   });
 
   it('offers no nudge on a server without push', async () => {
@@ -443,7 +469,7 @@ describe('the My plans side column', () => {
     renderApp('/plans');
 
     await waitFor(() => expect(calls.some((c) => c.path === '/api/push/key')).toBe(true));
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
     expect(nudge()).toBeNull();
   });
 });
