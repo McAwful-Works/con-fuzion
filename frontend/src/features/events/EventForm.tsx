@@ -12,7 +12,8 @@ import {
 } from '../../api/events';
 import { ErrorState } from '../../components/ErrorState';
 import { AudiencePicker } from './AudiencePicker';
-import { knownTimeZones } from './time';
+import { lastUsedTimeZone, rememberTimeZone } from './time';
+import { TimeZonePicker } from './TimeZonePicker';
 import {
   emptyValues,
   validateEvent,
@@ -86,7 +87,7 @@ function SubmitError({ error }: { error: unknown }) {
 interface Props {
   /** The event being edited; omit to create. */
   event?: Event;
-  /** The profile's time zone: the default for a new event. */
+  /** The profile's zone, or the browser's: a new event's default when no zone was used last. */
   defaultTimeZone: string;
   submitLabel: string;
   pending: boolean;
@@ -103,11 +104,11 @@ export function EventForm({
   error,
   onSubmit,
 }: Props) {
+  // A new event starts in the zone the last one used, else the default the page worked out.
   const [values, setValues] = useState<EventFormValues>(() =>
-    event ? valuesFromEvent(event) : emptyValues(defaultTimeZone),
+    event ? valuesFromEvent(event) : emptyValues(lastUsedTimeZone() ?? defaultTimeZone),
   );
   const [errors, setErrors] = useState<FieldErrors>({});
-  const zoneListId = useId();
   const set = <K extends keyof EventFormValues>(key: K, value: EventFormValues[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
     // Stop shouting about a field as soon as it's being fixed.
@@ -118,11 +119,12 @@ export function EventForm({
     e.preventDefault();
     const result = validateEvent(values, new Date(), event);
     setErrors(result.errors);
-    if (result.request) onSubmit(result.request);
+    if (!result.request) return;
+    if (!event) rememberTimeZone(result.request.timeZone);
+    onSubmit(result.request);
   };
 
   const errorCount = Object.values(errors).filter(Boolean).length;
-  const zones = knownTimeZones();
 
   return (
     <form onSubmit={submit} noValidate className="space-y-8">
@@ -205,33 +207,12 @@ export function EventForm({
         <h2 id="when-heading" className="text-xl font-semibold">
           When
         </h2>
-        <Field
-          label="Time zone"
-          hint="The event’s own time zone, where the convention is. Times below are read in it."
+        <TimeZonePicker
+          value={values.timeZone}
+          onChange={(zone) => set('timeZone', zone)}
+          hint="The event’s own time zone, where the convention is. Times below are read in it. Search by city or zone."
           error={errors.timeZone}
-        >
-          {(p) => (
-            <>
-              <input
-                id={p.id}
-                type="text"
-                list={zoneListId}
-                value={values.timeZone}
-                maxLength={64}
-                autoComplete="off"
-                aria-invalid={p.invalid}
-                aria-describedby={p.describedBy}
-                onChange={(e) => set('timeZone', e.target.value)}
-                className={INPUT}
-              />
-              <datalist id={zoneListId}>
-                {zones.map((z) => (
-                  <option key={z} value={z} />
-                ))}
-              </datalist>
-            </>
-          )}
-        </Field>
+        />
         <Field label="Starts" error={errors.startsAt}>
           {(p) => (
             <input

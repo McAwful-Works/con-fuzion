@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { components } from './api/schema';
-import { utcToZonedLocal } from './features/events/time';
+import { browserTimeZone, timeZoneLabel, utcToZonedLocal } from './features/events/time';
 import {
   envelope,
   errorEnvelope,
@@ -103,7 +103,10 @@ function signedIn(extra: (call: RecordedCall) => Response | undefined) {
   });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  localStorage.clear();
+});
 
 describe('the event feed', () => {
   it('groups by day in the event’s zone and adds the viewer’s zone when it differs', async () => {
@@ -337,7 +340,7 @@ describe('creating an event', () => {
     const calls = signedIn(() => undefined);
     renderApp('/events/new');
 
-    expect(await screen.findByLabelText('Time zone')).toHaveValue('America/Chicago');
+    expect(await screen.findByLabelText('Time zone')).toHaveValue(timeZoneLabel('America/Chicago'));
     fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
 
     expect(await screen.findByText('Give your event a title.')).toBeInTheDocument();
@@ -409,6 +412,101 @@ describe('creating an event', () => {
     });
     // Labels are display only: they never go back to the server.
     expect(JSON.stringify(post?.body)).not.toContain('label');
+  });
+
+  // #119, as it happens in Chromium: a system zone of "GMT" reads as "+00:00". The server won't
+  // store that, so the profile stays without a zone and the form starts from the browser's.
+  it('creates an event in UTC when the browser reports its zone as +00:00', async () => {
+    const system = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    vi.stubEnv('TZ', 'GMT');
+    // Node rereads the zone only when TZ is assigned, so assign the old one before removing it.
+    onTestFinished(() => {
+      vi.stubEnv('TZ', system);
+      vi.unstubAllEnvs();
+    });
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe('+00:00');
+    const created = { ...mine, title: 'Panel' };
+    const calls = signedIn(({ method, path }) => {
+      if (path === '/api/me')
+        return method === 'PATCH'
+          ? jsonResponse(errorEnvelope, 400)
+          : envelope('ME', { ...me, timeZone: null });
+      if (method === 'POST' && path === '/api/events') return envelope('EVENT', created);
+      if (path === `/api/events/${created.id}`) return envelope('EVENT', created);
+      return undefined;
+    });
+    const router = renderApp('/events/new');
+
+    expect(await screen.findByLabelText('Time zone')).toHaveValue(timeZoneLabel('UTC'));
+    fill('Title', 'Panel');
+    fill('Location', 'Room 4');
+    fill('Starts', soon());
+    fireEvent.click(await screen.findByLabelText('All my friends'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/events/${created.id}`));
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ timeZone: 'UTC' });
+  });
+
+  it('sends the zone picked with the keyboard, and starts the next event in it', async () => {
+    const created = { ...mine, title: 'Panel' };
+    const calls = signedIn(({ method, path }) => {
+      if (method === 'POST' && path === '/api/events') return envelope('EVENT', created);
+      if (path === `/api/events/${created.id}`) return envelope('EVENT', created);
+      return undefined;
+    });
+    const router = renderApp('/events/new');
+    const zone = await screen.findByLabelText('Time zone');
+    fill('Title', 'Panel');
+    fill('Location', 'Room 4');
+    fill('Starts', soon());
+    fireEvent.click(await screen.findByLabelText('All my friends'));
+
+    fireEvent.change(zone, { target: { value: 'tokyo' } });
+    // Enter chooses the zone; it doesn't submit the form.
+    expect(fireEvent.keyDown(zone, { key: 'Enter' })).toBe(false);
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/events/${created.id}`));
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({
+      timeZone: 'Asia/Tokyo',
+    });
+
+    await router.navigate('/events/new');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Time zone')).toHaveValue(timeZoneLabel('Asia/Tokyo')),
+    );
+  });
+
+  it.each([
+    ['the zone used last, before the profile’s', 'Asia/Tokyo', 'Europe/Paris', 'Asia/Tokyo'],
+    ['the profile’s when none was used', null, 'Europe/Paris', 'Europe/Paris'],
+    ['the profile’s when the stored one can’t be read', 'Mars/Olympus', 'UTC', 'UTC'],
+    ['the browser’s when there is nothing else', null, null, browserTimeZone()],
+  ])('starts a new event in %s', async (_, lastUsed, profile, expected) => {
+    if (lastUsed) localStorage.setItem('cf-last-time-zone', lastUsed);
+    signedIn(({ path }) =>
+      path === '/api/me' ? envelope('ME', { ...me, timeZone: profile }) : undefined,
+    );
+
+    renderApp('/events/new');
+
+    expect(await screen.findByLabelText('Time zone')).toHaveValue(timeZoneLabel(expected));
+  });
+
+  it('keeps an edited event in its own zone, and doesn’t count it as used', async () => {
+    localStorage.setItem('cf-last-time-zone', 'Asia/Tokyo');
+    const calls = signedIn(({ path }) =>
+      path === `/api/events/${mine.id}` ? envelope('EVENT', mine) : undefined,
+    );
+    renderApp(`/events/${mine.id}/edit`);
+
+    expect(await screen.findByLabelText('Time zone')).toHaveValue(timeZoneLabel('America/Chicago'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
+    expect(localStorage.getItem('cf-last-time-zone')).toBe('Asia/Tokyo');
   });
 
   it('does not let Enter in the people search submit the event', async () => {
