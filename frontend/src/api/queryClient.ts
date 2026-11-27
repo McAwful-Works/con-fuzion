@@ -19,7 +19,12 @@ export function createQueryClient() {
     queryCache: new QueryCache({
       onError: (error, query) => {
         if (query.queryKey[0] !== 'me') expire(error);
-        else if (error instanceof ApiError && error.status === 401) endOfflineSession();
+        else if (error instanceof ApiError && error.status === 401) {
+          // A failed refetch keeps the old data, and every page outside the gate would still see a
+          // signed-in user: the landing page and the gate then redirect to each other forever.
+          query.setState({ data: undefined });
+          endOfflineSession();
+        }
       },
     }),
     mutationCache: new MutationCache({ onError: expire }),
