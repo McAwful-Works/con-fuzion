@@ -167,7 +167,9 @@ export async function openFeed({ page }) {
   // A feed that failed to load shows an error, not events: "hidden" must not pass on that.
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(
-    feedCards(page).first().or(page.getByRole('heading', { name: 'No upcoming meetups yet' })),
+    feedCards(page)
+      .first()
+      .or(page.getByRole('heading', { name: 'No upcoming meetups yet' })),
   ).toBeVisible();
 }
 
