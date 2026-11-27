@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { components } from './api/schema';
 import { browserTimeZone, timeZoneLabel, utcToZonedLocal } from './features/events/time';
 import {
@@ -410,6 +410,40 @@ describe('creating an event', () => {
     });
     // Labels are display only: they never go back to the server.
     expect(JSON.stringify(post?.body)).not.toContain('label');
+  });
+
+  // #119, as it happens in Chromium: a system zone of "GMT" reads as "+00:00". The server won't
+  // store that, so the profile stays without a zone and the form starts from the browser's.
+  it('creates an event in UTC when the browser reports its zone as +00:00', async () => {
+    const system = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    vi.stubEnv('TZ', 'GMT');
+    // Node rereads the zone only when TZ is assigned, so assign the old one before removing it.
+    onTestFinished(() => {
+      vi.stubEnv('TZ', system);
+      vi.unstubAllEnvs();
+    });
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe('+00:00');
+    const created = { ...mine, title: 'Panel' };
+    const calls = signedIn(({ method, path }) => {
+      if (path === '/api/me')
+        return method === 'PATCH'
+          ? jsonResponse(errorEnvelope, 400)
+          : envelope('ME', { ...me, timeZone: null });
+      if (method === 'POST' && path === '/api/events') return envelope('EVENT', created);
+      if (path === `/api/events/${created.id}`) return envelope('EVENT', created);
+      return undefined;
+    });
+    const router = renderApp('/events/new');
+
+    expect(await screen.findByLabelText('Time zone')).toHaveValue(timeZoneLabel('UTC'));
+    fill('Title', 'Panel');
+    fill('Location', 'Room 4');
+    fill('Starts', soon());
+    fireEvent.click(await screen.findByLabelText('All my friends'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/events/${created.id}`));
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ timeZone: 'UTC' });
   });
 
   it('sends the zone picked with the keyboard, and starts the next event in it', async () => {

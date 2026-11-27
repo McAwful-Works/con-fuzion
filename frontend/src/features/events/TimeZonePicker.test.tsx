@@ -141,19 +141,62 @@ describe('the time-zone picker', () => {
     expect(activeOption()).toBe(options()[0]);
   });
 
-  it('puts the zone back on Escape and on leaving the field', () => {
+  it('puts the zone back on Escape, even after the arrows were used', () => {
     const { box, type, press, onChange } = setup('America/New_York');
 
-    type('tok');
+    type('tokyo');
+    press('ArrowDown');
     expect(press('Escape')).toBe(false);
     expect(box).toHaveAttribute('aria-expanded', 'false');
     expect(box.value).toMatch(NEW_YORK);
-
-    type('tok');
     fireEvent.blur(box);
-    expect(box).toHaveAttribute('aria-expanded', 'false');
-    expect(box.value).toMatch(NEW_YORK);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it.each(['america', 'atlantis', ' '])(
+    'keeps the zone when the field is left after searching “%s”',
+    (query) => {
+      const { box, type, onChange } = setup('America/New_York');
+
+      type(query);
+      fireEvent.blur(box);
+
+      expect(box).toHaveAttribute('aria-expanded', 'false');
+      expect(box.value).toMatch(NEW_YORK);
+      expect(onChange).not.toHaveBeenCalled();
+    },
+  );
+
+  it('takes the only match of a search when the field is left', () => {
+    const { box, type, onChange } = setup();
+
+    type('tokyo');
+    fireEvent.blur(box);
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('Asia/Tokyo');
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('takes the option the arrows reached when the field is left', () => {
+    const { box, type, press, options, onChange } = setup();
+    type('europe/b');
+    press('ArrowDown');
+    const second = options()[1]!.textContent!.split(' · ')[0]!.split(' (')[0]!;
+
+    fireEvent.blur(box);
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(second);
+  });
+
+  it('leaves Enter to the input method while text is being composed', () => {
+    const { box, type, onChange } = setup();
+    type('tokyo');
+
+    fireEvent.keyDown(box, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(box, { key: 'Enter', keyCode: 229 });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(box).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('leaves Enter and Escape alone while closed', () => {

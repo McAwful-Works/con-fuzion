@@ -11,16 +11,12 @@ export function browserTimeZone(): string {
 /**
  * The canonical spelling of an IANA zone name (`america/chicago` becomes `America/Chicago`), or
  * null when the browser doesn't know it. The server matches names exactly, so what we send must be
- * the canonical form. Offsets such as `+05:30` are accepted by some engines but aren't zone names,
- * so a name the engine rewrites as an offset stays as it was given.
+ * the canonical form. Offsets such as `+05:30` are accepted by some engines but aren't zone names.
  */
 export function canonicalTimeZone(zone: string): string | null {
-  const name = zone.trim();
-  if (/^[+-]/.test(name)) return null;
+  if (/^[+-]/.test(zone.trim())) return null;
   try {
-    const resolved = new Intl.DateTimeFormat('en-US', { timeZone: name }).resolvedOptions()
-      .timeZone;
-    return /^[+-]/.test(resolved) ? name : resolved;
+    return new Intl.DateTimeFormat('en-US', { timeZone: zone.trim() }).resolvedOptions().timeZone;
   } catch {
     return null;
   }
@@ -76,19 +72,6 @@ export function timeZoneLabel(zone: string, at = new Date()): string {
 /** The zone's offset from UTC at `at`, such as `GMT-05:00`. */
 export function timeZoneOffset(zone: string, at = new Date()): string {
   return zoneName(zone, 'longOffset', at) ?? '';
-}
-
-/**
- * Makes the search's formatters a few at a time, so that the first thing typed doesn't wait for all
- * of them. Returns a function that stops.
- */
-export function prepareTimeZoneSearch(zones = knownTimeZones()): () => void {
-  let next = 0;
-  let timer = setTimeout(function step() {
-    zones.slice(next, (next += 20)).forEach(genericName);
-    if (next < zones.length) timer = setTimeout(step);
-  });
-  return () => clearTimeout(timer);
 }
 
 /** Extra words to find a zone by: cities that some browsers still list under an older spelling. */

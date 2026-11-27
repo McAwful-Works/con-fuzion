@@ -1,12 +1,6 @@
 import { Check, ChevronDown, Globe } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
-import {
-  knownTimeZones,
-  prepareTimeZoneSearch,
-  searchTimeZones,
-  timeZoneLabel,
-  timeZoneOffset,
-} from './time';
+import { knownTimeZones, searchTimeZones, timeZoneLabel, timeZoneOffset } from './time';
 
 /** The most options drawn at once. Each one costs a few `Intl` lookups, which adds up on phones. */
 const SHOWN = 50;
@@ -22,8 +16,9 @@ interface Props {
 
 /**
  * A searchable list of time zones: an ARIA 1.2 combobox with a listbox popup. Focus stays in the
- * input; the arrow keys move through the list, Enter or a tap chooses, and Escape or leaving the
- * field keeps the zone as it was, so the value is always a zone from the list.
+ * input; the arrow keys move through the list, and Enter or a tap chooses. Leaving the field also
+ * chooses an option reached with the arrows, or the only match of a search. Otherwise, and on
+ * Escape, the zone stays as it was, so the value is always a zone from the list.
  */
 export function TimeZonePicker({ label = 'Time zone', value, onChange, hint, error }: Props) {
   const id = useId();
@@ -39,6 +34,8 @@ export function TimeZonePicker({ label = 'Time zone', value, onChange, hint, err
   /** What has been typed, or null while the field shows the chosen zone. */
   const [query, setQuery] = useState<string | null>(null);
   const [active, setActive] = useState(0);
+  /** True once the arrow keys have moved through the open list. */
+  const [arrowed, setArrowed] = useState(false);
 
   // With nothing typed, the chosen zone leads the list.
   const matches = !open
@@ -51,22 +48,29 @@ export function TimeZonePicker({ label = 'Time zone', value, onChange, hint, err
   const show = () => {
     setOpen(true);
     setActive(0);
+    setArrowed(false);
   };
   const close = () => {
     setOpen(false);
     setQuery(null);
+    setArrowed(false);
   };
   const choose = (zone: string) => {
     onChange(zone);
     close();
+  };
+  // A phone's "next" key and a tap elsewhere only blur: a clear choice mustn't be thrown away.
+  const leave = () => {
+    const only = query?.trim() && matches.length === 1 ? matches[0] : undefined;
+    const clear = arrowed ? shown[active] : only;
+    if (clear) choose(clear);
+    else close();
   };
 
   // The shown zone is selected while the field has focus, so typing replaces it with a search.
   useLayoutEffect(() => {
     if (query === null && document.activeElement === input.current) input.current?.select();
   }, [query, value, open]);
-
-  useEffect(() => (open ? prepareTimeZoneSearch() : undefined), [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,10 +79,13 @@ export function TimeZonePicker({ label = 'Time zone', value, onChange, hint, err
   }, [open, active, query]);
 
   const onKeyDown = (e: KeyboardEvent) => {
+    // Keys that belong to an input method, such as the Enter that commits composed text.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (!open) return show();
       const step = e.key === 'ArrowDown' ? 1 : -1;
+      setArrowed(true);
       setActive((index) => Math.max(0, Math.min(index + step, shown.length - 1)));
     } else if (e.key === 'Enter' && open) {
       // Choosing a zone must not submit the form around the picker.
@@ -127,7 +134,7 @@ export function TimeZonePicker({ label = 'Time zone', value, onChange, hint, err
             e.currentTarget.select();
             show();
           }}
-          onBlur={close}
+          onBlur={leave}
           onKeyDown={onKeyDown}
           className="field-control pr-9 pl-10 text-ellipsis"
         />
