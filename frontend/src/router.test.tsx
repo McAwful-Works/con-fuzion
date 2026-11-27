@@ -1,8 +1,9 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   envelope,
   errorEnvelope,
+  findSignIn,
   guilds,
   jsonResponse,
   me,
@@ -21,7 +22,7 @@ describe('auth state', () => {
 
     const router = renderApp('/settings');
 
-    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    await findSignIn();
     expect(router.state.location.pathname).toBe('/welcome');
   });
 
@@ -30,7 +31,7 @@ describe('auth state', () => {
 
     renderApp('/welcome');
 
-    const link = await screen.findByRole('link', { name: 'Sign in with Discord' });
+    const link = await findSignIn();
     expect(link).toHaveAttribute('href', '/api/oauth2/authorization/discord');
   });
 
@@ -50,7 +51,7 @@ describe('auth state', () => {
 
     renderApp('/welcome');
 
-    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    await findSignIn();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
@@ -170,7 +171,7 @@ describe('servers', () => {
     ]);
   });
 
-  it('select all sends exactly one bulk PUT, not one per server', async () => {
+  it('Turn on all sends exactly one bulk PUT, not one per server', async () => {
     const calls = serverApi(({ method, path }) =>
       method === 'PUT' && path === '/api/me/guilds'
         ? envelope('GUILD_LIST', { guilds: guilds.map((g) => ({ ...g, discoverable: true })) })
@@ -178,9 +179,11 @@ describe('servers', () => {
     );
 
     renderApp('/onboarding');
-    fireEvent.click(await screen.findByRole('button', { name: 'Select all servers' }));
+    const all = await screen.findByRole('switch', { name: 'Turn on all' });
+    expect(all).not.toBeChecked();
+    fireEvent.click(all);
 
-    await screen.findByRole('button', { name: 'Turn off for all servers' });
+    await waitFor(() => expect(all).toBeEnabled());
     expect(calls.filter((c) => c.method === 'PUT')).toEqual([
       {
         method: 'PUT',
@@ -195,6 +198,41 @@ describe('servers', () => {
     for (const guild of guilds) {
       expect(screen.getByRole('switch', { name: new RegExp(guild.name) })).toBeChecked();
     }
+    expect(all).toBeChecked();
+  });
+
+  it('turns every server off again when all are on, with one bulk PUT', async () => {
+    const on = guilds.map((g) => ({ ...g, discoverable: true }));
+    const calls = serverApi(({ method, path }) => {
+      if (path !== '/api/me/guilds') return undefined;
+      const list = method === 'PUT' ? guilds.map((g) => ({ ...g, discoverable: false })) : on;
+      return envelope('GUILD_LIST', { guilds: list });
+    });
+
+    renderApp('/onboarding');
+    const all = await screen.findByRole('switch', { name: 'Turn on all' });
+    expect(all).toBeChecked();
+    fireEvent.click(all);
+
+    await waitFor(() => expect(all).not.toBeChecked());
+    const puts = calls.filter((c) => c.method === 'PUT');
+    expect(puts).toHaveLength(1);
+    const body = puts[0]!.body as { guilds: { discoverable: boolean }[] };
+    expect(body.guilds.map((g) => g.discoverable)).toEqual([false, false, false]);
+  });
+
+  it('shows the first character of a name with no icon, a whole emoji included', async () => {
+    const dice = { ...guilds[0]!, name: '🎲 Dice Night' };
+    serverApi(({ method, path }) =>
+      method === 'GET' && path === '/api/me/guilds'
+        ? envelope('GUILD_LIST', { guilds: [dice] })
+        : undefined,
+    );
+
+    renderApp('/onboarding');
+
+    const list = await screen.findByRole('list', { name: 'Your servers' });
+    expect(within(list).getByText('🎲')).toBeInTheDocument();
   });
 
   it('shows an error state, without server text, when the list fails to load', async () => {
@@ -245,7 +283,7 @@ describe('servers', () => {
 
     const router = renderApp('/settings');
     fireEvent.click(await screen.findByRole('switch', { name: /Example Con Community/ }));
-    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    await findSignIn();
 
     // Wait before looking: a redirect loop never settles, even if the landing page shows for a moment.
     await pause();
@@ -253,7 +291,7 @@ describe('servers', () => {
     await pause();
 
     expect(calls).toHaveLength(settled);
-    expect(screen.getByRole('link', { name: 'Sign in with Discord' })).toBeInTheDocument();
+    expect(await findSignIn()).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/welcome');
     // No signed-in navigation is left on screen.
     expect(screen.queryByText('Con Goer')).toBeNull();
@@ -276,7 +314,8 @@ describe('servers', () => {
 
     renderApp('/onboarding');
 
-    const switches = await screen.findAllByRole('switch');
+    const list = await screen.findByRole('list', { name: 'Your servers' });
+    const switches = within(list).getAllByRole('switch');
     expect(switches.map((s) => s.closest('li')?.textContent)).toEqual([
       expect.stringContaining('Apple Con'),
       expect.stringContaining('banana con'),

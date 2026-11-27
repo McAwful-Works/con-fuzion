@@ -3,7 +3,7 @@
 
 import { expect } from '@playwright/test';
 import { apiWrite, userId } from './rsvp.mjs';
-import { newUser, signIn, useScenario } from './support.mjs';
+import { newUser, signIn, signInLink, useScenario } from './support.mjs';
 
 /** The Discord ID in `con-fuzion.admin.bootstrap-discord-ids` (application-e2e.properties). */
 const BOOTSTRAP_ADMIN_ID = '400000000000000001';
@@ -70,7 +70,7 @@ export async function expectSignInRefused(player) {
   const callback = page.waitForResponse(
     (r) => new URL(r.url()).pathname === '/api/login/oauth2/code/discord',
   );
-  await page.getByRole('link', { name: 'Sign in with Discord' }).click();
+  await signInLink(page).click();
   expect((await callback).headers().location).toMatch(/\/welcome\?login=refused$/);
   await expect(page.getByRole('alert')).toHaveText('This account can’t sign in right now.');
   await expect(page).toHaveURL(/\/welcome$/);

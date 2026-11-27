@@ -11,7 +11,7 @@ import {
   searchPeople,
   setDiscoverable,
 } from './social.mjs';
-import { guild, newUser, useScenario } from './support.mjs';
+import { guild, newUser, signInLink, useScenario } from './support.mjs';
 
 // Server IDs are shared between the users of one test and are never reused across tests, so the rows other tests
 // leave in the shared database can't make two tests see each other. (Users are fresh per test anyway.)
@@ -79,11 +79,11 @@ test.describe('friends via an invite link', () => {
       await expect(page).toHaveURL(/\/welcome$/);
 
       await useScenario(user, [con]);
-      await page.getByRole('link', { name: 'Sign in with Discord' }).click();
+      await signInLink(page).click();
       // First sign-in: onboarding comes first, and the accept page waits behind it.
       await expect(page).toHaveURL(/\/onboarding$/);
       // The suite's jar has VAPID keys (M4), so a notifications step follows the servers.
-      await page.getByRole('button', { name: 'Next' }).click();
+      await page.getByRole('button', { name: 'Continue' }).click();
       await expect(page.getByRole('heading', { name: 'Want a heads-up?' })).toBeVisible();
       await page.getByRole('link', { name: 'Continue' }).click();
 

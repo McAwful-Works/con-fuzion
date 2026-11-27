@@ -1,6 +1,7 @@
 import { ChevronLeft, Shield } from 'lucide-react';
 import { Link } from 'react-router';
 import { isModerator, type Me } from '../../api/me';
+import { SignInLink } from '../../features/auth/SignInLink';
 import { Wordmark } from './places';
 import { useGoBack } from './useGoBack';
 
@@ -17,13 +18,21 @@ function BackButton({ parent }: { parent: string }) {
 
 /**
  * The slim top bar. Phones have it on every screen. A visitor who isn't signed in has no sidebar, so
- * they get it at every width.
+ * they get it at every width, with a sign-in button on the welcome page.
  */
-export function TopBar({ user, back }: { user?: Me; back?: { title: string; parent: string } }) {
+export function TopBar({
+  user,
+  back,
+  signIn = false,
+}: {
+  user?: Me;
+  back?: { title: string; parent: string };
+  signIn?: boolean;
+}) {
   return (
     <header
       data-topbar
-      className={`bg-bar border-outline sticky top-0 z-10 flex items-center gap-2 border-b-2 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur ${user ? 'lg:hidden' : ''}`}
+      className={`bg-bar border-outline sticky top-0 z-10 flex items-center gap-2 border-b-2 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur ${user ? 'lg:hidden' : ''} ${signIn ? 'lg:px-12' : ''}`}
     >
       {back ? (
         <>
@@ -34,6 +43,7 @@ export function TopBar({ user, back }: { user?: Me; back?: { title: string; pare
       ) : (
         <>
           <Wordmark accent="text-accent-text" className="mr-auto" />
+          {signIn && <SignInLink className="btn-sm" />}
           {user && (
             <>
               {isModerator(user) && (

@@ -5,6 +5,7 @@ import { isModerator, useMe } from '../api/me';
 import { useUnavailable } from '../api/maintenance';
 import { useUnreadCount } from '../api/notifications';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
+import { useSetupVisit } from '../features/onboarding/useSetupVisit';
 import { useOnline } from '../features/rsvp/useOnline';
 import type { ShellPage } from './shell/page';
 import { Sidebar } from './shell/Sidebar';
@@ -21,7 +22,8 @@ function useShellPage(moderator: boolean) {
 
 /**
  * The frame around every screen. Signed in: a sidebar from 1024px up, and below that a top bar and a tab
- * bar. Signed out: the top bar and a footer.
+ * bar. Signed out: the top bar and a footer. The setup after the first sign-in has no navigation and
+ * brings its own header.
  */
 export function AppShell() {
   const me = useMe();
@@ -32,15 +34,21 @@ export function AppShell() {
   const unread = useUnreadCount(Boolean(user)).data ?? 0;
   const page = useShellPage(isModerator(user));
   const onYou = useMatch('/you') !== null;
-  const tabs = Boolean(user) && !page?.detail;
+  const onWelcome = useMatch('/welcome') !== null;
+  // "Back soon" replaces the setup too, and then the usual frame comes back.
+  const setup = useSetupVisit() && !unavailable;
+  const navigation = Boolean(user) && !setup;
+  const tabs = navigation && !page?.detail;
 
   return (
-    <div className={user ? 'lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]' : undefined}>
-      {user && <Sidebar user={user} unread={unread} />}
+    <div className={navigation ? 'lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]' : undefined}>
+      {user && !setup && <Sidebar user={user} unread={unread} />}
       <div
         className={`flex min-h-dvh min-w-0 flex-col ${tabs ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0' : ''}`}
       >
-        <TopBar user={user} back={user && page} />
+        {!setup && (
+          <TopBar user={user} back={user && page} signIn={onWelcome && !user && !unavailable} />
+        )}
         {!online && (
           <p
             role="status"
@@ -71,14 +79,19 @@ export function AppShell() {
           </div>
         )}
         <main
-          className={`mx-auto w-full max-w-3xl flex-1 px-4 py-6 has-[>[data-event-page]]:flex has-[>[data-event-page]]:flex-col ${user ? 'lg:mx-0 lg:max-w-[52.5rem] lg:px-10 lg:py-8 lg:has-[>[data-event-page]]:max-w-[70rem]' : ''}`}
+          className={
+            setup
+              ? 'flex w-full flex-1 flex-col'
+              : `mx-auto w-full max-w-3xl flex-1 px-4 py-6 has-[>[data-event-page]]:flex has-[>[data-event-page]]:flex-col has-[>[data-welcome-page]]:max-w-[80rem] lg:has-[>[data-welcome-page]]:px-12 ${user ? 'lg:mx-0 lg:max-w-[52.5rem] lg:px-10 lg:py-8 lg:has-[>[data-event-page]]:max-w-[70rem]' : ''}`
+          }
         >
           {unavailable ? <MaintenancePage /> : <Outlet />}
         </main>
         {/* Signed in, this is in the sidebar, and on phones it's at the bottom of You. */}
-        {(!user || onYou) && (
+        {!setup && (!user || onYou) && (
           <footer
-            className={`border-line text-ink-muted border-t px-4 py-4 text-sm ${user ? 'lg:hidden' : ''}`}
+            // On welcome the line starts where the page's 80rem column does.
+            className={`border-line text-ink-muted border-t px-4 py-4 text-sm ${user ? 'lg:hidden' : ''} ${onWelcome ? 'lg:px-[max(3rem,calc(50%-37rem))]' : ''}`}
           >
             Free meetups for convention-goers.
           </footer>
