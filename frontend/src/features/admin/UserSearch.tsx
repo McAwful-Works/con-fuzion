@@ -28,7 +28,7 @@ function SearchForm({ initial, onSearch }: { initial: string; onSearch: (q: stri
 
   return (
     <form role="search" onSubmit={submit} className="space-y-2">
-      <label className="block space-y-1">
+      <label className="block space-y-1 sm:max-w-md">
         <span className="text-sm font-medium">Name, user ID or Discord ID</span>
         <input
           type="search"

@@ -39,14 +39,14 @@ function RoleFields({ userId, picked, onPick }: FieldsProps) {
   return (
     <>
       <fieldset>
-        <legend className="text-sm font-medium">Roles</legend>
+        <legend className="field-label">Roles</legend>
         {ROLES.map((role) => (
           <label key={role} className="flex min-h-11 items-center gap-3">
             <input
               type="checkbox"
               checked={current.includes(role)}
               onChange={(e) => toggle(role, e.target.checked)}
-              className="size-5 shrink-0"
+              className="accent-accent-text size-5 shrink-0"
             />
             <span>{words(role)}</span>
           </label>
