@@ -99,7 +99,9 @@ export function EventFeed({ scope, filters = {}, waiting = false, onClearFilters
       {onClearFilters && (
         // Stays in place while the list below changes, so a screen reader hears the result.
         <p role="status" className="sr-only">
-          {filtered && count !== undefined ? found(count, feed.hasNextPage) : ''}
+          {filtered && count !== undefined && !feed.isPlaceholderData
+            ? found(count, feed.hasNextPage)
+            : ''}
         </p>
       )}
       <Results scope={scope} feed={feed} onClearFilters={filtered ? onClearFilters : undefined} />
@@ -127,6 +129,8 @@ function Results({
 
   const events = data.pages.flatMap((page) => page.events);
   if (events.length === 0) {
+    // An empty list from before isn't worth keeping: what it would say may no longer be true.
+    if (feed.isPlaceholderData) return <LoadingCards />;
     if (onClearFilters) return <NoMatches onClear={onClearFilters} />;
     if (scope === 'feed') return <EmptyDiscover />;
     return <p className="text-ink-muted">{EMPTY[scope]}</p>;
@@ -136,7 +140,7 @@ function Results({
   const overlaps = scope === 'attending' ? findOverlaps(events) : undefined;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={feed.isPlaceholderData}>
       {groupByDay(events).map((day) => {
         const { weekday, date } = dayParts(day.key);
         return (

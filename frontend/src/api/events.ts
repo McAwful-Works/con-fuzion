@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { api, fillPath, type ContractPath } from './client';
 import type { components, operations } from './schema';
 
@@ -47,6 +53,8 @@ export function useEventFeed(scope: EventScope, filters: FeedFilters = {}, enabl
     // My schedule is also served from the service worker's cache when offline, so let the first
     // request go out even without a connection (the default would pause it until we're back online).
     networkMode: scope === 'attending' ? 'offlineFirst' : 'online',
+    // The last list stays on screen while a new search or filter loads.
+    placeholderData: keepPreviousData,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const query = new URLSearchParams({ scope, limit: String(FEED_PAGE_SIZE) });

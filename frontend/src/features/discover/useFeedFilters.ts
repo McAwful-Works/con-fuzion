@@ -17,9 +17,9 @@ export function useFeedFilters() {
   const text = params.get('q') ?? '';
   const q = text.trim().slice(0, SEARCH_MAX);
   const guild = params.get('guild');
-  // The API answers 400 for any server you aren't discoverable in, so an old link's is left out. If
-  // the servers can't be loaded, the API is left to judge.
-  const usable = guild && (guilds.isError || servers.some((server) => server.id === guild));
+  // The API answers 400 for any server you aren't discoverable in, so only one on your list is sent:
+  // not an old link's, and none while the list can't be loaded.
+  const usable = guild && servers.some((server) => server.id === guild);
 
   const filters: FeedFilters = {
     ...(q.length >= SEARCH_MIN && { q }),
@@ -31,6 +31,8 @@ export function useFeedFilters() {
   /** Sets or, with `undefined`, removes parameters, without adding to the history. */
   function change(changes: Partial<Record<Name, string | undefined>>) {
     const next = new URLSearchParams(params);
+    // A server known not to be yours goes with the first change, so it can't come into force later.
+    if (guild && guilds.data && !usable) next.delete('guild');
     for (const [name, value] of Object.entries(changes)) {
       if (value) next.set(name, value);
       else next.delete(name);

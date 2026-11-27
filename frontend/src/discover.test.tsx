@@ -384,11 +384,44 @@ describe('search and filters', () => {
 
   it('leaves out a server you aren’t discoverable in, and values that aren’t true', async () => {
     const calls = filtering();
-    renderApp('/?guild=81384788765712384&friends=false&hasSpots=1');
+    const router = renderApp('/?guild=81384788765712384&friends=false&hasSpots=1');
 
     await card(walk.title);
     expect(feedCalls(calls)).toEqual([FEED]);
     expect(await pressed()).toEqual(['All']);
+
+    // The next change takes the server out of the URL.
+    fireEvent.click(await chip('Friends'));
+    await waitFor(() => expect(router.state.location.search).toBe('?friends=true&hasSpots=1'));
+  });
+
+  it('leaves the server out when your servers can’t be loaded', async () => {
+    const calls = signedIn({
+      feed: [walk],
+      extra: ({ path }) =>
+        path === '/api/me/guilds' ? jsonResponse(errorEnvelope, 500) : undefined,
+    });
+    renderApp(`/?guild=${beta}&friends=true`);
+
+    await card(walk.title);
+    expect(feedCalls(calls)).toEqual([`${FEED}&friends=true`]);
+  });
+
+  it('keeps the last list on screen, quiet, while the next one loads', async () => {
+    // A search that never answers.
+    const unanswered = new Promise<Response>(() => {}) as unknown as Response;
+    const calls = filtering((path) => (path.includes('q=') ? unanswered : page([walk], 'next-1')));
+    renderApp('/');
+    await card(walk.title);
+
+    fireEvent.change(await box(), { target: { value: 'ramen' } });
+
+    await waitFor(() => expect(feedCalls(calls).at(-1)).toBe(`${FEED}&q=ramen`));
+    expect(screen.getByRole('link', { name: new RegExp(`^${walk.title}`) })).toBeVisible();
+    expect(screen.queryByRole('status', { name: 'Loading events' })).toBeNull();
+    // The old list's next page belongs to the old search, so it isn't offered.
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    expect(within(screen.getByRole('main')).getByRole('status')).toBeEmptyDOMElement();
   });
 
   it('keeps the search and filters when loading more', async () => {
