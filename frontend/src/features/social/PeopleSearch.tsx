@@ -47,8 +47,8 @@ export function PeopleSearch({
 
   return (
     <div className="space-y-3">
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">Search by name</span>
+      <label className="field">
+        <span className="field-label">Search by name</span>
         <input
           type="search"
           value={text}
@@ -56,7 +56,7 @@ export function PeopleSearch({
           onChange={(e) => setText(e.target.value)}
           // This search sits inside forms (the event audience); Enter must not submit them.
           onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
-          className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3"
+          className="field-control"
         />
       </label>
       <p className="text-ink-muted text-sm">

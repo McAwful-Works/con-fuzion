@@ -240,7 +240,13 @@ describe('form validation', () => {
     expect(one.errors.capacity).toMatch(/from 2 to 10000/);
     expect(one.request).toBeNull();
     expect(validateEvent(valid({ capacity: '2' }), NOW).request?.capacity).toBe(2);
-    expect(validateEvent(valid({ capacity: '' }), NOW).request?.capacity).toBeNull();
+    expect(validateEvent(valid({ capacity: null }), NOW).request?.capacity).toBeNull();
+  });
+
+  it('refuses limited spots with no number, instead of dropping the limit', () => {
+    const { errors, request } = validateEvent(valid({ capacity: ' ' }), NOW);
+    expect(errors.capacity).toMatch(/from 2 to 10000/);
+    expect(request).toBeNull();
   });
 
   it('keeps the start in the future and within a year either way', () => {

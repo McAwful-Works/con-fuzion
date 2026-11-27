@@ -15,7 +15,7 @@ function previewEvent(
   timeZone: string,
   original?: Event,
 ): Event {
-  const typed = Number(values.capacity);
+  const typed = Number(values.capacity ?? '');
   const capacity =
     Number.isInteger(typed) && typed >= EVENT_CAPACITY_MIN && typed <= EVENT_CAPACITY_MAX
       ? typed

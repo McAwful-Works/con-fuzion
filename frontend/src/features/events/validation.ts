@@ -28,7 +28,8 @@ export interface EventFormValues {
   startsAt: string;
   endsAt: string;
   signupOpensAt: string;
-  capacity: string;
+  /** The total headcount as typed, or null while the spots aren't limited. */
+  capacity: string | null;
   /** The offer window in minutes (D-014). */
   confirmWindowMinutes: string;
   audience: AudienceEntry[];
@@ -59,7 +60,7 @@ export function emptyValues(timeZone: string): EventFormValues {
     startsAt: '',
     endsAt: '',
     signupOpensAt: '',
-    capacity: '',
+    capacity: null,
     confirmWindowMinutes: String(CONFIRM_WINDOW_DEFAULT),
     audience: [],
   };
@@ -79,7 +80,7 @@ export function valuesFromEvent(event: Event): EventFormValues {
     startsAt: utcToZonedLocal(event.startsAt, zone),
     endsAt: event.endsAt ? utcToZonedLocal(event.endsAt, zone) : '',
     signupOpensAt: event.signupOpensAt ? utcToZonedLocal(event.signupOpensAt, zone) : '',
-    capacity: event.capacity === null ? '' : String(event.capacity),
+    capacity: event.capacity === null ? null : String(event.capacity),
     confirmWindowMinutes: String(event.confirmWindowMinutes),
     // The whole audience goes back (D-012: entries already on the event are kept).
     audience: event.audience ?? [],
@@ -180,8 +181,8 @@ export function validateEvent(
   }
 
   let capacity: number | null = null;
-  const capacityText = values.capacity.trim();
-  if (capacityText) {
+  if (values.capacity !== null) {
+    const capacityText = values.capacity.trim();
     capacity = Number(capacityText);
     if (
       !/^\d+$/.test(capacityText) ||

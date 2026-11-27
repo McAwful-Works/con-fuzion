@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from 'react';
 
-/** One of the form's section cards. */
+/** One of the form's section cards. Its heading can be focused, for links straight to a section. */
 export function SectionCard({
   id,
   title,
@@ -15,7 +15,7 @@ export function SectionCard({
   return (
     <section id={id} aria-labelledby={`${id}-heading`} className="card space-y-4 p-4 lg:p-5">
       <div>
-        <h2 id={`${id}-heading`} className="text-xl font-extrabold">
+        <h2 id={`${id}-heading`} tabIndex={-1} className="text-xl font-extrabold">
           {title}
         </h2>
         <p className="text-ink-muted text-sm">{sub}</p>

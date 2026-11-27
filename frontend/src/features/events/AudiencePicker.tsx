@@ -1,3 +1,5 @@
+import { Check, Users, UsersRound, X } from 'lucide-react';
+import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useGuilds } from '../../api/me';
 import { AUDIENCE_MAX, type AudienceEntry } from '../../api/events';
@@ -11,28 +13,94 @@ interface Props {
   onChange: (next: AudienceEntry[]) => void;
 }
 
-function Checkbox({
-  label,
+const ICON = 'rounded-control flex size-10 shrink-0 items-center justify-center';
+
+/** A card that is one checkbox: tapping anywhere on it picks it. */
+function OptionCard({
+  icon,
+  title,
+  sub,
   checked,
   disabled,
   onChange,
 }: {
-  label: string;
+  icon: ReactNode;
+  title: string;
+  sub: string;
   checked: boolean;
-  disabled?: boolean;
+  disabled: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  const id = useId();
   return (
-    <label className="flex min-h-11 items-center gap-3">
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        className="size-5 shrink-0"
-      />
-      <span className="min-w-0 break-words">{label}</span>
+    <label className="card has-checked:border-accent has-checked:shadow-picked flex cursor-pointer items-center gap-3 p-3.5 has-disabled:cursor-default has-disabled:opacity-50">
+      {icon}
+      <span className="min-w-0 flex-1">
+        <span id={`${id}-title`} className="block font-bold break-words">
+          {title}
+        </span>
+        <span id={`${id}-sub`} className="hint block">
+          {sub}
+        </span>
+      </span>
+      <span className="relative flex shrink-0">
+        <input
+          type="checkbox"
+          aria-labelledby={`${id}-title`}
+          aria-describedby={`${id}-sub`}
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+          className="peer border-control-outline bg-surface-raised checked:bg-accent rounded-tag size-6.5 appearance-none border-2"
+        />
+        <Check
+          aria-hidden="true"
+          className="text-accent-ink pointer-events-none absolute inset-0 m-auto hidden size-4 peer-checked:block"
+        />
+      </span>
     </label>
+  );
+}
+
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section aria-labelledby={id} className="space-y-2.5">
+      <h3 id={id} className="text-ink-muted text-xs font-extrabold tracking-wider uppercase">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/** Chosen entries that have no card, each a chip that removes itself. */
+function Chips({
+  label,
+  entries,
+  onRemove,
+}: {
+  label: string;
+  entries: AudienceEntry[];
+  onRemove: (key: string) => void;
+}) {
+  if (entries.length === 0) return null;
+  return (
+    <ul aria-label={label} className="flex flex-wrap gap-2">
+      {entries.map((e) => (
+        <li key={entryKey(e)} className="max-w-full">
+          <button
+            type="button"
+            className="chip max-w-full py-1 text-left whitespace-normal"
+            aria-label={`Remove ${entryLabel(e)}`}
+            onClick={() => onRemove(entryKey(e))}
+          >
+            <span className="min-w-0 break-words">{entryLabel(e)}</span>
+            <X aria-hidden="true" className="size-4 shrink-0" />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -51,41 +119,43 @@ export function AudiencePicker({ value, onChange }: Props) {
     if (!keys.has(entryKey(entry)) && !full) onChange([...value, entry]);
   };
   const remove = (key: string) => onChange(value.filter((e) => entryKey(e) !== key));
-  const toggle = (entry: AudienceEntry, on: boolean) => (on ? add(entry) : remove(entryKey(entry)));
+  /** The checkbox half of a card's props. */
+  const toggle = (entry: AudienceEntry) => {
+    const checked = keys.has(entryKey(entry));
+    return {
+      checked,
+      disabled: full && !checked,
+      onChange: (on: boolean) => (on ? add(entry) : remove(entryKey(entry))),
+    };
+  };
 
   const discoverable = (guilds.data ?? []).filter((g) => g.discoverable);
   const discoverableIds = new Set(discoverable.map((g) => g.id));
   const circleIds = new Set((circles.data ?? []).map((c) => c.id));
-  // Entries with no checkbox: individuals, and servers or circles that aren't in the lists above.
+  const people = value.filter((e) => e.type === 'USER');
+  // Servers and circles on the event that aren't in the lists above, so they have no card.
   const others = value.filter(
     (e) =>
-      e.type === 'USER' ||
       (e.type === 'GUILD' && !guilds.isPending && !discoverableIds.has(e.guildId ?? '')) ||
       (e.type === 'CIRCLE' && !circles.isPending && !circleIds.has(e.circleId ?? '')),
   );
-  const chosenPeople = new Set(value.filter((e) => e.type === 'USER').map((e) => e.userId ?? ''));
+  const chosenPeople = new Set(people.map((e) => e.userId ?? ''));
 
   return (
-    <fieldset className="space-y-6">
-      <legend className="text-xl font-semibold">Who can see this</legend>
+    <div className="space-y-6">
+      <OptionCard
+        icon={
+          <span className={`${ICON} bg-hosting text-hosting-ink`}>
+            <Users aria-hidden="true" className="size-5" />
+          </span>
+        }
+        title="All my friends"
+        sub="Everyone on your friends list"
+        {...toggle(friendsEntry())}
+      />
 
-      <section aria-labelledby="aud-friends" className="space-y-1">
-        <h3 id="aud-friends" className="font-medium">
-          Friends
-        </h3>
-        <Checkbox
-          label="All my friends"
-          checked={keys.has('FRIENDS')}
-          disabled={full && !keys.has('FRIENDS')}
-          onChange={(on) => toggle(friendsEntry(), on)}
-        />
-      </section>
-
-      <section aria-labelledby="aud-servers" className="space-y-1">
-        <h3 id="aud-servers" className="font-medium">
-          My servers
-        </h3>
-        <p className="text-ink-muted text-sm">
+      <Group title="Servers where you’re discoverable">
+        <p className="hint">
           Only members who opted in to being discoverable in that server will see the event. You’re
           shown to them as a member there.
         </p>
@@ -102,20 +172,25 @@ export function AudiencePicker({ value, onChange }: Props) {
           </p>
         )}
         {discoverable.map((g) => (
-          <Checkbox
+          <OptionCard
             key={g.id}
-            label={g.name}
-            checked={keys.has(`GUILD:${g.id}`)}
-            disabled={full && !keys.has(`GUILD:${g.id}`)}
-            onChange={(on) => toggle(guildEntry(g.id, g.name), on)}
+            icon={
+              g.iconUrl ? (
+                <img src={g.iconUrl} alt="" className={ICON} />
+              ) : (
+                <span aria-hidden="true" className={`${ICON} bg-tag text-tag-ink font-extrabold`}>
+                  {[...g.name][0]?.toUpperCase()}
+                </span>
+              )
+            }
+            title={g.name}
+            sub="Members who are discoverable there"
+            {...toggle(guildEntry(g.id, g.name))}
           />
         ))}
-      </section>
+      </Group>
 
-      <section aria-labelledby="aud-circles" className="space-y-1">
-        <h3 id="aud-circles" className="font-medium">
-          Circles
-        </h3>
+      <Group title="Your circles">
         {circles.isPending && <p className="text-ink-muted">Loading your circles…</p>}
         {circles.isError && (
           <ErrorState error={circles.error} onRetry={() => void circles.refetch()} />
@@ -129,20 +204,21 @@ export function AudiencePicker({ value, onChange }: Props) {
           </p>
         )}
         {(circles.data ?? []).map((c) => (
-          <Checkbox
+          <OptionCard
             key={c.id}
-            label={c.name}
-            checked={keys.has(`CIRCLE:${c.id}`)}
-            disabled={full && !keys.has(`CIRCLE:${c.id}`)}
-            onChange={(on) => toggle(circleEntry(c.id, c.name), on)}
+            icon={
+              <span className={`${ICON} bg-going text-going-ink`}>
+                <UsersRound aria-hidden="true" className="size-5" />
+              </span>
+            }
+            title={c.name}
+            sub={c.members.length === 1 ? '1 person' : `${c.members.length} people`}
+            {...toggle(circleEntry(c.id, c.name))}
           />
         ))}
-      </section>
+      </Group>
 
-      <section aria-labelledby="aud-people" className="space-y-3">
-        <h3 id="aud-people" className="font-medium">
-          Individuals
-        </h3>
+      <Group title="Specific people">
         {full ? (
           <p className="text-ink-muted text-sm">
             You’ve reached the limit of {AUDIENCE_MAX} audience entries. Remove one to add more.
@@ -154,33 +230,14 @@ export function AudiencePicker({ value, onChange }: Props) {
             onPick={(person) => add(userEntry(person.id, person.displayName))}
           />
         )}
-      </section>
+        <Chips label="Added people" entries={people} onRemove={remove} />
+      </Group>
 
       {others.length > 0 && (
-        <section aria-labelledby="aud-chosen" className="space-y-2">
-          <h3 id="aud-chosen" className="font-medium">
-            Also included
-          </h3>
-          <ul className="space-y-2">
-            {others.map((e) => (
-              <li
-                key={entryKey(e)}
-                className="border-line bg-surface-raised rounded-card flex flex-wrap items-center gap-3 border p-3"
-              >
-                <span className="min-w-0 flex-1 basis-40 break-words">{entryLabel(e)}</span>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  aria-label={`Remove ${entryLabel(e)}`}
-                  onClick={() => remove(entryKey(e))}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Group title="Also included">
+          <Chips label="Other entries" entries={others} onRemove={remove} />
+        </Group>
       )}
-    </fieldset>
+    </div>
   );
 }

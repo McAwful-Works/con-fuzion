@@ -27,7 +27,8 @@ const mine: Schemas['EventResponse'] = {
   spotsLeft: 14,
   visibleBecause: null,
   signupOpensAt: null,
-  confirmWindowMinutes: 30,
+  // Not one of the presets: set through the old free-text field.
+  confirmWindowMinutes: 45,
   startsAt: START.toISOString(),
   endsAt: null,
   timeZone: 'America/Chicago',
@@ -121,6 +122,96 @@ describe('the tag chips', () => {
   });
 });
 
+describe('the spots', () => {
+  it('has no limit until the switch is on, then steps from 8', async () => {
+    const calls = signedIn();
+    await newMeetup();
+    expect(screen.queryByLabelText('Capacity')).toBeNull();
+    expect(preview().queryByText(/of \d+ left/)).toBeNull();
+
+    fireEvent.click(field('Limit the spots'));
+    expect(field('Capacity')).toHaveValue('8');
+    click('More spots');
+    click('Fewer spots');
+    click('Fewer spots');
+    expect(field('Capacity')).toHaveValue('7');
+    // Off and on again returns to what was there.
+    fireEvent.click(field('Limit the spots'));
+    fireEvent.click(field('Limit the spots'));
+    expect(field('Capacity')).toHaveValue('7');
+    click('Create meetup');
+
+    expect((await sent(calls)).capacity).toBe(7);
+  });
+
+  it('keeps the stepper between 2 and 10,000', async () => {
+    signedIn();
+    await newMeetup();
+    fireEvent.click(field('Limit the spots'));
+
+    fill('Capacity', '2');
+    expect(chip('Fewer spots')).toHaveAttribute('aria-disabled', 'true');
+    click('Fewer spots');
+    expect(field('Capacity')).toHaveValue('2');
+    fill('Capacity', '10000');
+    expect(chip('More spots')).toHaveAttribute('aria-disabled', 'true');
+    click('More spots');
+    expect(field('Capacity')).toHaveValue('10000');
+    fill('Capacity', '99999');
+    click('Fewer spots');
+    expect(field('Capacity')).toHaveValue('10000');
+    // An emptied field steps back to the smallest.
+    fill('Capacity', '');
+    click('More spots');
+    expect(field('Capacity')).toHaveValue('2');
+  });
+
+  it('refuses a limit with no number, in today’s words', async () => {
+    const calls = signedIn();
+    await newMeetup();
+    fireEvent.click(field('Limit the spots'));
+    fill('Capacity', '');
+    click('Create meetup');
+
+    expect(
+      await screen.findByText('Capacity must be a whole number from 2 to 10000.'),
+    ).toBeInTheDocument();
+    expect(field('Capacity')).toHaveAttribute('aria-invalid', 'true');
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('keeps an event’s own offer window as a choice', async () => {
+    const calls = signedIn();
+    renderApp(`/events/${mine.id}/edit`);
+
+    expect(await screen.findByLabelText('Time to accept an offer')).toHaveValue('45');
+    fill('Time to accept an offer', '60');
+    expect(screen.getByRole('option', { name: '45 minutes' })).toBeInTheDocument();
+    fill('Time to accept an offer', '45');
+    click('Save changes');
+
+    expect((await sent(calls, 'PATCH')).confirmWindowMinutes).toBe(45);
+  });
+
+  it('offers only windows from 10 minutes to 24 hours', async () => {
+    signedIn();
+    renderApp('/events/new');
+    const select = await screen.findByLabelText('Time to accept an offer');
+
+    const options = within(select).getAllByRole<HTMLOptionElement>('option');
+    expect(options.map((o) => o.value)).toEqual([
+      '10',
+      '15',
+      '30',
+      '60',
+      '120',
+      '240',
+      '720',
+      '1440',
+    ]);
+  });
+});
+
 describe('the preview', () => {
   it('follows the form, and can’t be used to leave it', async () => {
     signedIn();
@@ -151,7 +242,7 @@ describe('the preview', () => {
     const router = renderApp('/events/new');
     await screen.findByLabelText('Title');
     expect(preview().getByText('No limit')).toBeInTheDocument();
-    fill('Capacity', '8');
+    fireEvent.click(field('Limit the spots'));
     expect(preview().getByText('7 of 8 left')).toBeInTheDocument();
 
     // 6 of 20 are taken, so a limit of 10 leaves 4.
@@ -189,5 +280,24 @@ describe('your own time', () => {
     expect(
       within(screen.getByRole('region', { name: 'When' })).getByText(/^Your time: 5:00.*CDT/),
     ).toBeInTheDocument();
+  });
+});
+
+describe('opening the editor at who can see it', () => {
+  it('focuses that section', async () => {
+    signedIn();
+    renderApp(`/events/${mine.id}/edit#audience`);
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Who can see this' })).toHaveFocus(),
+    );
+  });
+
+  it('leaves the page at the top otherwise', async () => {
+    signedIn();
+    renderApp(`/events/${mine.id}/edit`);
+    await screen.findByLabelText('Title');
+
+    expect(document.body).toHaveFocus();
   });
 });
