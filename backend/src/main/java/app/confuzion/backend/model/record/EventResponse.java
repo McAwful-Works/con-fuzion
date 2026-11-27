@@ -50,12 +50,18 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  *                             as soon as the event is published
  * @param capacity             the headcount, the host included, or {@code null}
  *                             for unlimited
+ * @param spotsLeft            {@code capacity - confirmed_count}, never below
+ *                             0, or {@code null} for unlimited
  * @param confirmWindowMinutes how long an offered spot is held, in minutes
  * @param status               whether the event is on or cancelled
  * @param isHost               whether the viewer is the host
  * @param myStatus             where the viewer stands on the event
  * @param audience             who the event is for: the host's entries, or
  *                             {@code null} for every other viewer
+ * @param visibleBecause       the viewer's own reasons for seeing the event
+ *                             (D-017): {@code null} for the host, and empty
+ *                             when they see it only through an active RSVP or
+ *                             as a moderator
  * @param hiddenReason         for the host, the moderator's reason while the
  *                             event is hidden (D-015), and {@code null}
  *                             otherwise
@@ -74,11 +80,13 @@ public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID i
 		@Schema(requiredMode = RequiredMode.REQUIRED, example = "America/Chicago") String timeZone,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true) Instant signupOpensAt,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "2", maximum = "10000", description = "The headcount, the host included. Null for unlimited.") Integer capacity,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, minimum = "0", description = "capacity - confirmed, never below 0. Null for unlimited. May be up to a second old, as in GET /api/events/{eventId}/spots.") Integer spotsLeft,
 		@Schema(requiredMode = RequiredMode.REQUIRED, minimum = "10", maximum = "1440", description = "How many minutes a freed spot is held for the next person in line to accept (D-014).") int confirmWindowMinutes,
 		@Schema(requiredMode = RequiredMode.REQUIRED) Status status,
 		@JsonProperty("isHost") @Schema(name = "isHost", requiredMode = RequiredMode.REQUIRED) boolean isHost,
 		@Schema(requiredMode = RequiredMode.REQUIRED, description = "Where the viewer stands. CONFIRMED for the host. The waitlist position and an offer's deadline are in GET /api/events/{eventId}/spots.") MyStatus myStatus,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Only the host gets this; it is null for everyone else.") List<AudienceEntry> audience,
+		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "The viewer's own reasons for seeing the event (D-017): each server in its audience where both the viewer and the host are discoverable now, FRIEND when it is open to the host's friends and the viewer is one, and INVITED for a circle or a personal invite (never which). Null for the host. Empty when the viewer sees it only through an active RSVP or as a moderator.") List<VisibleReason> visibleBecause,
 		@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, maxLength = 500, description = "Set only for the host, while moderators have hidden the event: their reason, as plain text. Nobody else can see a hidden event (D-015). Null otherwise.") String hiddenReason)
 		implements ResponseBodyObject {
 	/**
@@ -141,6 +149,42 @@ public record EventResponse(@Schema(requiredMode = RequiredMode.REQUIRED) UUID i
 		 * One person the host can pick.
 		 */
 		USER
+	}
+
+	/**
+	 * Why a viewer who isn't the host can see an event (D-017).
+	 *
+	 * @author mcawful
+	 */
+	public enum ReasonType {
+		/**
+		 * A server in the audience where both the viewer and the host are discoverable
+		 * now.
+		 */
+		GUILD,
+
+		/**
+		 * The event is open to the host's friends, and the viewer is one.
+		 */
+		FRIEND,
+
+		/**
+		 * The viewer is in one of the event's circles or was invited personally. It
+		 * never says which, or which circle.
+		 */
+		INVITED
+	}
+
+	/**
+	 * One of the viewer's reasons for seeing an event.
+	 *
+	 * @param type      the kind of reason
+	 * @param guildName the server's name, for {@code GUILD}, and {@code null}
+	 *                  otherwise
+	 * @author mcawful
+	 */
+	public record VisibleReason(@Schema(requiredMode = RequiredMode.REQUIRED) ReasonType type,
+			@Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, example = "Example Con Community", description = "The server's name, for GUILD. Null otherwise.") String guildName) {
 	}
 
 	/**

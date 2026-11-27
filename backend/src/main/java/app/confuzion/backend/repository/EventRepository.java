@@ -40,38 +40,55 @@ import jakarta.persistence.LockModeType;
  */
 public interface EventRepository extends JpaRepository<Event, Long> {
 	/**
+	 * Whether neither the host of event {@code e} nor the viewer {@code :viewer}
+	 * has blocked the other (D-011).
+	 */
+	String UNBLOCKED = """
+			NOT EXISTS (SELECT 1 FROM block b
+				WHERE (b.blocker_id = e.host_id AND b.blocked_id = :viewer)
+					OR (b.blocker_id = :viewer AND b.blocked_id = e.host_id))
+			""";
+
+	/**
+	 * Whether audience entry {@code a} of event {@code e} reaches the viewer
+	 * {@code :viewer}: a {@code USER} entry naming them, a {@code FRIENDS} entry
+	 * while they are the host's friend, a {@code CIRCLE} entry for one of the
+	 * host's circles they are in, or a {@code GUILD} entry for a server where both
+	 * of them are discoverable now (D-012). {@link #VISIBLE} and the viewer's own
+	 * reasons ({@link EventAudienceRepository#findReasons}) share it, so a reason
+	 * can never be wider than the visibility it explains (D-017).
+	 */
+	String REACHES = """
+			((a.type = 'USER' AND a.user_id = :viewer)
+				OR (a.type = 'FRIENDS' AND EXISTS (SELECT 1 FROM friendship f
+					WHERE f.user_a = LEAST(e.host_id, CAST(:viewer AS uuid))
+						AND f.user_b = GREATEST(e.host_id, CAST(:viewer AS uuid))))
+				OR (a.type = 'CIRCLE' AND EXISTS (SELECT 1 FROM circle c
+					JOIN circle_member cm ON cm.circle_id = c.id AND cm.user_id = :viewer
+					WHERE c.id = a.circle_id AND c.owner_id = e.host_id))
+				OR (a.type = 'GUILD' AND EXISTS (SELECT 1 FROM user_guild vg
+					JOIN user_guild hg ON hg.guild_id = vg.guild_id AND hg.user_id = e.host_id AND hg.discoverable
+					WHERE vg.guild_id = a.guild_id AND vg.user_id = :viewer AND vg.discoverable)))
+			""";
+
+	/**
 	 * Whether the viewer {@code :viewer} may see event {@code e}: the one
 	 * visibility predicate that the detail view, the feed, My schedule and RSVP
 	 * share. The host always sees their own events. Anyone else needs no block
-	 * between them and the host, either way, and then either an active
-	 * ({@link RsvpRepository#ACTIVE}: confirmed, waitlisted or offered) RSVP, which
-	 * keeps a cancelled event visible too (D-013 rule 10), or a published event
-	 * with an audience entry that matches them: a {@code USER} entry naming them, a
-	 * {@code FRIENDS} entry while they are the host's friend, a {@code CIRCLE}
-	 * entry for one of the host's circles they are in, or a {@code GUILD} entry for
-	 * a server where both of them are discoverable now. An event hidden by
-	 * moderators is visible to its host only, whatever RSVP or audience entry
-	 * anyone else has (D-015 rule 10); {@link #findVisible} adds the moderators.
+	 * between them and the host, either way ({@link #UNBLOCKED}), and then either
+	 * an active ({@link RsvpRepository#ACTIVE}: confirmed, waitlisted or offered)
+	 * RSVP, which keeps a cancelled event visible too (D-013 rule 10), or a
+	 * published event with an audience entry that {@link #REACHES} them. An event
+	 * hidden by moderators is visible to its host only, whatever RSVP or audience
+	 * entry anyone else has (D-015 rule 10); {@link #findVisible} adds the
+	 * moderators.
 	 */
-	String VISIBLE = """
-			(e.host_id = :viewer OR (NOT e.hidden_by_moderation AND NOT EXISTS (SELECT 1 FROM block b
-					WHERE (b.blocker_id = e.host_id AND b.blocked_id = :viewer)
-						OR (b.blocker_id = :viewer AND b.blocked_id = e.host_id))
-				AND (EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id AND r.user_id = :viewer
-						AND\s""" + RsvpRepository.ACTIVE + """
-				)
-				OR e.status = 'PUBLISHED' AND EXISTS (SELECT 1 FROM event_audience a WHERE a.event_id = e.id AND (
-					(a.type = 'USER' AND a.user_id = :viewer)
-					OR (a.type = 'FRIENDS' AND EXISTS (SELECT 1 FROM friendship f
-						WHERE f.user_a = LEAST(e.host_id, CAST(:viewer AS uuid))
-							AND f.user_b = GREATEST(e.host_id, CAST(:viewer AS uuid))))
-					OR (a.type = 'CIRCLE' AND EXISTS (SELECT 1 FROM circle c
-						JOIN circle_member cm ON cm.circle_id = c.id AND cm.user_id = :viewer
-						WHERE c.id = a.circle_id AND c.owner_id = e.host_id))
-					OR (a.type = 'GUILD' AND EXISTS (SELECT 1 FROM user_guild vg
-						JOIN user_guild hg ON hg.guild_id = vg.guild_id AND hg.user_id = e.host_id AND hg.discoverable
-						WHERE vg.guild_id = a.guild_id AND vg.user_id = :viewer AND vg.discoverable)))))))
-			""";
+	String VISIBLE = "(e.host_id = :viewer OR (NOT e.hidden_by_moderation AND " + UNBLOCKED + """
+			AND (EXISTS (SELECT 1 FROM rsvp r WHERE r.event_id = e.id AND r.user_id = :viewer
+					AND\s""" + RsvpRepository.ACTIVE + """
+			)
+			OR e.status = 'PUBLISHED' AND EXISTS (SELECT 1 FROM event_audience a WHERE a.event_id = e.id
+				AND\s""" + REACHES + "))))";
 
 	/**
 	 * Whether event {@code e} is under moderation for the viewer {@code :viewer}:

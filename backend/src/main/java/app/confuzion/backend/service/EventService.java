@@ -20,6 +20,7 @@ package app.confuzion.backend.service;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
@@ -64,7 +65,9 @@ import app.confuzion.backend.model.record.EventResponse;
 import app.confuzion.backend.model.record.EventResponse.AudienceEntry;
 import app.confuzion.backend.model.record.EventResponse.AudienceType;
 import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
+import app.confuzion.backend.model.record.EventResponse.ReasonType;
 import app.confuzion.backend.model.record.EventResponse.Status;
+import app.confuzion.backend.model.record.EventResponse.VisibleReason;
 import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.NotificationPayload;
 import app.confuzion.backend.model.record.NotificationPayload.Change;
@@ -74,6 +77,7 @@ import app.confuzion.backend.repository.AppUserRepository;
 import app.confuzion.backend.repository.AuditLogRepository;
 import app.confuzion.backend.repository.EventAudienceRepository;
 import app.confuzion.backend.repository.EventAudienceRepository.LabelledEntry;
+import app.confuzion.backend.repository.EventAudienceRepository.Reason;
 import app.confuzion.backend.repository.EventRepository;
 import app.confuzion.backend.repository.NotificationRepository;
 import app.confuzion.backend.repository.RsvpRepository;
@@ -528,7 +532,8 @@ public class EventService {
 
 	/**
 	 * Maps events to what the viewer may see, loading hosts, where the viewer
-	 * stands and (for the viewer's own events) audiences in one query each.
+	 * stands, audiences (for the viewer's own events) and the viewer's reasons (for
+	 * everyone else's) in one query each, however many events there are.
 	 *
 	 * @param viewer    the viewer's user ID
 	 * @param events    the events, which the viewer may see
@@ -543,27 +548,35 @@ public class EventService {
 		var audiences = ownIds.isEmpty() ? Map.<Long, List<AudienceEntry>>of()
 				: audienceRepository.findLabelled(ownIds).stream().collect(
 						groupingBy(LabelledEntry::getEventId, mapping(EventService::toAudienceEntry, toList())));
+		var otherIds = events.stream().filter(event -> !event.getHostId().equals(viewer)).map(Event::getId).toList();
+		Map<Long, Set<VisibleReason>> reasons = otherIds.isEmpty() ? Map.of()
+				: audienceRepository.findReasons(viewer, otherIds).stream().collect(groupingBy(Reason::getEventId,
+						mapping(EventService::toVisibleReason, toCollection(LinkedHashSet::new))));
 		var statuses = rsvpRepository.findStatuses(viewer, events.stream().map(Event::getId).toList());
-		return events.stream().map(event -> toResponse(viewer, event, hosts.get(event.getHostId()),
-				statuses.getOrDefault(event.getId(), MyStatus.NONE), audiences, reviewing)).toList();
+		return events.stream()
+				.map(event -> toResponse(viewer, event, hosts.get(event.getHostId()),
+						statuses.getOrDefault(event.getId(), MyStatus.NONE), audiences,
+						List.copyOf(reasons.getOrDefault(event.getId(), Set.of())), reviewing))
+				.toList();
 	}
 
 	/**
 	 * Maps one event to what the viewer may see. Only the host gets the audience,
 	 * and a {@link LocationVisibility#CONFIRMED} location is withheld from everyone
 	 * but the host, confirmed attendees (D-013) and a moderator reviewing it (D-015
-	 * rule 8).
+	 * rule 8). Everyone else gets their own reasons for seeing it instead (D-017).
 	 *
 	 * @param viewer    the viewer's user ID
 	 * @param event     the {@link Event}
 	 * @param host      the host
 	 * @param myStatus  where the viewer stands
 	 * @param audiences the audiences of the viewer's own events, by event ID
+	 * @param reasons   the viewer's reasons for seeing it, ignored for the host
 	 * @param reviewing whether a moderator is reviewing it
 	 * @return the {@link EventResponse}
 	 */
 	private static EventResponse toResponse(UUID viewer, Event event, AppUser host, MyStatus myStatus,
-			Map<Long, List<AudienceEntry>> audiences, boolean reviewing) {
+			Map<Long, List<AudienceEntry>> audiences, List<VisibleReason> reasons, boolean reviewing) {
 		var isHost = event.getHostId().equals(viewer);
 		var locationHidden = !isHost && !reviewing && myStatus != MyStatus.CONFIRMED
 				&& event.getLocationVisibility() == LocationVisibility.CONFIRMED;
@@ -573,9 +586,27 @@ public class EventService {
 						UserService.avatarUrl(host.getDiscordId(), host.getAvatarHash())),
 				event.getTitle(), event.getDescription(), locationHidden ? null : event.getLocationText(),
 				locationHidden, event.getLocationVisibility(), event.getTag(), event.getStartsAt(), event.getEndsAt(),
-				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getConfirmWindowMinutes(),
-				event.getStatus(), isHost, myStatus, isHost ? audiences.getOrDefault(event.getId(), List.of()) : null,
+				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(),
+				event.getCapacity() == null ? null : Math.max(event.getCapacity() - event.getConfirmedCount(), 0),
+				event.getConfirmWindowMinutes(), event.getStatus(), isHost, myStatus,
+				isHost ? audiences.getOrDefault(event.getId(), List.of()) : null, isHost ? null : reasons,
 				isHost ? event.getModerationReason() : null);
+	}
+
+	/**
+	 * Maps an entry that reaches the viewer to their reason: the server by name, a
+	 * friend of the host, or invited, which a circle and a personal invite share so
+	 * neither is told apart (D-017).
+	 *
+	 * @param reason the {@link Reason}
+	 * @return the {@link VisibleReason}
+	 */
+	private static VisibleReason toVisibleReason(Reason reason) {
+		return switch (AudienceType.valueOf(reason.getType())) {
+		case GUILD -> new VisibleReason(ReasonType.GUILD, reason.getGuildName());
+		case FRIENDS -> new VisibleReason(ReasonType.FRIEND, null);
+		case CIRCLE, USER -> new VisibleReason(ReasonType.INVITED, null);
+		};
 	}
 
 	/**
