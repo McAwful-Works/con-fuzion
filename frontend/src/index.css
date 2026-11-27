@@ -24,9 +24,13 @@
   --color-ink: #1d1630;
   --color-ink-muted: #6b6079;
   --color-ink-inverse: #fff6ea;
-  /* `line` divides content. `outline` is the ink border around cards and controls. */
+  /*
+   * `line` divides content. `outline` is the ink border around cards and buttons, and
+   * `control-outline` the border of form controls, which is lighter in dark mode.
+   */
   --color-line: #e6d8c4;
   --color-outline: #1d1630;
+  --color-control-outline: var(--color-outline);
 
   /* Coral marks actions. `accent-ink` is text on coral; `accent-text` is coral text on a surface. */
   --color-accent: #ff5a36;
@@ -106,6 +110,8 @@
     --color-ink-inverse: #16111f;
     --color-line: #3a3050;
     --color-outline: #000000;
+    /* At least 3:1 on every surface (WCAG 1.4.11), where a black border barely shows. */
+    --color-control-outline: #7a6e96;
 
     --color-accent-ink: #1a0f08;
     --color-accent-text: #ff7a5c;
@@ -184,7 +190,7 @@
 
 /* A chip is selected with `aria-pressed`, `aria-current`, or a checked input inside it. */
 @utility chip {
-  @apply border-outline bg-surface-raised text-ink rounded-full border-2;
+  @apply border-control-outline bg-surface-raised text-ink rounded-full border-2;
   @apply inline-flex min-h-11 items-center justify-center gap-1.5 px-3.5;
   @apply text-sm font-semibold whitespace-nowrap;
   &:has(:focus-visible) {
@@ -231,10 +237,10 @@
  * `::after` makes the target 44px tall.
  */
 @utility switch {
-  @apply border-outline bg-surface-sunken relative inline-block h-7 w-12 shrink-0 rounded-full border-2;
-  @apply disabled:opacity-50;
+  @apply border-control-outline bg-surface-sunken relative inline-block h-7 w-12 shrink-0;
+  @apply rounded-full border-2 disabled:opacity-50;
   &::before {
-    @apply border-outline bg-knob absolute top-0.5 left-0.5 size-5 rounded-full border-2;
+    @apply border-control-outline bg-knob absolute top-0.5 left-0.5 size-5 rounded-full border-2;
     content: '';
   }
   &::after {
@@ -245,7 +251,8 @@
     @apply bg-accent;
   }
   &[aria-checked='true']::before {
-    @apply left-5.5;
+    /* The ink ring again: it shows better against coral. */
+    @apply border-outline left-5.5;
   }
 }
 
@@ -254,8 +261,8 @@
  * phones.
  */
 @utility seg {
-  @apply rounded-card border-outline bg-surface-sunken flex w-full max-w-full gap-1.5 border-2 p-1;
-  @apply sm:w-fit;
+  @apply rounded-card border-control-outline bg-surface-sunken border-2 p-1;
+  @apply flex w-full max-w-full gap-1.5 sm:w-fit;
 }
 @utility seg-item {
   @apply rounded-control text-ink-muted border-2 border-transparent;
@@ -267,7 +274,7 @@
   &[aria-pressed='true'],
   &[aria-current]:not([aria-current='false']),
   &:has(:checked) {
-    @apply border-outline bg-surface-raised text-ink shadow-selected;
+    @apply border-control-outline bg-surface-raised text-ink shadow-selected;
   }
 }
 
@@ -279,7 +286,7 @@
   @apply text-sm font-bold;
 }
 @utility field-control {
-  @apply rounded-control border-outline bg-surface-raised text-ink border-2;
+  @apply rounded-control border-control-outline bg-surface-raised text-ink border-2;
   /* 16px text, so that iOS doesn't zoom in on focus. */
   @apply min-h-12 w-full px-3.5 py-2.5 text-base;
   @apply placeholder:text-ink-muted disabled:opacity-50;
