@@ -40,13 +40,16 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | | Frontend: report sheet, the 2FA note, hidden, refused and maintenance states | done | #87 → #91 |
 | | Frontend: the admin area: queue and report detail, then search and suspend, then bans, roles and the audit log (split in three) | done | #88 → #95, #97, #98 |
 | | End-to-end tests for M5 flows (hidden-event break check) | done | #89 → #100 |
-| **M5.5** UI redesign | D-017 and the approved mockups in `docs/design/` | in review | #111 |
-| | Option A design tokens, fonts and dark mode | todo | #112 |
-| | App shell and the five-place navigation (old routes redirect) | todo | #113 |
-| | Backend: spots left and "why you can see this" on events, then Discover search and filters (`security`) | todo | #114, #115 |
-| | Frontend: the event card and Discover, then My plans | todo | #116, #117 |
-| | Frontend: the event page, the time-zone picker, host a meetup | todo | #118, #119, #120 |
-| | Frontend: People, Inbox and You; welcome and onboarding; moderation; cover photos by tag | todo | #121, #122, #123, #124 |
+| **M5.5** UI redesign | D-017 and the approved mockups in `docs/design/` | done | #111 → #125 |
+| | Option A design tokens, fonts and dark mode (ink text on coral, lighter dark-mode control borders) | done | #112 → #126 |
+| | App shell and the five-place navigation (old routes redirect) | done | #113 → #127 |
+| | Backend: spots left and "why you can see this" on events, then Discover search and filters (`security`) | done | #114 → #130, #115 → #132 |
+| | Frontend: the event card and Discover (split in two), then My plans | done | #116 → #137, #142; #117 → #148 |
+| | Frontend: the event page and the time-zone picker | done | #118 → #133, #119 → #131 |
+| | Frontend: host a meetup (split in three: layout, preview, details and when; spots and audience; the phone steps) | done | #120 → #141, #144, #146 |
+| | Frontend: welcome and onboarding (split in two), moderation (split in two), cover photos by tag (CSS placeholders until the owner adds licensed photos) | done | #122 → #139, #143; #123 → #140, #145; #124 → #149 |
+| | Frontend: People, then Inbox and You (split in two) | in progress | #121 → #147, … |
+| | Fix found along the way: sign-in redirect loop when a session ends while the app is open | done | #128 → #129 |
 | **M6** AWS deploy | Container image: multi-stage `Dockerfile`, non-root, image build and Trivy scan in CI | done | #102 → #108 |
 | | Terraform bootstrap (state, GitHub OIDC roles), then the account baseline (CloudTrail, GuardDuty, alarms, budget) (split in two) | done | #103 → #109, #110 |
 | | Network, Aurora, Valkey and the secret containers (waits on the owner applying `infra/bootstrap`) | todo | #104 |
