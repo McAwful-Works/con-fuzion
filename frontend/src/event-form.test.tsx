@@ -146,6 +146,21 @@ describe('the preview', () => {
     expect(preview().getByText('Location shared with confirmed attendees')).toBeInTheDocument();
   });
 
+  it('counts the host’s own spot, and on an edit the spots already taken', async () => {
+    signedIn();
+    const router = renderApp('/events/new');
+    await screen.findByLabelText('Title');
+    expect(preview().getByText('No limit')).toBeInTheDocument();
+    fill('Capacity', '8');
+    expect(preview().getByText('7 of 8 left')).toBeInTheDocument();
+
+    // 6 of 20 are taken, so a limit of 10 leaves 4.
+    await router.navigate(`/events/${mine.id}/edit`);
+    await waitFor(() => expect(preview().getByText('14 of 20 left')).toBeInTheDocument());
+    fill('Capacity', '10');
+    expect(preview().getByText('4 of 10 left')).toBeInTheDocument();
+  });
+
   it('says who it’s visible to', async () => {
     signedIn();
     renderApp('/events/new');
