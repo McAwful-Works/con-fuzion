@@ -58,3 +58,4 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | One card component for events and the welcome examples | The welcome page's example cards repeat the event card's markup, because #116 was rebuilding that card in parallel and the real one is a link with live times. Share its body once both have landed |
 | Right spot count in the preview when an unlimited event gets a limit | #120's edit preview counts only the host for an event that was unlimited, because its card data has no confirmed count. `/spots` has it. Saving a limit that is too low still gets the capacity 409 |
 | "Friends since" on friend rows | The People mockup shows the date under each name (#121), but `PersonResponse` has none, so it needs an API change |
+| Keep keyboard focus when a person's row goes away | Removing, unfriending or blocking from a row's menu drops focus to the page, as the old row buttons did (#121). Move it to the list's heading or the next row |

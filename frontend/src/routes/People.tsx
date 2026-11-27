@@ -97,9 +97,11 @@ export function People() {
           </>
         )}
       </div>
+      {/* The column stays on the other tabs, so the lists keep one width. */}
       {desktop && (
         <aside aria-label="Add a friend, and circles" hidden={!friendsTab} className="space-y-4">
           <InvitePanel />
+          {/* Not just hidden: the Circles tab has this list already. */}
           {friendsTab && (
             <section aria-labelledby="side-circles-heading" className="space-y-3">
               <h2 id="side-circles-heading" className="text-base font-extrabold">
