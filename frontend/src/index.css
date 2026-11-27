@@ -66,13 +66,26 @@
   --color-side-muted: #c8bfd6;
 
   /* The event page's hero, and the time blocks of event cards (used in turn). */
-  --color-hero: #7450f5;
   --color-hero-ink: #ffffff;
   --color-hero-tag: #1d1630;
+  /* The dark gradient under the hero's text, over its cover photo. */
+  --color-scrim: #1d1630;
   --color-when-1: #7450f5;
   --color-when-2: #1d1630;
   --color-when-3: #0b7a5c;
   --color-when-ink: #fff6ea;
+
+  /* Cover placeholders: one stripe color per tag and their label, the same in light and dark. */
+  --color-cover-tabletop: #c8bbff;
+  --color-cover-photoshoot: #ffe39a;
+  --color-cover-food: #dcefa6;
+  --color-cover-music: #ffc9b8;
+  --color-cover-panel: #ffc6e3;
+  --color-cover-shopping: #bff0d9;
+  --color-cover-hobby: #bde0ff;
+  --color-cover-default: #e6d8c4;
+  --color-cover-label: rgb(255 255 255 / 0.85);
+  --color-cover-label-ink: #1d1630;
 
   /* Discord brand blurple with white text, per Discord's brand guidelines. */
   --color-discord: #5865f2;
@@ -133,8 +146,8 @@
     --color-side-raised: #1d1729;
     --color-side-line: #2a2238;
 
-    --color-hero: #5b3fd9;
     --color-hero-tag: #16111f;
+    --color-scrim: #16111f;
     --color-when-1: #9b84ff;
     --color-when-2: #fbf1e4;
     --color-when-3: #4fd6a6;
@@ -257,6 +270,46 @@
   li:nth-child(3n) & {
     @apply bg-when-3;
   }
+}
+
+/*
+ * Cover placeholders, shown until the licensed photos arrive (features/events/covers.ts):
+ * `placeholder-cover` plus one tag's color for its stripes, and `cover-label` for the text on it.
+ */
+@utility placeholder-cover {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--stripe) 0 14px,
+    color-mix(in srgb, var(--stripe), var(--color-cover-label-ink) 8%) 14px 28px
+  );
+}
+@utility placeholder-cover-tabletop {
+  --stripe: var(--color-cover-tabletop);
+}
+@utility placeholder-cover-photoshoot {
+  --stripe: var(--color-cover-photoshoot);
+}
+@utility placeholder-cover-food {
+  --stripe: var(--color-cover-food);
+}
+@utility placeholder-cover-music {
+  --stripe: var(--color-cover-music);
+}
+@utility placeholder-cover-panel {
+  --stripe: var(--color-cover-panel);
+}
+@utility placeholder-cover-shopping {
+  --stripe: var(--color-cover-shopping);
+}
+@utility placeholder-cover-hobby {
+  --stripe: var(--color-cover-hobby);
+}
+@utility placeholder-cover-default {
+  --stripe: var(--color-cover-default);
+}
+@utility cover-label {
+  @apply rounded-tag bg-cover-label text-cover-label-ink px-2.5 py-1;
+  @apply text-[0.6875rem] font-bold tracking-wider uppercase;
 }
 
 /*
