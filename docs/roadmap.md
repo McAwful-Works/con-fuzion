@@ -48,7 +48,7 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | | Frontend: the event page and the time-zone picker | done | #118 → #133, #119 → #131 |
 | | Frontend: host a meetup (split in three: layout, preview, details and when; spots and audience; the phone steps) | done | #120 → #141, #144, #146 |
 | | Frontend: welcome and onboarding (split in two), moderation (split in two), cover photos by tag (CSS placeholders until the owner adds licensed photos) | done | #122 → #139, #143; #123 → #140, #145; #124 → #149 |
-| | Frontend: People, then Inbox and You (split in two) | in progress | #121 → #147, … |
+| | Frontend: People, then the Inbox and You (split in three) | done | #121 → #147, #152, #153 |
 | | Fix found along the way: sign-in redirect loop when a session ends while the app is open | done | #128 → #129 |
 | **M6** AWS deploy | Container image: multi-stage `Dockerfile`, non-root, image build and Trivy scan in CI | done | #102 → #108 |
 | | Terraform bootstrap (state, GitHub OIDC roles), then the account baseline (CloudTrail, GuardDuty, alarms, budget) (split in two) | done | #103 → #109, #110 |
