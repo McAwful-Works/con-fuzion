@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Event } from '../../api/events';
 import { audienceSummary, circleEntry, friendsEntry, guildEntry, userEntry } from './audience';
-import { dayKey, eventTimes, groupByDay, utcToZonedLocal, zonedToUtcIso } from './time';
+import {
+  browserTimeZone,
+  dayKey,
+  eventTimes,
+  groupByDay,
+  utcToZonedLocal,
+  zonedToUtcIso,
+} from './time';
 import { emptyValues, validateEvent, valuesFromEvent, type EventFormValues } from './validation';
 
 const NOW = new Date('2030-06-01T12:00:00Z');
@@ -307,5 +314,36 @@ describe('form validation', () => {
     };
     const { request } = validateEvent(valid({ startsAt: '2030-06-10T15:00' }), NOW, original);
     expect(request?.startsAt).toBe('2030-06-10T20:00:30.123Z');
+  });
+});
+
+describe('an engine that spells UTC as an offset', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** Makes `resolvedOptions()` report `+00:00` wherever it would report UTC. */
+  function reportUtcAsOffset() {
+    const real = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(function (
+      this: Intl.DateTimeFormat,
+    ) {
+      const options = real.call(this);
+      return options.timeZone === 'UTC' ? { ...options, timeZone: '+00:00' } : options;
+    });
+  }
+
+  // #119: the form turned UTC into "+00:00" and then refused its own answer.
+  it('accepts UTC and sends it by name', () => {
+    reportUtcAsOffset();
+    const { errors, request } = validateEvent(valid({ timeZone: 'UTC' }), NOW);
+    expect(errors.timeZone).toBeUndefined();
+    expect(request?.timeZone).toBe('UTC');
+  });
+
+  // Chromium does this for a system zone of "GMT", and the form started with what it reported.
+  it('names a browser zone of +00:00 UTC', () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
+      timeZone: '+00:00',
+    } as Intl.ResolvedDateTimeFormatOptions);
+    expect(browserTimeZone()).toBe('UTC');
   });
 });

@@ -119,8 +119,8 @@ export function validateEvent(
     errors.tag = `Keep the tag to ${EVENT_TAG_MAX} characters or fewer.`;
 
   // The server matches zone names exactly, so `america/chicago` is sent as `America/Chicago`.
-  const zone = canonicalTimeZone(values.timeZone) ?? values.timeZone.trim();
-  const zoneOk = zone.length > 0 && zone.length <= 64 && canonicalTimeZone(zone) !== null;
+  const zone = canonicalTimeZone(values.timeZone) ?? '';
+  const zoneOk = zone.length > 0 && zone.length <= 64;
   if (!zoneOk) errors.timeZone = 'Choose a time zone from the list, such as America/Chicago.';
 
   // Times are read in the event's zone; without a valid zone they can't be read at all.
