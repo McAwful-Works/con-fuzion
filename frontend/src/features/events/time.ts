@@ -1,8 +1,11 @@
 import type { Event } from '../../api/events';
 
-/** The browser's own time zone, for a viewer whose profile has none yet. */
+/**
+ * The browser's own time zone, for a viewer whose profile has none yet. UTC when the browser can't
+ * name it: Chromium reports a system zone of "GMT" as `+00:00`.
+ */
 export function browserTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  return canonicalTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone ?? '') ?? 'UTC';
 }
 
 /**
@@ -24,10 +27,102 @@ export function isValidTimeZone(zone: string): boolean {
   return canonicalTimeZone(zone) !== null;
 }
 
-/** The IANA names the browser knows, for the time zone suggestions. */
+/** The zones the picker offers: UTC, which engines leave off their list, then the browser's own. */
 export function knownTimeZones(): string[] {
   const supported = (Intl as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
-  return supported ? supported('timeZone') : [];
+  const zones = supported ? supported('timeZone') : [];
+  return ['UTC', ...zones.filter((zone) => zone !== 'UTC')];
+}
+
+type NameStyle = 'short' | 'longOffset' | 'longGeneric';
+
+// Making a formatter is the slow part, and one search names all 400 or so zones, so each is kept.
+const NAME_FORMATS = new Map<string, Intl.DateTimeFormat>();
+
+/** The zone's name in one of `Intl`'s styles at an instant. Null for a zone the browser can't read. */
+function zoneName(zone: string, style: NameStyle, at: Date): string | null {
+  const key = `${style} ${zone}`;
+  let format = NAME_FORMATS.get(key);
+  if (!format) {
+    try {
+      format = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: style });
+    } catch {
+      return null;
+    }
+    NAME_FORMATS.set(key, format);
+  }
+  return format.formatToParts(at).find((part) => part.type === 'timeZoneName')?.value ?? '';
+}
+
+/** "Eastern" for America/New_York; empty when the zone has no name besides its offset. */
+function genericName(zone: string): string {
+  const long = zone === 'UTC' ? '' : (zoneName(zone, 'longGeneric', new Date()) ?? '');
+  return long.startsWith('GMT') ? '' : long.replace(/( Standard)? Time$/, '');
+}
+
+/** "America/New_York · Eastern (EST)", with the abbreviation in use at `at`. */
+export function timeZoneLabel(zone: string, at = new Date()): string {
+  if (zone === 'UTC') return 'UTC · Coordinated Universal Time';
+  const short = zoneName(zone, 'short', at);
+  if (short === null) return zone;
+  const name = genericName(zone);
+  return name ? `${zone} · ${name} (${short})` : `${zone} (${short})`;
+}
+
+/** The zone's offset from UTC at `at`, such as `GMT-05:00`. */
+export function timeZoneOffset(zone: string, at = new Date()): string {
+  return zoneName(zone, 'longOffset', at) ?? '';
+}
+
+/** Extra words to find a zone by: cities that some browsers still list under an older spelling. */
+const ALSO_KNOWN_AS: Record<string, string> = {
+  UTC: 'Coordinated Universal Time GMT',
+  'America/Godthab': 'Nuuk',
+  'Asia/Calcutta': 'Kolkata',
+  'Asia/Katmandu': 'Kathmandu',
+  'Asia/Rangoon': 'Yangon',
+  'Asia/Saigon': 'Ho Chi Minh',
+  'Europe/Kiev': 'Kyiv',
+};
+
+const searchText = (text: string) => text.toLowerCase().replace(/_/g, ' ');
+
+/**
+ * The zones that match every word of `query` in their city, zone name ("America/Chicago") or
+ * common name ("Central"). Cities that start with what was typed come first.
+ */
+export function searchTimeZones(zones: string[], query: string): string[] {
+  const words = searchText(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return zones;
+  const typed = words.join(' ');
+  const rank = (zone: string) =>
+    searchText(zone.slice(zone.lastIndexOf('/') + 1)).startsWith(typed) ? 0 : 1;
+  return zones
+    .filter((zone) => {
+      const text = searchText(`${zone} ${ALSO_KNOWN_AS[zone] ?? ''} ${genericName(zone)}`);
+      return words.every((word) => text.includes(word));
+    })
+    .sort((a, b) => rank(a) - rank(b));
+}
+
+// The zone the last new event used, kept on this device. Storage can be blocked; then there is none.
+const LAST_ZONE_KEY = 'cf-last-time-zone';
+
+export function lastUsedTimeZone(): string | null {
+  try {
+    const stored = localStorage.getItem(LAST_ZONE_KEY);
+    return stored ? canonicalTimeZone(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberTimeZone(zone: string): void {
+  try {
+    localStorage.setItem(LAST_ZONE_KEY, zone);
+  } catch {
+    // Nothing to do: the next event starts from the profile's zone.
+  }
 }
 
 const PARTS = new Map<string, Intl.DateTimeFormat>();
