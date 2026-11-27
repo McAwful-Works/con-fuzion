@@ -142,7 +142,7 @@ test.describe('capacity edits', () => {
 
     // 3 confirmed (the host and two guests): 2 is too few, and nothing is saved.
     await host.page.goto(`/events/${id}/edit`);
-    await expect(host.page.getByRole('heading', { name: 'Edit event' })).toBeVisible();
+    await expect(host.page.getByRole('heading', { name: 'Edit meetup' })).toBeVisible();
     await host.page.getByLabel('Capacity').fill('2');
     await host.page.getByRole('button', { name: 'Save changes' }).click();
     await expect(
