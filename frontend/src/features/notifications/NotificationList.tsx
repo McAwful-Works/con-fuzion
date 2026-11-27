@@ -4,10 +4,12 @@ import { Link, useNavigate } from 'react-router';
 import { ApiError } from '../../api/client';
 import { eventQuery } from '../../api/events';
 import { useMarkRead, useNotifications, type Notification } from '../../api/notifications';
+import { CardList } from '../../components/CardList';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
 import { useNow } from '../rsvp/signup';
 import { describeNotification } from './describe';
+import { lookOf } from './look';
 
 const WHEN = new Intl.DateTimeFormat(undefined, {
   month: 'short',
@@ -23,8 +25,18 @@ function targetOf(n: Notification): string | null {
   return n.type === 'REPORT_RECEIVED' ? '/admin' : null;
 }
 
-function linkLabel(n: Notification, checking: boolean): string {
-  if (n.eventId) return checking ? 'Opening…' : 'View event';
+/** An offer whose deadline hasn't passed. It may have been answered since: the event page says. */
+function offerOpen(n: Notification, now: number): boolean {
+  if (n.type !== 'SPOT_OFFERED') return false;
+  const deadline = n.payload.offerExpiresAt;
+  return !deadline || Date.parse(deadline) > now;
+}
+
+function linkLabel(n: Notification, checking: boolean, offer: boolean): string {
+  if (n.eventId) {
+    if (checking) return 'Opening…';
+    return offer ? 'Review offer' : 'View event';
+  }
   return n.type === 'REPORT_RECEIVED' ? 'Open reports' : 'View friends';
 }
 
@@ -56,36 +68,61 @@ function Entry({ n, now }: { n: Notification; now: number }) {
     void navigate(`/events/${n.eventId}`);
   };
 
+  const offer = offerOpen(n, now);
+  const { icon: Icon, tile } = lookOf(n.type);
   return (
-    <li className="border-line bg-surface-raised rounded-card space-y-2 border p-4">
-      <p className="break-words">
-        {!n.read && (
-          <span className="bg-accent text-accent-ink rounded-control mr-2 px-2 text-sm font-medium">
-            New
-          </span>
-        )}
-        {describeNotification(n, now)}
-      </p>
-      <p className="text-ink-muted text-sm">
-        <time dateTime={n.createdAt}>{WHEN.format(new Date(n.createdAt))}</time>
-      </p>
-      {gone ? (
-        <p role="status" className="text-sm font-medium">
-          This event is no longer available.
+    <li className="flex items-start gap-3 px-3.5 py-3.5">
+      <span className={`rounded-control flex size-10 shrink-0 items-center justify-center ${tile}`}>
+        <Icon aria-hidden="true" className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-semibold break-words">
+          {!n.read && <span className="sr-only">New: </span>}
+          {describeNotification(n, now)}
         </p>
-      ) : (
-        target && (
-          <Link
-            to={target}
-            onClick={(e) => void open(e)}
-            className="inline-flex min-h-11 items-center text-sm underline"
-          >
-            {linkLabel(n, checking)}
-          </Link>
-        )
+        {gone ? (
+          <p role="status" className="text-sm font-medium">
+            This event is no longer available.
+          </p>
+        ) : (
+          target && (
+            <Link
+              to={target}
+              onClick={(e) => void open(e)}
+              className={
+                offer
+                  ? 'btn btn-primary btn-sm my-1'
+                  : 'inline-flex min-h-11 items-center text-sm font-bold underline'
+              }
+            >
+              {linkLabel(n, checking, offer)}
+            </Link>
+          )
+        )}
+        <p className="hint">
+          <time dateTime={n.createdAt}>{WHEN.format(new Date(n.createdAt))}</time>
+        </p>
+      </div>
+      {/* A shape as well as a color; screen readers get "New" before the words. */}
+      {!n.read && (
+        <span
+          aria-hidden="true"
+          data-unread
+          className="bg-accent border-outline mt-1.5 size-3 shrink-0 rounded-full border-2"
+        />
       )}
     </li>
   );
+}
+
+/** Today's entries and the earlier ones, by the day on this device. Empty groups are left out. */
+function byDay(items: Notification[], now: number) {
+  const today = new Date(now).toDateString();
+  const isToday = (n: Notification) => new Date(n.createdAt).toDateString() === today;
+  return [
+    { id: 'today', title: 'Today', items: items.filter(isToday) },
+    { id: 'earlier', title: 'Earlier', items: items.filter((n) => !isToday(n)) },
+  ].filter((group) => group.items.length > 0);
 }
 
 /** Calls `onVisible` when the element scrolls into view. Without IntersectionObserver, the button does it. */
@@ -129,7 +166,7 @@ export function NotificationList() {
 
   const canLoadMore = inbox.hasNextPage && !inbox.isFetchingNextPage && !inbox.isFetchNextPageError;
   const sentinel = useWhenVisible(() => void inbox.fetchNextPage(), canLoadMore);
-  // Only the "deadline was / is" wording of an offer depends on the time, so a slow clock is enough.
+  // An offer's deadline and the turn of the day depend on the time, so a slow clock is enough.
   const now = useNow(30_000);
 
   if (!inbox.data && !inbox.isError) {
@@ -154,11 +191,21 @@ export function NotificationList() {
 
   return (
     <div className="space-y-4">
-      <ul className="space-y-3">
-        {items.map((n) => (
-          <Entry key={n.id} n={n} now={now} />
-        ))}
-      </ul>
+      {byDay(items, now).map((group) => (
+        <section key={group.id} aria-labelledby={`inbox-${group.id}`} className="space-y-2">
+          <h2
+            id={`inbox-${group.id}`}
+            className="text-ink-muted px-0.5 font-sans text-[0.8125rem] font-extrabold tracking-wider uppercase"
+          >
+            {group.title}
+          </h2>
+          <CardList>
+            {group.items.map((n) => (
+              <Entry key={n.id} n={n} now={now} />
+            ))}
+          </CardList>
+        </section>
+      ))}
       {inbox.isFetchNextPageError && (
         <ErrorState error={inbox.error} onRetry={() => void inbox.fetchNextPage()} />
       )}

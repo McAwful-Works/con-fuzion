@@ -13,7 +13,7 @@ export function BlockedNote() {
   );
 }
 
-/** Settings → Blocked. Only the blocks you made are listed; unblocking restores nothing. */
+/** People → Blocked. Only the blocks you made are listed; unblocking restores nothing. */
 export function BlockedList() {
   const blocks = useBlocks();
   const unblock = useUnblock();

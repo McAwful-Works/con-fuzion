@@ -47,11 +47,10 @@ export function useMe() {
   });
 }
 
-/** First load: store the browser's time zone when the account has none (`PATCH /api/me`). */
-export function useSyncTimeZone(me: Me | undefined) {
+/** `PATCH /api/me` with a time zone. */
+export function useSetTimeZone() {
   const queryClient = useQueryClient();
-  const attempted = useRef(false);
-  const update = useMutation({
+  return useMutation({
     mutationFn: async (timeZone: string) =>
       (
         await api<Schemas['ResponseRecordMeResponse']>('/me', {
@@ -61,7 +60,12 @@ export function useSyncTimeZone(me: Me | undefined) {
       ).body,
     onSuccess: (updated) => queryClient.setQueryData(meKey, updated),
   });
-  const { mutate } = update;
+}
+
+/** First load: store the browser's time zone when the account has none. */
+export function useSyncTimeZone(me: Me | undefined) {
+  const attempted = useRef(false);
+  const { mutate } = useSetTimeZone();
 
   useEffect(() => {
     if (!me || me.timeZone !== null || attempted.current) return;

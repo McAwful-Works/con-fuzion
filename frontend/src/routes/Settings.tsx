@@ -1,71 +1,117 @@
+import { Ban, Globe, Info, LogOut, MonitorSmartphone } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { useSignOut } from '../api/me';
+import { useGuilds, useMe, useSetTimeZone, useSignOut } from '../api/me';
+import { useBlocks } from '../api/social';
 import { ErrorState } from '../components/ErrorState';
-import { PushSetting } from '../features/push/PushSetting';
-import { BlockedList, BlockedNote } from '../features/social/BlockedList';
-import { PrivacyNote, ServerList } from '../features/servers/ServerList';
+import { TimeZonePicker } from '../features/events/TimeZonePicker';
+import { useViewerZone } from '../features/events/useViewerZone';
+import { AppearanceChoice, InstallRow, PushRow } from '../features/you/DeviceSettings';
+import { ButtonRow, Group, GroupHeading, LinkRow, RowLabel } from '../features/you/rows';
 
+/** `/you`: who you're signed in as, and your settings. */
 export function Settings() {
-  const navigate = useNavigate();
-  const signOut = useSignOut(false);
-  const logoutEverywhere = useSignOut(true);
-  const leave = { onSuccess: () => void navigate('/welcome', { replace: true }) };
+  // `RequireAuth` has already loaded it.
+  const me = useMe().data;
+  const guilds = useGuilds().data;
+  const blocked = useBlocks().data;
+
+  if (!me) return null;
+  const discoverable = guilds?.filter((guild) => guild.discoverable).length;
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Settings</h1>
-
-      <section aria-labelledby="servers-heading" className="space-y-4">
-        <h2 id="servers-heading" className="text-xl font-semibold">
-          Servers
-        </h2>
-        <PrivacyNote />
-        <ServerList />
-      </section>
-
-      <section aria-labelledby="notifications-heading" className="space-y-4">
-        <h2 id="notifications-heading" className="text-xl font-semibold">
-          Notifications
-        </h2>
-        <PushSetting />
-      </section>
-
-      <section aria-labelledby="blocked-heading" className="space-y-4">
-        <h2 id="blocked-heading" className="text-xl font-semibold">
-          Blocked
-        </h2>
-        <BlockedNote />
-        <BlockedList />
-      </section>
-
-      <section aria-labelledby="account-heading" className="space-y-4">
-        <h2 id="account-heading" className="text-xl font-semibold">
-          Account
-        </h2>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={signOut.isPending || logoutEverywhere.isPending}
-            onClick={() => signOut.mutate(undefined, leave)}
-          >
-            Sign out
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={signOut.isPending || logoutEverywhere.isPending}
-            onClick={() => logoutEverywhere.mutate(undefined, leave)}
-          >
-            Log out everywhere
-          </button>
+    <div className="space-y-5">
+      <div className="card flex items-center gap-3.5 p-4">
+        <img src={me.avatarUrl} alt="" className="size-16 shrink-0 rounded-full" />
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-extrabold">{me.globalName ?? me.username}</h1>
+          <p className="text-ink-muted truncate text-sm">@{me.username} · from Discord</p>
         </div>
-        <p className="text-ink-muted text-sm">
-          “Log out everywhere” ends your sessions on every device, including this one.
-        </p>
-        {signOut.isError && <ErrorState error={signOut.error} />}
-        {logoutEverywhere.isError && <ErrorState error={logoutEverywhere.error} />}
-      </section>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+        <div className="min-w-0 space-y-5">
+          <Group title="Discovery">
+            <LinkRow
+              to="/onboarding"
+              icon={Globe}
+              title="Servers"
+              sub={guilds && `Discoverable in ${discoverable} of ${guilds.length}`}
+            />
+            <LinkRow
+              to="/people?tab=blocked"
+              icon={Ban}
+              title="Blocked people"
+              sub={blocked && `${blocked.length} ${blocked.length === 1 ? 'person' : 'people'}`}
+            />
+          </Group>
+          <Group title="Notifications">
+            <PushRow />
+            <InstallRow />
+          </Group>
+          <TimeZoneSetting />
+          <AppearanceChoice />
+        </div>
+        <div className="min-w-0 space-y-5">
+          <Account />
+          <Group title="About">
+            <li className="flex min-h-16 items-center gap-3 px-3.5 py-3">
+              <RowLabel icon={Info} title="Con-Fuzion" sub="Free meetups for convention-goers." />
+            </li>
+          </Group>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The zone your profile keeps. Choosing one saves it. */
+function TimeZoneSetting() {
+  const zone = useViewerZone();
+  const save = useSetTimeZone();
+  return (
+    <section aria-labelledby="time-heading" className="space-y-2">
+      <GroupHeading id="time-heading">Time</GroupHeading>
+      <div className="card p-3.5">
+        <TimeZonePicker
+          label="Your time zone"
+          // The choice being saved, so the field doesn't flick back to the old one.
+          value={save.isPending ? save.variables : zone}
+          onChange={(next) => {
+            if (next !== zone) save.mutate(next);
+          }}
+          hint="Meetups in another zone also show their times in yours."
+          error={save.isError ? 'Couldn’t save your time zone. Try again.' : undefined}
+        />
+      </div>
+    </section>
+  );
+}
+
+function Account() {
+  const navigate = useNavigate();
+  const signOut = useSignOut(false);
+  const everywhere = useSignOut(true);
+  const leave = { onSuccess: () => void navigate('/welcome', { replace: true }) };
+  const busy = signOut.isPending || everywhere.isPending;
+  const error = signOut.error ?? everywhere.error;
+
+  return (
+    <div className="space-y-2">
+      <Group title="Account">
+        <ButtonRow
+          icon={LogOut}
+          title="Sign out"
+          disabled={busy}
+          onClick={() => signOut.mutate(undefined, leave)}
+        />
+        <ButtonRow
+          icon={MonitorSmartphone}
+          title="Sign out everywhere"
+          sub="Ends your sessions on every device, including this one."
+          disabled={busy}
+          onClick={() => everywhere.mutate(undefined, leave)}
+        />
+      </Group>
+      {error && <ErrorState error={error} />}
     </div>
   );
 }

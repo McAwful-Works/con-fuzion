@@ -314,7 +314,7 @@ describe('signing out', () => {
     });
 
     const router = renderApp('/settings');
-    fireEvent.click(await screen.findByRole('button', { name: 'Log out everywhere' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out everywhere' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/welcome'));
     expect(calls.some((c) => c.path === '/api/auth/logout-everywhere')).toBe(true);

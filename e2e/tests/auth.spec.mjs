@@ -11,7 +11,7 @@ import { expect, test } from './hooks.mjs';
 /** Open You (the first sign-in's setup has no navigation to it) and press one of the Account buttons. */
 async function pressAccountButton(page, name) {
   await page.goto('/you');
-  await page.getByRole('button', { name }).click();
+  await page.getByRole('button', { name, exact: true }).click();
 }
 
 test('1. landing: no session goes to /welcome, and /api/me is a 401 in the D-010 envelope', async ({
@@ -89,7 +89,7 @@ test('9. sign out lands on /welcome and ends the session', async ({ page }) => {
   expect((await page.request.get('/api/me')).status()).toBe(401);
 });
 
-test('10. log out everywhere ends the same user’s other session', async ({ browser, baseURL }) => {
+test('10. sign out everywhere ends the same user’s other session', async ({ browser, baseURL }) => {
   const user = newUser('everywhere');
   const contextA = await browser.newContext({ baseURL });
   const contextB = await browser.newContext({ baseURL });
@@ -100,7 +100,7 @@ test('10. log out everywhere ends the same user’s other session', async ({ bro
     await signIn(pageB, user, mixedGuilds(), '/');
     expect((await pageB.request.get('/api/me')).status()).toBe(200);
 
-    await pressAccountButton(pageA, 'Log out everywhere');
+    await pressAccountButton(pageA, 'Sign out everywhere');
     await expect(pageA).toHaveURL(/\/welcome$/);
 
     // B did nothing, yet its session is gone too.

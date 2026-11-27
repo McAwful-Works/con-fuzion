@@ -228,7 +228,7 @@ export const bell = ({ page }) => page.getByRole('link', { name: /^Inbox/ });
 /** Opens the inbox. */
 export async function openInbox({ page }) {
   await page.goto('/inbox');
-  await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Inbox' })).toBeVisible();
 }
 
 /** The status of `GET /api/events/{id}` as the viewer (a 404 for everything they can't see). */
