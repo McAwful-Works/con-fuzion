@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { components } from './api/schema';
 import { browserTimeZone, timeZoneLabel, utcToZonedLocal } from './features/events/time';
 import {
@@ -9,6 +9,7 @@ import {
   jsonResponse,
   me,
   mockApi,
+  onDesktop,
   renderApp,
   type RecordedCall,
 } from './test-utils';
@@ -346,6 +347,8 @@ function fill(label: string, value: string) {
 }
 
 describe('creating an event', () => {
+  beforeEach(onDesktop);
+
   it('defaults to the profile’s time zone and says what is wrong before sending anything', async () => {
     const calls = signedIn(() => undefined);
     renderApp('/events/new');
@@ -579,6 +582,8 @@ describe('creating an event', () => {
 });
 
 describe('editing an event', () => {
+  beforeEach(onDesktop);
+
   it('sends the whole event back, keeping an entry the host can no longer use until removed', async () => {
     const calls = signedIn(({ method, path }) => {
       if (method === 'GET' && path === `/api/events/${mine.id}`) return envelope('EVENT', mine);
