@@ -15,6 +15,7 @@ import {
   jsonResponse,
   me,
   mockApi,
+  onDesktop,
   renderApp,
   type RecordedCall,
 } from './test-utils';
@@ -331,6 +332,7 @@ describe('detail pages', () => {
   });
 
   it('goes Back from a new event past the form it was created in', async () => {
+    onDesktop();
     signedIn({ extra: myEvent });
     const router = renderInBrowser('/plans');
     await findSidebar();
@@ -349,6 +351,7 @@ describe('detail pages', () => {
   });
 
   it('goes Back from a saved event past the edit form', async () => {
+    onDesktop();
     signedIn({ extra: myEvent });
     const router = renderInBrowser('/plans');
     await findSidebar();
