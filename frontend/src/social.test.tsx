@@ -430,7 +430,7 @@ describe('friends, removing and blocking', () => {
     );
   });
 
-  it('lists blocks in Settings and unblocks with one DELETE', async () => {
+  it('lists blocks and unblocks with one DELETE', async () => {
     const calls = signedIn(({ method, path }) => {
       if (method === 'GET' && path === '/api/me/guilds')
         return envelope('GUILD_LIST', { guilds: [] });
@@ -440,7 +440,7 @@ describe('friends, removing and blocking', () => {
       return undefined;
     });
 
-    renderApp('/settings');
+    renderApp('/people?tab=blocked');
     expect(await screen.findByText(/doesn’t bring back a friendship/)).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Unblock Cy' }));
 

@@ -65,3 +65,4 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | "Friends since" on friend rows | The People mockup shows the date under each name (#121), but `PersonResponse` has none, so it needs an API change |
 | Keep keyboard focus when a person's row goes away | Removing, unfriending or blocking from a row's menu drops focus to the page, as the old row buttons did (#121). Move it to the list's heading or the next row |
 | "Notifications on this device" beside the Inbox | The Inbox mockup has this side card on desktop; #121 asks for the setting only in You, and My plans already has "Get a nudge" |
+| Call the You page one thing | The desktop sidebar says "Settings", phones say "You", and the copy in the setup says "Settings → Servers", though the row is now You → Discovery → Servers (#121) |

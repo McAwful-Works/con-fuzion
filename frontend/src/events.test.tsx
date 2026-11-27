@@ -159,7 +159,10 @@ describe('the event feed', () => {
       '/events/new',
     );
     expect(main.getByText(/Turn on the servers you’re in/)).toBeInTheDocument();
-    expect(main.getByRole('link', { name: 'Turn on servers' })).toHaveAttribute('href', '/you');
+    expect(main.getByRole('link', { name: 'Turn on servers' })).toHaveAttribute(
+      'href',
+      '/onboarding',
+    );
   });
 
   it('loads more with the cursor the server gave', async () => {

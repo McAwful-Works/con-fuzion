@@ -33,7 +33,6 @@ export function AppShell() {
   const [mfaDismissed, setMfaDismissed] = useState(false);
   const unread = useUnreadCount(Boolean(user)).data ?? 0;
   const page = useShellPage(isModerator(user));
-  const onYou = useMatch('/you') !== null;
   const onWelcome = useMatch('/welcome') !== null;
   // Only once there's a user to set up: loading, errors and "Back soon" keep the usual frame.
   const setup = useSetupVisit() && me.isSuccess && !unavailable;
@@ -87,11 +86,11 @@ export function AppShell() {
         >
           {unavailable ? <MaintenancePage /> : <Outlet />}
         </main>
-        {/* Signed in, this is in the sidebar, and on phones it's at the bottom of You. */}
-        {!setup && (!user || onYou) && (
+        {/* Signed in, this is in the sidebar, and on phones it's in You's About. */}
+        {!setup && !user && (
           <footer
             // On welcome the line starts where the page's 80rem column does.
-            className={`border-line text-ink-muted border-t px-4 py-4 text-sm ${user ? 'lg:hidden' : ''} ${onWelcome ? 'lg:px-[max(3rem,calc(50%-37rem))]' : ''}`}
+            className={`border-line text-ink-muted border-t px-4 py-4 text-sm ${onWelcome ? 'lg:px-[max(3rem,calc(50%-37rem))]' : ''}`}
           >
             Free meetups for convention-goers.
           </footer>

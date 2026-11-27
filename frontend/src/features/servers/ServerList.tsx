@@ -11,7 +11,7 @@ import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
 
 /**
- * The "Make me discoverable here" list, shared by onboarding and Settings → Servers. Everything is
+ * The "Make me discoverable here" list, shared by the first-run setup and You → Servers. Everything is
  * off until the user turns it on. Toggles save one server each; "Turn on all" is one bulk request.
  */
 export function ServerList() {
@@ -132,15 +132,5 @@ function GuildRow({ guild, locked }: { guild: Guild; locked: boolean }) {
         </p>
       )}
     </li>
-  );
-}
-
-/** The plain-language promise shown wherever the list appears. */
-export function PrivacyNote() {
-  return (
-    <p className="text-ink-muted">
-      People in this server who use Con-Fuzion can invite you to their meetups. We never see your
-      messages or other members.
-    </p>
   );
 }
