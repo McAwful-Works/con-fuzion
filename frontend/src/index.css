@@ -1,43 +1,306 @@
 @import 'tailwindcss';
+/* Bricolage Grotesque with its optical-size axis, so large headings use the display cut. */
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
 @import '@fontsource-variable/inter';
 
 /*
- * The only place brand colors, type, and radii are defined. The palette below is a neutral
- * placeholder; the hired artist's palette replaces these values and nothing else changes.
+ * The only place brand colors, type, radii and shadows are defined: option A, "Con Badge" (D-017),
+ * with the values of `.t-a` and `.t-a.dark` in docs/design/mockups/themes.css. A few colors are
+ * deeper than the mockups so that text meets WCAG AA. The hired artist's palette replaces these
+ * values and nothing else changes.
+ *
+ * `@theme` holds the light values. `:root.dark` below overrides the ones that differ in dark mode.
+ * public/appearance.js sets that class from the user's choice or the device setting.
  */
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-head: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
 
-  --color-surface: #fafafa;
+  /* Surfaces: the page, cards, the sunken fill of tracks and quiet pills, and the inverse. */
+  --color-surface: #fff6ea;
   --color-surface-raised: #ffffff;
-  --color-surface-inverse: #18181b;
-  --color-ink: #18181b;
-  --color-ink-muted: #52525b;
-  --color-ink-inverse: #fafafa;
-  --color-line: #e4e4e7;
-  --color-accent: #4f46e5;
-  --color-accent-ink: #ffffff;
+  --color-surface-sunken: #f6ead9;
+  --color-surface-inverse: #1d1630;
+  --color-ink: #1d1630;
+  --color-ink-muted: #6b6079;
+  --color-ink-inverse: #fff6ea;
+  /* `line` divides content. `outline` is the ink border around cards and controls. */
+  --color-line: #e6d8c4;
+  --color-outline: #1d1630;
+
+  /* Coral marks actions. `accent-ink` is text on coral; `accent-text` is coral text on a surface. */
+  --color-accent: #ff5a36;
+  --color-accent-ink: #1d1630;
+  --color-accent-text: #c23614;
+  --color-focus: var(--color-accent-text);
+  --color-danger: #c92a2a;
+
+  /* Violet marks tags. */
+  --color-tag: #7450f5;
+  --color-tag-ink: #ffffff;
+
+  /* Status pills. */
+  --color-going: #c9f2d6;
+  --color-going-ink: #0d5c2c;
+  --color-waiting: #ffe08a;
+  --color-waiting-ink: #6b4a00;
+  --color-offer: var(--color-accent);
+  --color-offer-ink: var(--color-accent-ink);
+  --color-hosting: #e3dbff;
+  --color-hosting-ink: #3d22b8;
+  --color-full: var(--color-surface-sunken);
+  --color-full-ink: var(--color-ink-muted);
+
+  --color-knob: #ffffff;
+
+  /* The top and tab bars, and the desktop sidebar. */
+  --color-bar: rgb(255 246 234 / 0.94);
+  --color-side: #1d1630;
+  --color-side-raised: #2b2342;
+  --color-side-line: #3a3150;
+  --color-side-ink: #fff6ea;
+  --color-side-muted: #c8bfd6;
+
+  /* The event page's hero, and the time blocks of event cards (used in turn). */
+  --color-hero: #7450f5;
+  --color-hero-ink: #ffffff;
+  --color-hero-tag: #1d1630;
+  --color-when-1: #7450f5;
+  --color-when-2: #1d1630;
+  --color-when-3: #0b7a5c;
+  --color-when-ink: #fff6ea;
+
   /* Discord brand blurple with white text, per Discord's brand guidelines. */
   --color-discord: #5865f2;
   --color-discord-ink: #ffffff;
 
-  --radius-control: 0.5rem;
-  --radius-card: 0.75rem;
+  --radius-tag: 0.375rem;
+  --radius-control: 0.75rem;
+  --radius-fab: 0.875rem;
+  --radius-card: 1rem;
+
+  /* The offset shadows. */
+  --shadow-selected: 2px 2px 0 var(--color-outline);
+  --shadow-control: 3px 3px 0 var(--color-outline);
+  --shadow-card: 4px 4px 0 var(--color-outline);
 }
 
-body {
-  @apply bg-surface text-ink font-sans antialiased;
+/* `dark:` follows the app's choice, not only the device. Prefer the tokens, which swap by themselves. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  /* The same look on a deep plum: outlines go near-black, shadows deepen, coral stays. */
+  :root.dark {
+    color-scheme: dark;
+
+    --color-surface: #16111f;
+    --color-surface-raised: #211a2e;
+    --color-surface-sunken: #2d2440;
+    --color-surface-inverse: #fbf1e4;
+    --color-ink: #fbf1e4;
+    --color-ink-muted: #b4a9c6;
+    --color-ink-inverse: #16111f;
+    --color-line: #3a3050;
+    --color-outline: #000000;
+
+    --color-accent-ink: #1a0f08;
+    --color-accent-text: #ff7a5c;
+    --color-danger: #ff8787;
+
+    --color-going: #163d27;
+    --color-going-ink: #8ff0b4;
+    --color-waiting: #47380a;
+    --color-waiting-ink: #ffd76a;
+    --color-hosting: #2f2560;
+    --color-hosting-ink: #c9bcff;
+
+    --color-knob: #fbf1e4;
+
+    --color-bar: rgb(22 17 31 / 0.94);
+    --color-side: #0f0b16;
+    --color-side-raised: #1d1729;
+    --color-side-line: #2a2238;
+
+    --color-hero: #5b3fd9;
+    --color-hero-tag: #16111f;
+    --color-when-1: #9b84ff;
+    --color-when-2: #fbf1e4;
+    --color-when-3: #4fd6a6;
+    --color-when-ink: #16111f;
+  }
+
+  body {
+    @apply bg-surface text-ink font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-head);
+    letter-spacing: -0.02em;
+  }
+
+  :focus-visible {
+    @apply outline-focus outline-2 outline-offset-2;
+  }
 }
 
-/* Shared 44px-minimum controls. Colors come from the theme tokens above. */
+/*
+ * Shared components. Pages compose these and add their own layout. Interactive ones are at least
+ * 44px tall, and take their selected state from ARIA or a checked input.
+ */
+
+/* A button: `btn` plus a variant, and `btn-sm` for the compact one. */
 @utility btn {
-  @apply rounded-control inline-flex min-h-11 items-center justify-center px-4 font-medium;
-  @apply focus-visible:outline-accent focus-visible:outline-2 focus-visible:outline-offset-2;
+  @apply rounded-control border-outline bg-surface-raised text-ink shadow-control border-2;
+  @apply inline-flex min-h-12 items-center justify-center gap-2 px-5 py-2;
+  @apply text-center text-[0.9375rem] font-bold;
+  @apply focus-visible:outline-focus focus-visible:outline-2 focus-visible:outline-offset-3;
   @apply disabled:opacity-50;
 }
 @utility btn-primary {
   @apply bg-accent text-accent-ink;
 }
 @utility btn-secondary {
-  @apply border-line bg-surface-raised border;
+  @apply bg-surface-raised text-ink;
+}
+@utility btn-ghost {
+  @apply text-ink-muted border-transparent bg-transparent shadow-none;
+}
+@utility btn-danger {
+  @apply text-danger;
+}
+@utility btn-sm {
+  @apply min-h-11 px-3.5 text-sm;
+}
+
+@utility card {
+  @apply rounded-card border-outline bg-surface-raised shadow-card border-2;
+}
+
+/* A chip is selected with `aria-pressed`, `aria-current`, or a checked input inside it. */
+@utility chip {
+  @apply border-outline bg-surface-raised text-ink rounded-full border-2;
+  @apply inline-flex min-h-11 items-center justify-center gap-1.5 px-3.5;
+  @apply text-sm font-semibold whitespace-nowrap;
+  &:has(:focus-visible) {
+    @apply outline-focus outline-2 outline-offset-2;
+  }
+  &[aria-pressed='true'],
+  &[aria-current]:not([aria-current='false']),
+  &:has(:checked) {
+    @apply bg-surface-inverse text-ink-inverse border-transparent;
+  }
+}
+
+/* A status pill: `pill` plus one status. An icon goes inside as a child. */
+@utility pill {
+  @apply inline-flex min-h-6.5 items-center gap-1.5 rounded-full px-2.5;
+  @apply text-[0.78125rem] font-bold whitespace-nowrap;
+  & > svg {
+    @apply size-3.5 shrink-0;
+  }
+}
+@utility pill-going {
+  @apply bg-going text-going-ink;
+}
+@utility pill-waitlisted {
+  @apply bg-waiting text-waiting-ink;
+}
+@utility pill-offered {
+  @apply bg-offer text-offer-ink;
+}
+@utility pill-hosting {
+  @apply bg-hosting text-hosting-ink;
+}
+@utility pill-full {
+  @apply bg-full text-full-ink;
+}
+
+@utility tag-chip {
+  @apply rounded-tag bg-tag text-tag-ink inline-flex items-center gap-1 px-2.5 py-0.5;
+  @apply text-xs font-bold tracking-wider uppercase;
+}
+
+/*
+ * On a `<button type="button" role="switch" aria-checked>`. The track is 48px by 28px, and its
+ * `::after` makes the target 44px tall.
+ */
+@utility switch {
+  @apply border-outline bg-surface-sunken relative inline-block h-7 w-12 shrink-0 rounded-full border-2;
+  @apply disabled:opacity-50;
+  &::before {
+    @apply border-outline bg-knob absolute top-0.5 left-0.5 size-5 rounded-full border-2;
+    content: '';
+  }
+  &::after {
+    @apply absolute -inset-x-0.5 -inset-y-2.5;
+    content: '';
+  }
+  &[aria-checked='true'] {
+    @apply bg-accent;
+  }
+  &[aria-checked='true']::before {
+    @apply left-5.5;
+  }
+}
+
+/*
+ * A segmented control: `seg` around `seg-item`s. An item is selected like a chip. Full width on
+ * phones.
+ */
+@utility seg {
+  @apply rounded-card border-outline bg-surface-sunken flex w-full max-w-full gap-1.5 border-2 p-1;
+  @apply sm:w-fit;
+}
+@utility seg-item {
+  @apply rounded-control text-ink-muted border-2 border-transparent;
+  @apply inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 px-2 sm:flex-none sm:px-3.5;
+  @apply text-sm font-bold whitespace-nowrap;
+  &:has(:focus-visible) {
+    @apply outline-focus outline-2 outline-offset-2;
+  }
+  &[aria-pressed='true'],
+  &[aria-current]:not([aria-current='false']),
+  &:has(:checked) {
+    @apply border-outline bg-surface-raised text-ink shadow-selected;
+  }
+}
+
+/* A form field: `field` around a `field-label`, a `field-control` and an optional `hint`. */
+@utility field {
+  @apply flex flex-col gap-1.5;
+}
+@utility field-label {
+  @apply text-sm font-bold;
+}
+@utility field-control {
+  @apply rounded-control border-outline bg-surface-raised text-ink border-2;
+  /* 16px text, so that iOS doesn't zoom in on focus. */
+  @apply min-h-12 w-full px-3.5 py-2.5 text-base;
+  @apply placeholder:text-ink-muted disabled:opacity-50;
+}
+@utility hint {
+  @apply text-ink-muted text-[0.78125rem];
+}
+
+/*
+ * The spots meter: `meter` around a `meter-bar`, whose one child gets the width, and the text.
+ * `data-full` on the bar when no spots are left.
+ */
+@utility meter {
+  @apply text-ink-muted flex items-center gap-2 text-[0.78125rem] font-semibold;
+}
+@utility meter-bar {
+  @apply bg-surface-sunken h-1.5 w-18.5 shrink-0 overflow-hidden rounded-full;
+  & > * {
+    @apply bg-accent block h-full rounded-full;
+  }
+  &[data-full] > * {
+    @apply bg-ink-muted;
+  }
 }

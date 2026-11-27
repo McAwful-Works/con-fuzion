@@ -21,7 +21,7 @@ export function EventCard({ event, overlaps = [] }: { event: Event; overlaps?: E
     <li>
       <Link
         to={`/events/${event.id}`}
-        className={`bg-surface-raised rounded-card focus-visible:outline-accent block space-y-2 border p-4 focus-visible:outline-2 focus-visible:outline-offset-2 ${
+        className={`bg-surface-raised rounded-card focus-visible:outline-focus block space-y-2 border p-4 focus-visible:outline-2 focus-visible:outline-offset-2 ${
           overlaps.length > 0 ? 'border-accent border-2' : 'border-line'
         }`}
       >

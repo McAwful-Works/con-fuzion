@@ -80,7 +80,7 @@ function GuildRow({ guild, locked }: { guild: Guild; locked: boolean }) {
         ) : (
           <span
             aria-hidden="true"
-            className="bg-line text-ink-muted flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+            className="bg-surface-sunken text-ink-muted flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
           >
             {guild.name.slice(0, 1).toUpperCase()}
           </span>
@@ -96,7 +96,7 @@ function GuildRow({ guild, locked }: { guild: Guild; locked: boolean }) {
           checked={checked}
           disabled={locked || save.isPending}
           onChange={(event) => save.mutate(event.target.checked)}
-          className="accent-accent focus-visible:outline-accent size-6 shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="accent-accent focus-visible:outline-focus size-6 shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2"
         />
       </label>
       {save.isError && (
