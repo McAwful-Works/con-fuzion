@@ -66,6 +66,64 @@ public interface EventAudienceRepository extends JpaRepository<EventAudience, Lo
 	List<LabelledEntry> findLabelled(@Param("eventIds") Collection<Long> eventIds);
 
 	/**
+	 * Returns the entries of several events that reach a viewer who isn't their
+	 * host, as the viewer's own reasons for seeing them (D-017). An entry counts
+	 * only where it makes the event visible under {@link EventRepository#VISIBLE}'s
+	 * audience arm: the event is published, not hidden by moderators, has no block
+	 * between the viewer and the host, and the entry
+	 * {@link EventRepository#REACHES} the viewer, so a server is named only while
+	 * both of them are discoverable there. A server's name is the one stored for
+	 * the viewer. An event the viewer sees only through an active RSVP or as a
+	 * moderator has no rows.
+	 *
+	 * @param viewer   the viewer's user ID
+	 * @param eventIds the events' internal IDs
+	 * @return the entries, grouped by event: servers by name, then {@code FRIENDS},
+	 *         then circles and people, so the order doesn't show how the host built
+	 *         the audience
+	 */
+	@Query(value = """
+			SELECT a.event_id AS eventId, a.type AS type,
+				CASE a.type WHEN 'GUILD' THEN (SELECT n.guild_name FROM user_guild n
+					WHERE n.guild_id = a.guild_id AND n.user_id = :viewer) END AS guildName
+			FROM event_audience a
+			JOIN event e ON e.id = a.event_id
+			WHERE a.event_id IN (:eventIds) AND e.host_id <> :viewer AND e.status = 'PUBLISHED'
+				AND NOT e.hidden_by_moderation
+				AND\s""" + EventRepository.UNBLOCKED + " AND " + EventRepository.REACHES + """
+			ORDER BY a.event_id, CASE a.type WHEN 'GUILD' THEN 0 WHEN 'FRIENDS' THEN 1 ELSE 2 END, guildName, a.id
+			""", nativeQuery = true)
+	List<Reason> findReasons(@Param("viewer") UUID viewer, @Param("eventIds") Collection<Long> eventIds);
+
+	/**
+	 * An audience entry that reaches the viewer, from {@link #findReasons}.
+	 *
+	 * @author mcawful
+	 */
+	interface Reason {
+		/**
+		 * Returns the event's internal ID.
+		 *
+		 * @return the event ID
+		 */
+		Long getEventId();
+
+		/**
+		 * Returns the kind of entry.
+		 *
+		 * @return the type name
+		 */
+		String getType();
+
+		/**
+		 * Returns the server's name as stored for the viewer, for a server entry.
+		 *
+		 * @return the server name, or {@code null}
+		 */
+		String getGuildName();
+	}
+
+	/**
 	 * An audience entry as its host sees it.
 	 *
 	 * @author mcawful

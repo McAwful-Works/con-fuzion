@@ -1103,6 +1103,11 @@ export interface components {
             myStatus: "NONE" | "CONFIRMED" | "WAITLISTED" | "OFFERED" | "REMOVED";
             /** Format: date-time */
             signupOpensAt: string | null;
+            /**
+             * Format: int32
+             * @description capacity - confirmed, never below 0. Null for unlimited. May be up to a second old, as in GET /api/events/{eventId}/spots.
+             */
+            spotsLeft: number | null;
             /** Format: date-time */
             startsAt: string;
             /** @enum {string} */
@@ -1113,6 +1118,8 @@ export interface components {
             timeZone: string;
             /** @example Cosplay photo walk */
             title: string;
+            /** @description The viewer's own reasons for seeing the event (D-017): each server in its audience where both the viewer and the host are discoverable now, FRIEND when it is open to the host's friends and the viewer is one, and INVITED for a circle or a personal invite (never which). Null for the host. Empty when the viewer sees it only through an active RSVP or as a moderator. */
+            visibleBecause: components["schemas"]["VisibleReason"][] | null;
         };
         GuildListResponse: {
             guilds: components["schemas"]["GuildResponse"][];
@@ -1534,6 +1541,15 @@ export interface components {
              * @example America/Chicago
              */
             timeZone?: string | null;
+        };
+        VisibleReason: {
+            /**
+             * @description The server's name, for GUILD. Null otherwise.
+             * @example Example Con Community
+             */
+            guildName: string | null;
+            /** @enum {string} */
+            type: "GUILD" | "FRIEND" | "INVITED";
         };
     };
     responses: never;

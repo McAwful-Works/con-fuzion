@@ -20,6 +20,7 @@ package app.confuzion.backend.service;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
@@ -64,7 +65,9 @@ import app.confuzion.backend.model.record.EventResponse;
 import app.confuzion.backend.model.record.EventResponse.AudienceEntry;
 import app.confuzion.backend.model.record.EventResponse.AudienceType;
 import app.confuzion.backend.model.record.EventResponse.LocationVisibility;
+import app.confuzion.backend.model.record.EventResponse.ReasonType;
 import app.confuzion.backend.model.record.EventResponse.Status;
+import app.confuzion.backend.model.record.EventResponse.VisibleReason;
 import app.confuzion.backend.model.record.MyStatus;
 import app.confuzion.backend.model.record.NotificationPayload;
 import app.confuzion.backend.model.record.NotificationPayload.Change;
@@ -74,11 +77,13 @@ import app.confuzion.backend.repository.AppUserRepository;
 import app.confuzion.backend.repository.AuditLogRepository;
 import app.confuzion.backend.repository.EventAudienceRepository;
 import app.confuzion.backend.repository.EventAudienceRepository.LabelledEntry;
+import app.confuzion.backend.repository.EventAudienceRepository.Reason;
 import app.confuzion.backend.repository.EventRepository;
 import app.confuzion.backend.repository.NotificationRepository;
 import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.SocialRepository;
 import app.confuzion.backend.repository.UserGuildRepository;
+import jakarta.persistence.EntityManager;
 
 /**
  * Events, their audiences and the feed (D-012). Only the host may create, edit
@@ -157,6 +162,12 @@ public class EventService {
 	private final AuditLogRepository auditLogRepository;
 
 	/**
+	 * The {@link EntityManager}, to re-read {@code confirmed_count} after the RSVP
+	 * writes, which change it outside JPA.
+	 */
+	private final EntityManager entityManager;
+
+	/**
 	 * Creates the service.
 	 *
 	 * @param eventRepository        the {@link EventRepository}
@@ -167,11 +178,13 @@ public class EventService {
 	 * @param rsvpRepository         the {@link RsvpRepository}
 	 * @param notificationRepository the {@link NotificationRepository}
 	 * @param auditLogRepository     the {@link AuditLogRepository}
+	 * @param entityManager          the {@link EntityManager}
 	 */
 	public EventService(EventRepository eventRepository, EventAudienceRepository audienceRepository,
 			AppUserRepository appUserRepository, UserGuildRepository userGuildRepository,
 			SocialRepository socialRepository, RsvpRepository rsvpRepository,
-			NotificationRepository notificationRepository, AuditLogRepository auditLogRepository) {
+			NotificationRepository notificationRepository, AuditLogRepository auditLogRepository,
+			EntityManager entityManager) {
 		this.eventRepository = eventRepository;
 		this.audienceRepository = audienceRepository;
 		this.appUserRepository = appUserRepository;
@@ -180,6 +193,7 @@ public class EventService {
 		this.rsvpRepository = rsvpRepository;
 		this.notificationRepository = notificationRepository;
 		this.auditLogRepository = auditLogRepository;
+		this.entityManager = entityManager;
 	}
 
 	/**
@@ -218,6 +232,8 @@ public class EventService {
 		eventRepository.save(event);
 		eventRepository.addHostRsvp(event.getId());
 		audienceRepository.saveAll(refs.stream().map(ref -> new EventAudience(event.getId(), ref)).toList());
+		// The host's RSVP set confirmed_count outside JPA, and spotsLeft reads it.
+		entityManager.refresh(event);
 		return toResponses(hostId, List.of(event), false).getFirst();
 	}
 
@@ -318,6 +334,8 @@ public class EventService {
 							null));
 		rsvpRepository.fillFreeSpots(event.getId(),
 				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
+		// Promotions raised confirmed_count outside JPA, and spotsLeft reads it.
+		entityManager.refresh(event);
 		return toResponses(hostId, List.of(event), false).getFirst();
 	}
 
@@ -528,7 +546,8 @@ public class EventService {
 
 	/**
 	 * Maps events to what the viewer may see, loading hosts, where the viewer
-	 * stands and (for the viewer's own events) audiences in one query each.
+	 * stands, audiences (for the viewer's own events) and the viewer's reasons (for
+	 * everyone else's) in one query each, however many events there are.
 	 *
 	 * @param viewer    the viewer's user ID
 	 * @param events    the events, which the viewer may see
@@ -543,27 +562,35 @@ public class EventService {
 		var audiences = ownIds.isEmpty() ? Map.<Long, List<AudienceEntry>>of()
 				: audienceRepository.findLabelled(ownIds).stream().collect(
 						groupingBy(LabelledEntry::getEventId, mapping(EventService::toAudienceEntry, toList())));
+		var otherIds = events.stream().filter(event -> !event.getHostId().equals(viewer)).map(Event::getId).toList();
+		Map<Long, Set<VisibleReason>> reasons = otherIds.isEmpty() ? Map.of()
+				: audienceRepository.findReasons(viewer, otherIds).stream().collect(groupingBy(Reason::getEventId,
+						mapping(EventService::toVisibleReason, toCollection(LinkedHashSet::new))));
 		var statuses = rsvpRepository.findStatuses(viewer, events.stream().map(Event::getId).toList());
-		return events.stream().map(event -> toResponse(viewer, event, hosts.get(event.getHostId()),
-				statuses.getOrDefault(event.getId(), MyStatus.NONE), audiences, reviewing)).toList();
+		return events.stream()
+				.map(event -> toResponse(viewer, event, hosts.get(event.getHostId()),
+						statuses.getOrDefault(event.getId(), MyStatus.NONE), audiences,
+						List.copyOf(reasons.getOrDefault(event.getId(), Set.of())), reviewing))
+				.toList();
 	}
 
 	/**
 	 * Maps one event to what the viewer may see. Only the host gets the audience,
 	 * and a {@link LocationVisibility#CONFIRMED} location is withheld from everyone
 	 * but the host, confirmed attendees (D-013) and a moderator reviewing it (D-015
-	 * rule 8).
+	 * rule 8). Everyone else gets their own reasons for seeing it instead (D-017).
 	 *
 	 * @param viewer    the viewer's user ID
 	 * @param event     the {@link Event}
 	 * @param host      the host
 	 * @param myStatus  where the viewer stands
 	 * @param audiences the audiences of the viewer's own events, by event ID
+	 * @param reasons   the viewer's reasons for seeing it, ignored for the host
 	 * @param reviewing whether a moderator is reviewing it
 	 * @return the {@link EventResponse}
 	 */
 	private static EventResponse toResponse(UUID viewer, Event event, AppUser host, MyStatus myStatus,
-			Map<Long, List<AudienceEntry>> audiences, boolean reviewing) {
+			Map<Long, List<AudienceEntry>> audiences, List<VisibleReason> reasons, boolean reviewing) {
 		var isHost = event.getHostId().equals(viewer);
 		var locationHidden = !isHost && !reviewing && myStatus != MyStatus.CONFIRMED
 				&& event.getLocationVisibility() == LocationVisibility.CONFIRMED;
@@ -573,9 +600,28 @@ public class EventService {
 						UserService.avatarUrl(host.getDiscordId(), host.getAvatarHash())),
 				event.getTitle(), event.getDescription(), locationHidden ? null : event.getLocationText(),
 				locationHidden, event.getLocationVisibility(), event.getTag(), event.getStartsAt(), event.getEndsAt(),
-				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(), event.getConfirmWindowMinutes(),
-				event.getStatus(), isHost, myStatus, isHost ? audiences.getOrDefault(event.getId(), List.of()) : null,
+				event.getTimeZone(), event.getSignupOpensAt(), event.getCapacity(),
+				event.getCapacity() == null ? null : Math.max(event.getCapacity() - event.getConfirmedCount(), 0),
+				event.getConfirmWindowMinutes(), event.getStatus(), isHost, myStatus,
+				isHost ? audiences.getOrDefault(event.getId(), List.of()) : null, isHost ? null : reasons,
 				isHost ? event.getModerationReason() : null);
+	}
+
+	/**
+	 * Maps an entry that reaches the viewer to their reason: the server by name, a
+	 * friend of the host, or invited, which a circle and a personal invite share so
+	 * neither is told apart (D-017). Equal reasons collapse into one, so several
+	 * invites, or two servers with the same name, show once.
+	 *
+	 * @param reason the {@link Reason}
+	 * @return the {@link VisibleReason}
+	 */
+	private static VisibleReason toVisibleReason(Reason reason) {
+		return switch (AudienceType.valueOf(reason.getType())) {
+		case GUILD -> new VisibleReason(ReasonType.GUILD, reason.getGuildName());
+		case FRIENDS -> new VisibleReason(ReasonType.FRIEND, null);
+		case CIRCLE, USER -> new VisibleReason(ReasonType.INVITED, null);
+		};
 	}
 
 	/**
