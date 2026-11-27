@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { api, type ContractPath } from './client';
 import type { components } from './schema';
 
@@ -55,6 +61,24 @@ export function useNotifications() {
     },
     getNextPageParam: (page) => page.nextCursor ?? undefined,
   });
+}
+
+/** Takes the unread dots off the entries already loaded. Opening the inbox leaves them on. */
+export function useClearUnreadDots() {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.setQueryData<InfiniteData<Schemas['NotificationPageResponse']>>(
+      listKey,
+      (data) =>
+        data && {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            unreadCount: 0,
+            items: page.items.map((n) => ({ ...n, read: true })),
+          })),
+        },
+    );
 }
 
 /** `POST /api/notifications/read`: everything up to and including `upTo`, the newest ID on screen. */
