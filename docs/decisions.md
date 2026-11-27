@@ -746,8 +746,12 @@ Context · Decision · Consequences · Trigger to revisit
     Coral marks actions, violet marks tags. Headings use Bricolage Grotesque
     (`@fontsource-variable/bricolage-grotesque`, SIL OFL 1.1, owner-approved dependency), and text stays Inter. Every
     value lives in the theme tokens in `frontend/src/index.css`, so the artist's palette still drops in.
+    - **Text on coral is ink** (`#1d1630` on `#ff5a36`, about 5.6:1), not the mockups' white, which was 3.1:1
+      *(owner, 2026-11-27, #126)*. A few other colours are a shade deeper than the mockups so text meets WCAG AA.
   - **Dark mode** *(owner)*: the same look on a deep plum. It follows the device by default, and You offers Light,
-    Dark or Automatic, stored on the device only (no API).
+    Dark or Automatic, stored on the device only (no API). Cards and buttons keep black outlines, but form controls
+    (fields, switches, segmented controls, chips) get a lighter border (`#7a6e96`) so they reach 3:1 against the plum
+    *(owner, 2026-11-27, #126)*.
   - **Navigation:** five places: **Discover** (`/`), **My plans** (`/plans`), **Host** (create), **People**
     (`/people`: friends, circles, blocked), **Inbox** (`/inbox`). **You** (`/you`) is behind the avatar, and
     **Moderation** shows for moderators only. Desktop has a left sidebar; phones have a top bar and a bottom tab bar
@@ -777,14 +781,18 @@ Context · Decision · Consequences · Trigger to revisit
     `INVITED` without `FRIEND` does let a friend infer the event isn't open to all the host's friends; the owner
     accepted that.
   - **Card data:** `spotsLeft` (`capacity - confirmed_count`, null when unlimited) joins `EventResponse`, loaded in a
-    fixed number of queries per page.
+    fixed number of queries per page. `EventResponse` has no going count, so a card for an unlimited event says "No
+    limit", not the mockups' "14 going · no limit" (#116; a backlog row covers adding the count).
   - **Search** *(owner)*: `q` on `GET /api/events?scope=feed` matches the **title, tag and description**,
     case-insensitively, inside the visibility query. **Never the location**, which can be hidden until the viewer is
     confirmed (D-013), so search can't be used to find it.
   - **Filters**, all optional and combinable, run in the API because the feed is paged, and only narrow it:
     - `guild=X`: X must be a server where the caller is a member and discoverable, or it's a 400 (so it can't probe
-      servers). It matches the events whose `visibleBecause` names X, so the host's discoverability counts as above.
-    - `friends=true`: the event has a `FRIENDS` entry and the host is the caller's friend.
+      servers). Someone else's event matches when its `visibleBecause` names X, so the host's discoverability counts
+      as above. The caller's own events match when their audience has a `GUILD` entry for X *(owner, 2026-11-27,
+      #132)*.
+    - `friends=true`: someone else's event matches when it has a `FRIENDS` entry and the host is the caller's
+      friend; the caller's own events match when they have a `FRIENDS` entry *(owner, 2026-11-27, #132)*.
     - `hasSpots=true`: unlimited events, or events with spots left.
   - **Tags:** seven presets (Tabletop, Photoshoot, Food, Music, Panel, Shopping, Hobby) plus "Other", which keeps
     today's free text. The tag column doesn't change.
@@ -793,7 +801,8 @@ Context · Decision · Consequences · Trigger to revisit
     the app's own assets, so the CSP (`img-src 'self' https://cdn.discordapp.com`) doesn't change.
   - **The welcome page** shows static sample cards (fixed text, no API call) to signed-out visitors. It never loads
     real events.
-- **Consequences:** most frontend files change across about 14 PRs, and the e2e helpers change with them. The two
+- **Consequences:** most frontend files change, and the e2e helpers change with them. M5.5 took about 20 PRs, because
+  the owner had the larger ones split to keep within the line budget. The two
   backend PRs (#114, #115) carry the `security` label and truth-table tests for the new fields and filters. The
   mockups in `docs/design/` are the visual reference; where they and today's behavior disagree, the behavior and the
   API win.
