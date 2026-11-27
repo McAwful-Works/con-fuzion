@@ -4,15 +4,7 @@ import { AUDIENCE_MAX, type AudienceEntry } from '../../api/events';
 import { useCircles } from '../../api/social';
 import { ErrorState } from '../../components/ErrorState';
 import { PeopleSearch } from '../social/PeopleSearch';
-import {
-  audienceSummary,
-  circleEntry,
-  entryKey,
-  entryLabel,
-  friendsEntry,
-  guildEntry,
-  userEntry,
-} from './audience';
+import { circleEntry, entryKey, entryLabel, friendsEntry, guildEntry, userEntry } from './audience';
 
 interface Props {
   value: AudienceEntry[];
@@ -189,13 +181,6 @@ export function AudiencePicker({ value, onChange }: Props) {
           </ul>
         </section>
       )}
-
-      <p aria-live="polite" className="bg-surface-raised border-line rounded-card border p-3">
-        {audienceSummary(value)}{' '}
-        <span className="text-ink-muted text-sm">
-          ({value.length} of {AUDIENCE_MAX} entries)
-        </span>
-      </p>
     </fieldset>
   );
 }

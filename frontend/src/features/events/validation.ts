@@ -21,7 +21,7 @@ export interface EventFormValues {
   title: string;
   description: string;
   location: string;
-  /** "Show location only to confirmed attendees". */
+  /** "Hide the location until people are confirmed". */
   locationConfirmedOnly: boolean;
   tag: string;
   timeZone: string;
@@ -35,6 +35,13 @@ export interface EventFormValues {
 }
 
 export type FieldErrors = Partial<Record<keyof EventFormValues, string>>;
+
+/** What a section of the form is given. */
+export interface SectionProps {
+  values: EventFormValues;
+  errors: FieldErrors;
+  set: <K extends keyof EventFormValues>(key: K, value: EventFormValues[K]) => void;
+}
 
 const DAY = 24 * 60 * 60 * 1000;
 /** D-012: an event lasts at most 7 days, starts within a year either way of now, and opens signup at most a year before. */

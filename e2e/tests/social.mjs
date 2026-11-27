@@ -136,7 +136,9 @@ export async function createEvent(
   await page.getByLabel('Title').fill(title);
   await page.getByLabel('Location', { exact: true }).fill(location);
   if (locationConfirmedOnly) {
-    await page.getByLabel('Show location only to confirmed attendees').check();
+    await page
+      .getByRole('switch', { name: 'Hide the location until people are confirmed' })
+      .click();
   }
   await page.getByLabel('Starts').fill(localInput(days, hour));
   if (capacity !== undefined) await page.getByLabel('Capacity').fill(String(capacity));
@@ -150,7 +152,7 @@ export async function createEvent(
       page.getByRole('listitem').filter({ hasText: person.name }).getByText('Added'),
     ).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Create event' }).click();
+  await page.getByRole('button', { name: 'Create meetup' }).click();
   await expect(page).toHaveURL(/\/events\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
   return page.url().split('/').pop();
