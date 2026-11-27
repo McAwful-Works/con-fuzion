@@ -46,6 +46,8 @@ terms forbid scripting it. Nothing here touches the real Discord, and no credent
     `signInAgain`'s). The backend reads it at sign-in only.
 - `tests/event-page.spec.mjs` (M5.5) checks the event page's layout, which unit tests can't see: the action bar at
   the bottom of a phone screen, and the side card on desktop.
+- `tests/host-steps.spec.mjs` (M5.5) hosts a meetup through the phone's five steps. `createEvent` fills the
+  desktop page, so this is the one that covers a phone.
 - `tests/maintenance.spec.mjs` (M5) starts a second jar with `con-fuzion.maintenance=true` (the flag is read at
   startup), checks it and stops it. Its log is `e2e/.run/maintenance/backend.log`, attached to the report on failure.
 

@@ -37,6 +37,18 @@ export const errorEnvelope: Schemas['ResponseRecordErrorResponseBodyRecord'] = {
   },
 };
 
+/**
+ * From 1024px up. jsdom has no `matchMedia`, so without this the window is a phone's. Undone by
+ * `vi.unstubAllGlobals`.
+ */
+export function onDesktop() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('min-width'),
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
 export function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,

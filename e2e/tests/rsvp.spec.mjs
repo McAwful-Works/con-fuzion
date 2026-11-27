@@ -358,7 +358,7 @@ test.describe('My plans', () => {
     await expectFeed(me, { sees: [`Not for me ${tag}`] });
   });
 
-  test('51. reads offline from the copy the service worker saved', async ({ join }) => {
+  test('52. reads offline from the copy the service worker saved', async ({ join }) => {
     const { con, host, guests } = await crowd(join, 1);
     const [me] = guests;
     const tag = me.user.id.slice(-6);

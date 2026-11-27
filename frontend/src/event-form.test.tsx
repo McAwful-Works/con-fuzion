@@ -1,8 +1,16 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { components } from './api/schema';
 import { utcToZonedLocal } from './features/events/time';
-import { envelope, guilds, me, mockApi, renderApp, type RecordedCall } from './test-utils';
+import {
+  envelope,
+  guilds,
+  me,
+  mockApi,
+  onDesktop,
+  renderApp,
+  type RecordedCall,
+} from './test-utils';
 
 type Schemas = components['schemas'];
 
@@ -69,6 +77,9 @@ async function sent(calls: RecordedCall[], method = 'POST') {
   await waitFor(() => expect(calls.some((c) => c.method === method)).toBe(true));
   return calls.find((c) => c.method === method)!.body as Schemas['EventRequest'];
 }
+
+// The desktop page. The phone's steps are in event-steps.test.tsx.
+beforeEach(onDesktop);
 
 afterEach(() => {
   vi.unstubAllGlobals();

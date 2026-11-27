@@ -10,6 +10,7 @@ import {
   jsonResponse,
   me,
   mockApi,
+  onDesktop,
   renderApp,
   type RecordedCall,
 } from './test-utils';
@@ -314,6 +315,7 @@ describe('the 409 messages', () => {
   });
 
   it('explains a capacity below the confirmed count when saving an event', async () => {
+    onDesktop();
     signedIn((call) => {
       if (call.method === 'GET' && call.path === `/api/events/${mine.id}`)
         return envelope('EVENT', mine);
