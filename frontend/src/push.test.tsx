@@ -381,7 +381,7 @@ describe('onboarding: servers, then notifications', () => {
     renderApp('/onboarding');
     await screen.findByRole('heading', { name: 'Where can people find you?' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await screen.findByRole('heading', { name: 'Want a heads-up?' });
     expect(await screen.findByRole('button', { name: 'Turn on push' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue' })).toHaveAttribute('href', '/');
@@ -400,6 +400,6 @@ describe('onboarding: servers, then notifications', () => {
     renderApp('/onboarding');
     await screen.findByRole('heading', { name: 'Where can people find you?' });
     expect(screen.getByRole('link', { name: 'Continue' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
   });
 });
