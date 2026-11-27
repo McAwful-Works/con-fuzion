@@ -302,6 +302,19 @@ describe('search and filters', () => {
     expect(await pressed()).toEqual(['All']);
   });
 
+  it('scrolls the chip row sideways on phones, without a scrollbar', async () => {
+    filtering();
+    renderApp('/');
+
+    // jsdom lays nothing out, so the classes stand for the behaviour.
+    expect(await screen.findByRole('group', { name: 'Filters' })).toHaveClass(
+      'overflow-x-auto',
+      'scrollbar-none',
+      '[&::-webkit-scrollbar]:hidden',
+      'lg:flex-wrap',
+    );
+  });
+
   it('searches after a pause in typing, trimmed, keeping what was typed', async () => {
     const calls = filtering();
     const router = renderApp('/');

@@ -101,11 +101,14 @@ export function FilterBar({
   return (
     <div className="space-y-2.5">
       <SearchBox value={text} onSearch={(q) => change({ q })} />
-      {/* One scrolling row on phones. The padding keeps focus rings from being cut off. */}
+      {/*
+       * One scrolling row on phones, with no scrollbar (older Safari needs the WebKit rule). The
+       * padding keeps focus rings from being cut off.
+       */}
       <div
         role="group"
         aria-label="Filters"
-        className="-mx-4 flex gap-2 overflow-x-auto px-4 py-1 lg:mx-0 lg:flex-wrap lg:px-0"
+        className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 py-1 lg:mx-0 lg:flex-wrap lg:px-0 [&::-webkit-scrollbar]:hidden"
       >
         <Chip
           ref={allRef}

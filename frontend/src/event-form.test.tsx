@@ -306,6 +306,30 @@ describe('your own time', () => {
   });
 });
 
+describe('a server’s audience card', () => {
+  it('swaps in the initial when the server icon fails to load', async () => {
+    const iconUrl = 'https://cdn.discordapp.com/icons/1/gone.png';
+    signedIn(({ path }) =>
+      path === '/api/me/guilds'
+        ? envelope('GUILD_LIST', { guilds: [{ ...guilds[2]!, iconUrl }] })
+        : undefined,
+    );
+    renderApp('/events/new');
+
+    const checkbox = await screen.findByRole('checkbox', { name: 'Cosplay Corner' });
+    const card = checkbox.closest('label')!;
+    const icon = card.querySelector('img')!;
+    expect(icon).toHaveAttribute('src', iconUrl);
+
+    fireEvent.error(icon);
+
+    expect(card.querySelector('img')).toBeNull();
+    const initial = within(card).getByText('C');
+    expect(initial).toHaveAttribute('aria-hidden', 'true');
+    expect(initial).toHaveClass('size-10', 'rounded-control', 'bg-tag', 'text-tag-ink');
+  });
+});
+
 describe('opening the editor at who can see it', () => {
   it('focuses that section', async () => {
     signedIn();
