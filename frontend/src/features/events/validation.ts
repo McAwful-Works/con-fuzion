@@ -21,20 +21,28 @@ export interface EventFormValues {
   title: string;
   description: string;
   location: string;
-  /** "Show location only to confirmed attendees". */
+  /** "Hide the location until people are confirmed". */
   locationConfirmedOnly: boolean;
   tag: string;
   timeZone: string;
   startsAt: string;
   endsAt: string;
   signupOpensAt: string;
-  capacity: string;
+  /** The total headcount as typed, or null while the spots aren't limited. */
+  capacity: string | null;
   /** The offer window in minutes (D-014). */
   confirmWindowMinutes: string;
   audience: AudienceEntry[];
 }
 
 export type FieldErrors = Partial<Record<keyof EventFormValues, string>>;
+
+/** What each section of the form is given. */
+export interface SectionProps {
+  values: EventFormValues;
+  errors: FieldErrors;
+  set: <K extends keyof EventFormValues>(key: K, value: EventFormValues[K]) => void;
+}
 
 const DAY = 24 * 60 * 60 * 1000;
 /** D-012: an event lasts at most 7 days, starts within a year either way of now, and opens signup at most a year before. */
@@ -52,7 +60,7 @@ export function emptyValues(timeZone: string): EventFormValues {
     startsAt: '',
     endsAt: '',
     signupOpensAt: '',
-    capacity: '',
+    capacity: null,
     confirmWindowMinutes: String(CONFIRM_WINDOW_DEFAULT),
     audience: [],
   };
@@ -72,7 +80,7 @@ export function valuesFromEvent(event: Event): EventFormValues {
     startsAt: utcToZonedLocal(event.startsAt, zone),
     endsAt: event.endsAt ? utcToZonedLocal(event.endsAt, zone) : '',
     signupOpensAt: event.signupOpensAt ? utcToZonedLocal(event.signupOpensAt, zone) : '',
-    capacity: event.capacity === null ? '' : String(event.capacity),
+    capacity: event.capacity === null ? null : String(event.capacity),
     confirmWindowMinutes: String(event.confirmWindowMinutes),
     // The whole audience goes back (D-012: entries already on the event are kept).
     audience: event.audience ?? [],
@@ -173,8 +181,8 @@ export function validateEvent(
   }
 
   let capacity: number | null = null;
-  const capacityText = values.capacity.trim();
-  if (capacityText) {
+  if (values.capacity !== null) {
+    const capacityText = values.capacity.trim();
     capacity = Number(capacityText);
     if (
       !/^\d+$/.test(capacityText) ||

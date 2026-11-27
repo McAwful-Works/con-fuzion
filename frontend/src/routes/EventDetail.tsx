@@ -59,7 +59,7 @@ function HostActions({ event }: { event: Event }) {
                 Edit <span className="max-lg:sr-only">event</span>
               </span>
             </Link>
-            <Link to={edit} className="btn btn-secondary btn-sm flex-1 lg:min-h-12">
+            <Link to={`${edit}#audience`} className="btn btn-secondary btn-sm flex-1 lg:min-h-12">
               <Users aria-hidden="true" className="size-4 max-lg:hidden" />
               <span className="whitespace-nowrap">
                 <span className="max-lg:sr-only">Change</span>{' '}

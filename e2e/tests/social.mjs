@@ -116,8 +116,8 @@ export async function makeCircle({ page }, circleName, members) {
 
 /**
  * Creates an event through the form and returns its ID (from the URL it lands on).
- * `audience`: `friends` (bool), `guilds`, `circles` (names), `people` (players). `capacity` (2 or more, host
- * included) is left empty for an unlimited event. `days` and `hour` (UTC) set the start; with no end an event lasts
+ * `audience`: `friends` (bool), `guilds`, `circles` (names), `people` (players). Without a `capacity` (2 or more,
+ * host included) the spots stay unlimited. `days` and `hour` (UTC) set the start; with no end an event lasts
  * 3 hours, so events that start less than 3 hours apart overlap.
  */
 export async function createEvent(
@@ -136,13 +136,20 @@ export async function createEvent(
   await page.getByLabel('Title').fill(title);
   await page.getByLabel('Location', { exact: true }).fill(location);
   if (locationConfirmedOnly) {
-    await page.getByLabel('Show location only to confirmed attendees').check();
+    await page
+      .getByRole('switch', { name: 'Hide the location until people are confirmed' })
+      .click();
   }
   await page.getByLabel('Starts').fill(localInput(days, hour));
-  if (capacity !== undefined) await page.getByLabel('Capacity').fill(String(capacity));
-  if (audience.friends) await page.getByLabel('All my friends').check();
-  for (const g of audience.guilds ?? []) await page.getByLabel(g).check();
-  for (const c of audience.circles ?? []) await page.getByLabel(c).check();
+  if (capacity !== undefined) {
+    await page.getByRole('switch', { name: 'Limit the spots' }).click();
+    await page.getByLabel('Capacity').fill(String(capacity));
+  }
+  // The checkbox of the card with that name.
+  const pick = (name) => page.getByRole('checkbox', { name, exact: true }).check();
+  if (audience.friends) await pick('All my friends');
+  for (const g of audience.guilds ?? []) await pick(g);
+  for (const c of audience.circles ?? []) await pick(c);
   for (const person of audience.people ?? []) {
     await page.getByLabel('Search by name').fill(person.name);
     await page.getByRole('button', { name: `Add ${person.name}` }).click();
@@ -150,7 +157,7 @@ export async function createEvent(
       page.getByRole('listitem').filter({ hasText: person.name }).getByText('Added'),
     ).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Create event' }).click();
+  await page.getByRole('button', { name: 'Create meetup' }).click();
   await expect(page).toHaveURL(/\/events\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
   return page.url().split('/').pop();
