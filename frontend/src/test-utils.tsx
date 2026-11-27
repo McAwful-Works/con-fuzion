@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { vi } from 'vitest';
@@ -47,6 +47,12 @@ export function jsonResponse(body: unknown, status = 200) {
 /** A success response in the D-010 envelope. */
 export function envelope(responseType: string, body: unknown) {
   return jsonResponse({ responseType, body });
+}
+
+/** The welcome page's own sign-in link, once it shows. The top bar has a second one. */
+export async function findSignIn() {
+  const main = await screen.findByRole('main');
+  return within(main).findByRole('link', { name: 'Sign in with Discord' });
 }
 
 export interface RecordedCall {
