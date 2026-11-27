@@ -488,7 +488,7 @@ describe('cards and My schedule', () => {
     renderApp('/');
     expect(await screen.findByRole('link', { name: 'My schedule' })).toHaveAttribute(
       'href',
-      '/schedule',
+      '/plans',
     );
   });
 });

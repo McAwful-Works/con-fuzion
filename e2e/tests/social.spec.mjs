@@ -42,7 +42,7 @@ test.describe('friends via an invite link', () => {
       }),
     ).toBeVisible();
     await b.page.getByRole('button', { name: 'Accept' }).click();
-    await expect(b.page).toHaveURL(/\/friends$/);
+    await expect(b.page).toHaveURL(/\/people$/);
     await expect(friendRow(b, a)).toBeVisible();
 
     await openFriends(a);
@@ -94,7 +94,7 @@ test.describe('friends via an invite link', () => {
         }),
       ).toBeVisible();
       await page.getByRole('button', { name: 'Accept' }).click();
-      await expect(page).toHaveURL(/\/friends$/);
+      await expect(page).toHaveURL(/\/people$/);
       await expect(friendRow(b, a)).toBeVisible();
 
       await openFriends(a);
@@ -364,7 +364,7 @@ test.describe('people search', () => {
     await befriend(me, friend, baseURL);
 
     // Search from a circle's page, the way a person finds people to add.
-    await me.page.goto('/circles');
+    await me.page.goto('/people?tab=circles');
     await me.page.getByLabel('Circle name').fill('Search circle');
     await me.page.getByRole('button', { name: 'Create circle' }).click();
     await me.page.getByRole('link', { name: /Search circle/ }).click();

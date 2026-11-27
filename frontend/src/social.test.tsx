@@ -157,7 +157,7 @@ describe('accepting an invite', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/friends'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/people'));
     expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
     // The accepted invite is never fetched again, so no "isn't valid" flash on the way out.
     expect(calls.filter((c) => c.path === `/api/friends/invites/${TOKEN}`)).toHaveLength(1);
@@ -446,7 +446,8 @@ describe('circles', () => {
       within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete circle' }),
     );
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/circles'));
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=circles'));
+    expect(router.state.location.pathname).toBe('/people');
     expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
   });
 

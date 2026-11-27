@@ -153,6 +153,16 @@
   :focus-visible {
     @apply outline-focus outline-2 outline-offset-2;
   }
+
+  /* Below 1024px the top and tab bars are fixed: scroll a focused element clear of them. */
+  @media (width < 64rem) {
+    html:has([data-topbar]) {
+      scroll-padding-top: 4.5rem;
+    }
+    html:has([data-tabbar]) {
+      scroll-padding-bottom: 6rem;
+    }
+  }
 }
 
 /*

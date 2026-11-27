@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { components } from './api/schema';
 import { formatUnread } from './api/notifications';
@@ -41,6 +41,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+/** The sidebar's link: the tab bar has the same one, and jsdom shows both. */
+async function findInboxLink(name: string) {
+  return within(await screen.findByRole('complementary')).findByRole('link', { name });
+}
 
 describe('describeNotification', () => {
   it('writes each type from its payload alone', () => {
@@ -86,16 +91,16 @@ describe('the unread badge', () => {
     const calls = signedIn((call) =>
       call.path.startsWith('/api/notifications') ? page([], unread) : undefined,
     );
-    renderApp('/notifications');
+    renderApp('/inbox');
 
-    const link = await screen.findByRole('link', { name: 'Notifications, 3 unread' });
-    expect(link).toHaveAttribute('href', '/notifications');
+    const link = await findInboxLink('Inbox, 3 unread');
+    expect(link).toHaveAttribute('href', '/inbox');
     expect(calls.some((c) => c.path === '/api/notifications?limit=1')).toBe(true);
 
     unread = 100;
     // Coming back to the tab checks again, whatever the timer says.
     document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
-    expect(await screen.findByRole('link', { name: 'Notifications, 99+ unread' })).toBeVisible();
+    expect(await findInboxLink('Inbox, 99+ unread')).toBeVisible();
   });
 
   it('clears after the inbox is read, even when its first count was still loading', async () => {
@@ -126,19 +131,19 @@ describe('the unread badge', () => {
         throw new Error(`Unmocked request: ${init?.method ?? 'GET'} ${path}`);
       }),
     );
-    renderApp('/notifications');
+    renderApp('/inbox');
 
     await waitFor(() => expect(counts).toBe(2));
     releaseFirstCount();
-    expect(await screen.findByRole('link', { name: 'Notifications' })).toBeVisible();
+    expect(await findInboxLink('Inbox')).toBeVisible();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(screen.queryByRole('link', { name: 'Notifications, 1 unread' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Inbox, 1 unread' })).toBeNull();
   });
 
   it('has no badge when everything is read', async () => {
     signedIn((call) => (call.path.startsWith('/api/notifications') ? page([], 0) : undefined));
-    renderApp('/notifications');
-    expect(await screen.findByRole('link', { name: 'Notifications' })).toBeVisible();
+    renderApp('/inbox');
+    expect(await findInboxLink('Inbox')).toBeVisible();
   });
 });
 
@@ -152,7 +157,7 @@ describe('the inbox', () => {
       return undefined;
     });
 
-    renderApp('/notifications');
+    renderApp('/inbox');
 
     expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeVisible();
     const entries = await screen.findAllByRole('listitem');
@@ -175,7 +180,7 @@ describe('the inbox', () => {
     const calls = signedIn((call) =>
       call.path.startsWith('/api/notifications') ? page([note(5, { read: true })], 0) : undefined,
     );
-    renderApp('/notifications');
+    renderApp('/inbox');
     await screen.findByText(/was cancelled/);
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
@@ -188,7 +193,7 @@ describe('the inbox', () => {
       if (call.path.startsWith('/api/notifications')) return page([], 1);
       return undefined;
     });
-    renderApp('/notifications');
+    renderApp('/inbox');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
 
@@ -205,7 +210,7 @@ describe('the inbox', () => {
       if (call.path.startsWith('/api/notifications')) return page([note(5)], 1);
       return undefined;
     });
-    const router = renderApp('/notifications');
+    const router = renderApp('/inbox');
 
     fireEvent.click(await screen.findByRole('link', { name: 'View event' }));
 
@@ -220,18 +225,18 @@ describe('the inbox', () => {
       if (call.path.startsWith('/api/notifications')) return page([note(5)], 1);
       return undefined;
     });
-    const router = renderApp('/notifications');
+    const router = renderApp('/inbox');
 
     fireEvent.click(await screen.findByRole('link', { name: 'View event' }));
 
     expect(await screen.findByText('This event is no longer available.')).toBeVisible();
-    expect(router.state.location.pathname).toBe('/notifications');
+    expect(router.state.location.pathname).toBe('/inbox');
     expect(screen.queryByRole('link', { name: 'View event' })).toBeNull();
   });
 
   it('says so when there is nothing yet', async () => {
     signedIn((call) => (call.path.startsWith('/api/notifications') ? page([], 0) : undefined));
-    renderApp('/notifications');
+    renderApp('/inbox');
     expect(await screen.findByText(/Nothing yet/)).toBeVisible();
   });
 });

@@ -3,6 +3,15 @@ import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
 import { PersonRow } from './PersonRow';
 
+export function BlockedNote() {
+  return (
+    <p className="text-ink-muted text-sm">
+      Blocking cuts you off from each other both ways. Unblocking lifts the block but doesn’t bring
+      back a friendship or a circle membership.
+    </p>
+  );
+}
+
 /** Settings → Blocked. Only the blocks you made are listed; unblocking restores nothing. */
 export function BlockedList() {
   const blocks = useBlocks();

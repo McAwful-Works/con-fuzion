@@ -69,7 +69,7 @@ describe('the service worker push handler', () => {
       type: 'FRIEND_ACCEPTED',
       text: 'A friend invite you sent was accepted.',
     });
-    expect(options.data.url).toBe('/notifications');
+    expect(options.data.url).toBe('/inbox');
   });
 
   it('shows only the text field, so nothing else in a payload reaches the lock screen', async () => {
@@ -102,7 +102,7 @@ describe('the service worker push handler', () => {
     expect(worker.showNotification).toHaveBeenCalledTimes(1);
     expect(title).toBe('Con-Fuzion');
     expect(options.body).toBe('You have a new notification.');
-    expect(options.data.url).toBe('/notifications');
+    expect(options.data.url).toBe('/inbox');
   });
 
   it('keeps the push alive until the notification is shown', async () => {
@@ -117,14 +117,14 @@ describe('the service worker push handler', () => {
     expect(shown).toBe(true);
   });
 
-  it('opens /notifications rather than trusting an event ID that is not a UUID', async () => {
+  it('opens /inbox rather than trusting an event ID that is not a UUID', async () => {
     const worker = loadWorker();
     const [, options] = await worker.push({
       type: 'EVENT_CANCELLED',
       eventId: '../../admin',
       text: 'Cancelled.',
     });
-    expect(options.data.url).toBe('/notifications');
+    expect(options.data.url).toBe('/inbox');
   });
 
   it('opens a window on click when none is open', async () => {
@@ -150,8 +150,8 @@ describe('the service worker push handler', () => {
       }),
     };
     const worker = loadWorker([tab]);
-    await worker.click({ url: '/notifications' });
-    expect(worker.openWindow).toHaveBeenCalledWith('/notifications');
+    await worker.click({ url: '/inbox' });
+    expect(worker.openWindow).toHaveBeenCalledWith('/inbox');
   });
 
   it('only ever opens a path on its own origin', async () => {

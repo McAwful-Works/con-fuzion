@@ -59,7 +59,7 @@ describe('auth state', () => {
 
     expect(await screen.findByText('Con Goer')).toBeInTheDocument();
     expect(document.querySelector(`img[src="${me.avatarUrl}"]`)).not.toBeNull();
-    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
   });
 
   it('shows an error state with retry for a non-401 failure, never server text', async () => {

@@ -1,7 +1,7 @@
 import { apiGuilds, denyNextSignIn, mixedGuilds, newUser, signIn } from './support.mjs';
 import { expect, test } from './hooks.mjs';
 
-/** Open Settings from the header (the avatar link) and press one of the Account buttons. */
+/** Open You from the sidebar (the Settings link) and press one of the Account buttons. */
 async function pressAccountButton(page, name) {
   await page.getByRole('link', { name: 'Settings' }).click();
   await page.getByRole('button', { name }).click();
