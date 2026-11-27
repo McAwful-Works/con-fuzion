@@ -88,6 +88,11 @@ class EventControllerTest {
 	private static final UUID USER_ID = UUID.randomUUID();
 
 	/**
+	 * A list request with no search and no filters.
+	 */
+	private static final FeedFilter NO_FILTER = new FeedFilter(null, null, null, null);
+
+	/**
 	 * The signed-in user's {@link Authentication}.
 	 */
 	private static final Authentication AUTHENTICATION = UsernamePasswordAuthenticationToken
@@ -168,7 +173,7 @@ class EventControllerTest {
 	@Test
 	void testCreateAndListDefaults() throws Exception {
 		when(eventService.createEvent(eq(USER_ID), any())).thenReturn(RESPONSE);
-		when(eventService.getEvents(USER_ID, "feed", null, 20, FeedFilter.NONE))
+		when(eventService.getEvents(USER_ID, "feed", null, 20, NO_FILTER))
 				.thenReturn(new EventPageResponse(List.of(), null));
 
 		mockMvc.perform(json(post("/api/events"), body(Map.of())).principal(AUTHENTICATION))
@@ -176,7 +181,7 @@ class EventControllerTest {
 				.andExpect(jsonPath("$.body.isHost").value(true));
 		mockMvc.perform(get("/api/events").principal(AUTHENTICATION)).andExpect(status().isOk())
 				.andExpect(jsonPath("$.responseType").value("EVENT_PAGE"));
-		verify(eventService).getEvents(USER_ID, "feed", null, 20, FeedFilter.NONE);
+		verify(eventService).getEvents(USER_ID, "feed", null, 20, NO_FILTER);
 	}
 
 	/**
@@ -277,11 +282,11 @@ class EventControllerTest {
 	 */
 	@Test
 	void testAttendingScope() throws Exception {
-		when(eventService.getEvents(USER_ID, "attending", null, 20, FeedFilter.NONE))
+		when(eventService.getEvents(USER_ID, "attending", null, 20, NO_FILTER))
 				.thenReturn(new EventPageResponse(List.of(), null));
 		mockMvc.perform(get("/api/events").param("scope", "attending").principal(AUTHENTICATION))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.responseType").value("EVENT_PAGE"));
-		verify(eventService).getEvents(USER_ID, "attending", null, 20, FeedFilter.NONE);
+		verify(eventService).getEvents(USER_ID, "attending", null, 20, NO_FILTER);
 	}
 
 	/**

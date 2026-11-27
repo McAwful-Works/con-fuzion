@@ -266,8 +266,7 @@ public class EventService {
 	 *               validated
 	 * @param cursor the previous page's cursor, or {@code null} for the first page
 	 * @param limit  the most events to return, already validated
-	 * @param filter the feed's search and filters, already validated, or
-	 *               {@link FeedFilter#NONE}
+	 * @param filter the feed's search and filters, already validated
 	 * @return the page
 	 * @throws InvalidInputException when the cursor is malformed or was issued for
 	 *                               the other scope, when a filter is given for

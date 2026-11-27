@@ -35,11 +35,6 @@ package app.confuzion.backend.model.record;
 public record FeedFilter(String q, String guild, Boolean friends, Boolean hasSpots) {
 
 	/**
-	 * No search and no filters.
-	 */
-	public static final FeedFilter NONE = new FeedFilter(null, null, null, null);
-
-	/**
 	 * Returns whether no parameter was given at all, {@code false} values included.
 	 *
 	 * @return {@code true} when every field is {@code null}
