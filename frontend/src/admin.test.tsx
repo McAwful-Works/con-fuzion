@@ -563,6 +563,61 @@ describe('user search', () => {
     await openAdmin('/admin/users?q=nobody');
     expect(await screen.findByText('No one found.')).toBeInTheDocument();
   });
+
+  it('is a table on desktop, with each person’s facts and actions together', async () => {
+    onDesktop();
+    const quiet = { ...rowdy, id: REPORTER_ID, globalName: 'Quiet', reportCount: 0 };
+    signedIn(admin, ({ path }) => (path === SEARCH ? found([rowdy, quiet]) : undefined));
+    await openAdmin('/admin/users?q=rowdy');
+
+    const table = within(await screen.findByRole('table', { name: 'Search results' }));
+    expect(table.getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
+      'Name',
+      'Joined',
+      'Last signed in',
+      'Suspension',
+      'Ban',
+      'Reports against them',
+    ]);
+    expect(screen.queryByRole('list', { name: 'Search results' })).toBeNull();
+    // The headings' row group, then one for each person.
+    const [, first, second] = table.getAllByRole('rowgroup');
+    const person = within(first!);
+    expect(person.getByRole('heading', { name: 'Rowdy' })).toBeInTheDocument();
+    expect(person.getAllByRole('term').map((term) => term.textContent)).toEqual([
+      'Username',
+      'Discord ID',
+    ]);
+    // After the name's cell, Joined and Last signed in.
+    expect(cells(person.getAllByRole('row')[0]!).slice(3)).toEqual(['None', 'None', '3']);
+    expect(person.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Suspend Rowdy',
+      'Ban Rowdy',
+      'Roles for Rowdy',
+    ]);
+    expect(within(second!).getByRole('button', { name: 'Suspend Quiet' })).toBeInTheDocument();
+  });
+
+  it('suspends from the desktop table, then shows the new end', async () => {
+    onDesktop();
+    let current = rowdy;
+    const calls = signedIn(moderator, ({ method, path }) => {
+      if (method === 'GET' && path === SEARCH) return found([current]);
+      if (path !== `/api/admin/users/${USER_ID}/suspend`) return undefined;
+      current = { ...rowdy, suspendedUntil: '2099-01-01T00:00:00Z' };
+      return noContent();
+    });
+    await openAdmin('/admin/users?q=rowdy');
+    fireEvent.click(await screen.findByRole('button', { name: 'Suspend Rowdy' }));
+    expect(screen.queryByRole('button', { name: /Ban|Roles/ })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Suspended until'), { target: { value: localDay(1) } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Threats' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+
+    expect(await screen.findByText(/Suspended until/, { selector: 'td' })).toBeInTheDocument();
+    expect(screen.getByText('Rowdy is suspended.')).toBeInTheDocument();
+    expect(writes(calls)).toHaveLength(1);
+  });
 });
 
 const SEARCH = '/api/admin/users?q=rowdy';
@@ -891,6 +946,35 @@ describe('the audit log', () => {
     signedIn(admin, ({ path }) => (path === AUDIT ? log([]) : undefined));
     await openAdmin('/admin/audit');
     expect(await screen.findByText('Nothing recorded yet.')).toBeInTheDocument();
+  });
+
+  it('is a table on desktop, a page at a time', async () => {
+    onDesktop();
+    signedIn(admin, ({ path }) => {
+      if (path === AUDIT) return log([entry], 'abc');
+      return path === `${AUDIT}&cursor=abc` ? log([system]) : undefined;
+    });
+    await openAdmin('/admin/audit');
+    const table = within(await screen.findByRole('table', { name: 'Audit entries' }));
+    expect(table.getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
+      'When',
+      'Action',
+      'By',
+      'Target',
+      'Details',
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    await waitFor(() => expect(table.getAllByRole('row')).toHaveLength(3));
+
+    const [, first, second] = table.getAllByRole('row');
+    expect(cells(first!).slice(1, 4)).toEqual(['User suspended', REPORTER_ID, `User${USER_ID}`]);
+    expect(within(first!).getByText('<img src=x> ACCOUNT_BANNED')).toBeInTheDocument();
+    expect(cells(second!).slice(1, 4)).toEqual([
+      'Roles changed',
+      'The system',
+      `Discord account${BAN_ID}`,
+    ]);
+    expect(screen.queryByRole('list', { name: 'Audit entries' })).toBeNull();
   });
 
   it('answers a 403 with the not-found page', async () => {

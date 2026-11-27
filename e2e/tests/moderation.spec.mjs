@@ -3,6 +3,7 @@ import {
   expectSignedOut,
   expectSignInRefused,
   findUser,
+  fitsWidth,
   grantRoles,
   joinAdmin,
   joinModerator,
@@ -231,10 +232,6 @@ test.describe('reports and hidden events', () => {
     expect(sent.status()).toBe(204);
     const title = `Person: ${reported.name}`;
     const { page } = admin;
-    const noSidewaysScroll = () =>
-      page.evaluate(
-        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-      );
 
     await page.goto('/admin');
     await openReport(admin, title);
@@ -246,18 +243,49 @@ test.describe('reports and hidden events', () => {
     expect(beside.x).toBeGreaterThan(queue.x + queue.width);
     // The shell's column is wider here than on other pages (52.5rem, 840px).
     expect((await page.getByRole('main').boundingBox()).width).toBeGreaterThan(900);
-    expect(await noSidewaysScroll()).toBe(true);
+    expect(await fitsWidth(admin)).toBe(true);
 
     await page.setViewportSize({ width: 375, height: 800 });
     await expect(table).toHaveCount(0);
     await expect(detail).toBeVisible();
-    expect(await noSidewaysScroll()).toBe(true);
+    expect(await fitsWidth(admin)).toBe(true);
 
     await detail.getByRole('link', { name: 'Back to reports' }).click();
     const cards = page.getByRole('list', { name: 'Open reports' });
     await expect(cards.getByRole('link').filter({ hasText: title })).toBeVisible();
     await expect(detail).toHaveCount(0);
-    expect(await noSidewaysScroll()).toBe(true);
+    expect(await fitsWidth(admin)).toBe(true);
+  });
+
+  test('50. users and the audit log are tables on desktop and cards on a phone', async ({
+    join,
+  }) => {
+    const admin = await joinAdmin(join);
+    const user = await join('listed', []);
+    const { page } = admin;
+    const person = await findUser(admin, user);
+
+    // The narrowest desktop, with a form open inside the table.
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await person.getByRole('button', { name: `Ban ${user.name}` }).click();
+    await expect(person.getByRole('form', { name: `Ban ${user.name}` })).toBeVisible();
+    expect(await fitsWidth(admin)).toBe(true);
+
+    await page.setViewportSize({ width: 375, height: 800 });
+    const cards = page.getByRole('list', { name: 'Search results' });
+    await expect(cards.getByRole('heading', { name: user.name })).toBeVisible();
+    await expect(page.getByRole('table')).toHaveCount(0);
+    expect(await fitsWidth(admin)).toBe(true);
+
+    // The admin's own role grant is there at least, so the log is never empty.
+    await page.goto('/admin/audit');
+    await expect(page.getByRole('list', { name: 'Audit entries' })).toBeVisible();
+    expect(await fitsWidth(admin)).toBe(true);
+
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await expect(page.getByRole('table', { name: 'Audit entries' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Audit entries' })).toHaveCount(0);
+    expect(await fitsWidth(admin)).toBe(true);
   });
 });
 
