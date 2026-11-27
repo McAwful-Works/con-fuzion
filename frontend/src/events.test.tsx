@@ -347,7 +347,7 @@ describe('creating an event', () => {
     renderApp('/events/new');
 
     expect(await screen.findByLabelText('Time zone')).toHaveValue(timeZoneLabel('America/Chicago'));
-    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
 
     expect(await screen.findByText('Give your event a title.')).toBeInTheDocument();
     expect(screen.getByText('Say where it is.')).toBeInTheDocument();
@@ -371,7 +371,7 @@ describe('creating an event', () => {
     fill('Title', 'Panel');
     fill('Location', 'Room 4');
     fill('Starts', soon());
-    fireEvent.click(screen.getByLabelText('Show location only to confirmed attendees'));
+    fireEvent.click(screen.getByLabelText('Hide the location until people are confirmed'));
     fill('Capacity', '25');
     expect(screen.getByLabelText('Offer window (minutes)')).toHaveValue('30');
     fill('Offer window (minutes)', '45');
@@ -396,7 +396,7 @@ describe('creating an event', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/4 of 50 entries/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/events/${created.id}`));
     const post = calls.find((c) => c.method === 'POST');
@@ -448,7 +448,7 @@ describe('creating an event', () => {
     fill('Location', 'Room 4');
     fill('Starts', soon());
     fireEvent.click(await screen.findByLabelText('All my friends'));
-    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/events/${created.id}`));
     expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ timeZone: 'UTC' });
@@ -472,7 +472,7 @@ describe('creating an event', () => {
     // Enter chooses the zone; it doesn't submit the form.
     expect(fireEvent.keyDown(zone, { key: 'Enter' })).toBe(false);
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe(`/events/${created.id}`));
     expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({
@@ -549,7 +549,7 @@ describe('creating an event', () => {
     fill('Location', 'Room 4');
     fill('Starts', soon());
     fireEvent.click(await screen.findByLabelText('All my friends'));
-    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/20 events in the last 24 hours/);
   });
@@ -562,12 +562,12 @@ describe('creating an event', () => {
     fill('Location', 'Room 4');
     fill('Starts', soon(-2));
     fireEvent.click(await screen.findByLabelText('All my friends'));
-    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
     expect(await screen.findByText('The start can’t be in the past.')).toBeInTheDocument();
 
     fill('Starts', soon(10));
     fill('Ends (optional)', soon(18));
-    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
     expect(await screen.findByText('An event can last at most 7 days.')).toBeInTheDocument();
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
@@ -583,7 +583,7 @@ describe('editing an event', () => {
     const router = renderApp(`/events/${mine.id}/edit`);
 
     expect(await screen.findByLabelText('Title')).toHaveValue('My panel');
-    expect(screen.getByLabelText('Show location only to confirmed attendees')).toBeChecked();
+    expect(screen.getByLabelText('Hide the location until people are confirmed')).toBeChecked();
     expect(screen.getByLabelText('Capacity')).toHaveValue('20');
     // The server the host is no longer discoverable in is listed, by the text we chose.
     const extras = screen.getByRole('region', { name: 'Also included' });

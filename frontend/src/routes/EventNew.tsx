@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useCreateEvent } from '../api/events';
 import { useMe } from '../api/me';
 import { Skeleton } from '../components/Skeleton';
@@ -17,23 +17,17 @@ export function EventNew() {
     profileZone && isValidTimeZone(profileZone) ? profileZone : browserTimeZone();
 
   return (
-    <div className="space-y-6">
-      <Link to="/" className="text-sm underline">
-        All events
-      </Link>
-      <h1 className="text-2xl font-semibold">Create an event</h1>
-      <EventForm
-        defaultTimeZone={defaultTimeZone}
-        submitLabel="Create event"
-        pending={create.isPending}
-        error={create.error}
-        onSubmit={(request) =>
-          create.mutate(request, {
-            // Replaced, so Back from the new event doesn't return to the empty form.
-            onSuccess: (event) => void navigate(`/events/${event.id}`, { replace: true }),
-          })
-        }
-      />
-    </div>
+    <EventForm
+      defaultTimeZone={defaultTimeZone}
+      submitLabel="Create meetup"
+      pending={create.isPending}
+      error={create.error}
+      onSubmit={(request) =>
+        create.mutate(request, {
+          // Replaced, so Back from the new event doesn't return to the empty form.
+          onSuccess: (event) => void navigate(`/events/${event.id}`, { replace: true }),
+        })
+      }
+    />
   );
 }
