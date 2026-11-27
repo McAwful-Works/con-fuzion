@@ -7,6 +7,7 @@ import {
   joinAdmin,
   joinModerator,
   openReport,
+  queueEntry,
   signInAgain,
 } from './admin.mjs';
 import { expect, test } from './hooks.mjs';
@@ -194,8 +195,7 @@ test.describe('reports and hidden events', () => {
     // It has moved from the open queue to the actioned one (newest first, so it's on the first page).
     await detail.getByRole('link', { name: 'Back to reports' }).click();
     await moderator.page.getByRole('link', { name: 'Actioned', exact: true }).click();
-    const actioned = moderator.page.getByRole('list', { name: 'Actioned reports' });
-    await expect(actioned.getByRole('link').filter({ hasText: title })).toBeVisible();
+    await expect(queueEntry(moderator, 'Actioned reports', title)).toBeVisible();
 
     // The reporter hears that it was reviewed, and nothing about what was reported or done.
     await reporter.page.goto('/');
@@ -213,6 +213,51 @@ test.describe('reports and hidden events', () => {
     // The host never hears of the report: the hide is still their only notification.
     await openInbox(host);
     await expect(host.page.getByRole('listitem')).toHaveCount(1);
+  });
+
+  // The layout, which unit tests can't see.
+  test('46. the report sits beside the queue on desktop, and replaces it on a phone', async ({
+    join,
+  }) => {
+    const admin = await joinAdmin(join);
+    const reporter = await join('layout-reporter', []);
+    const reported = await join('layout-reported', []);
+    const sent = await apiWrite(reporter, 'POST', '/reports', {
+      targetType: 'USER',
+      targetId: await userId(reported),
+      reason: 'HARASSMENT',
+      note: null,
+    });
+    expect(sent.status()).toBe(204);
+    const title = `Person: ${reported.name}`;
+    const { page } = admin;
+    const noSidewaysScroll = () =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      );
+
+    await page.goto('/admin');
+    await openReport(admin, title);
+    const table = page.getByRole('table', { name: 'Open reports' });
+    const detail = page.getByRole('article');
+    await expect(detail).toContainText(title);
+    const queue = await table.boundingBox();
+    const beside = await detail.boundingBox();
+    expect(beside.x).toBeGreaterThan(queue.x + queue.width);
+    // The shell's column is wider here than on other pages (52.5rem, 840px).
+    expect((await page.getByRole('main').boundingBox()).width).toBeGreaterThan(900);
+    expect(await noSidewaysScroll()).toBe(true);
+
+    await page.setViewportSize({ width: 375, height: 800 });
+    await expect(table).toHaveCount(0);
+    await expect(detail).toBeVisible();
+    expect(await noSidewaysScroll()).toBe(true);
+
+    await detail.getByRole('link', { name: 'Back to reports' }).click();
+    const cards = page.getByRole('list', { name: 'Open reports' });
+    await expect(cards.getByRole('link').filter({ hasText: title })).toBeVisible();
+    await expect(detail).toHaveCount(0);
+    expect(await noSidewaysScroll()).toBe(true);
   });
 });
 

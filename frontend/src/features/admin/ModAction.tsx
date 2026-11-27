@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ErrorState } from '../../components/ErrorState';
 
@@ -40,15 +41,15 @@ function ActionForm({ title, confirm, children, note, ready = true, ...props }: 
       aria-labelledby={ids.title}
       onSubmit={submit}
       onKeyDown={(e) => e.key === 'Escape' && !pending && onClose()}
-      className="border-line bg-surface-raised rounded-card w-full space-y-3 border p-4"
+      className="rounded-card border-control-outline bg-surface-sunken w-full space-y-3 border-2 p-4"
     >
-      <h3 id={ids.title} ref={titleRef} tabIndex={-1} className="font-semibold break-words">
+      <h3 id={ids.title} ref={titleRef} tabIndex={-1} className="font-extrabold break-words">
         {title}
       </h3>
       {children}
       {note && (
-        <div className="space-y-1">
-          <label htmlFor={ids.note} className="block text-sm font-medium">
+        <div className="field">
+          <label htmlFor={ids.note} className="field-label">
             {note.label}
           </label>
           <textarea
@@ -59,19 +60,19 @@ function ActionForm({ title, confirm, children, note, ready = true, ...props }: 
             required={note.required}
             aria-describedby={ids.count}
             onChange={(e) => setText(e.target.value)}
-            className="border-line bg-surface-raised rounded-control min-h-11 w-full border px-3 py-2"
+            className="field-control"
           />
-          <p id={ids.count} className="text-ink-muted text-sm">
+          <p id={ids.count} className="hint">
             {text.length} of {note.max} characters. Plain text only.
           </p>
         </div>
       )}
       {error !== null && <ErrorState error={error} />}
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button type="button" className="btn btn-secondary" disabled={pending} onClick={onClose}>
+      <div className="flex flex-wrap gap-3">
+        <button type="button" className="btn btn-sm grow" disabled={pending} onClick={onClose}>
           Never mind
         </button>
-        <button type="submit" className="btn btn-primary" disabled={!valid || pending}>
+        <button type="submit" className="btn btn-primary btn-sm grow" disabled={!valid || pending}>
           {pending ? 'Working…' : confirm}
         </button>
       </div>
@@ -87,10 +88,15 @@ interface Props extends Pick<FormProps, 'confirm' | 'children' | 'note' | 'ready
   mutation: { isPending: boolean; error: unknown; reset: () => void };
   /** Run the mutation, and call `done` when it succeeds. */
   onSubmit: (note: string, done: () => void) => void;
+  /** The one action to reach for first. */
+  primary?: boolean;
+  icon?: LucideIcon;
+  className?: string;
 }
 
 /** A moderator action: a button that opens a form saying what will happen, with the note it needs. */
-export function ModAction({ label, mutation, onOpen, onSubmit, ...form }: Props) {
+export function ModAction({ label, mutation, onOpen, onSubmit, ...props }: Props) {
+  const { primary, icon: Icon, className = '', ...form } = props;
   const [open, setOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
   // The button stays mounted, so focus has somewhere to return to. It's named here because Safari
@@ -100,11 +106,12 @@ export function ModAction({ label, mutation, onOpen, onSubmit, ...form }: Props)
     setOpen(false);
   };
   return (
-    <div className="space-y-3">
+    // In a grid, an open form takes the whole row.
+    <div className={`space-y-3 has-[form]:col-span-full ${className}`}>
       <button
         type="button"
         ref={openerRef}
-        className="btn btn-secondary"
+        className={`btn w-full ${primary ? 'btn-primary' : 'btn-sm'}`}
         aria-expanded={open}
         onClick={() => {
           onOpen?.();
@@ -112,6 +119,7 @@ export function ModAction({ label, mutation, onOpen, onSubmit, ...form }: Props)
           setOpen(true);
         }}
       >
+        {Icon && <Icon aria-hidden="true" className="size-4 shrink-0" />}
         {label}
       </button>
       {open && (
