@@ -134,7 +134,7 @@ describe('the old paths', () => {
     ['/schedule', '/plans', '', 'My plans'],
     ['/friends', '/people', '', 'People'],
     ['/circles', '/people', '?tab=circles', 'People'],
-    ['/notifications', '/inbox', '', 'Notifications'],
+    ['/notifications', '/inbox', '', 'Inbox'],
     ['/settings', '/you', '', 'Settings'],
   ])('replaces %s with %s%s', async (from, pathname, search, heading) => {
     signedIn();

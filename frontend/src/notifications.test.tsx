@@ -160,7 +160,7 @@ describe('the inbox', () => {
 
     renderApp('/inbox');
 
-    expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Inbox' })).toBeVisible();
     const entries = await screen.findAllByRole('listitem');
     expect(entries).toHaveLength(3);
     expect(entries[0]).toHaveTextContent('“Cosplay photo walk” was cancelled.');
@@ -233,6 +233,82 @@ describe('the inbox', () => {
     expect(await screen.findByText('This event is no longer available.')).toBeVisible();
     expect(router.state.location.pathname).toBe('/inbox');
     expect(screen.queryByRole('link', { name: 'View event' })).toBeNull();
+  });
+
+  const quiet = (items: Notification[], unread = 1) =>
+    signedIn((call) => {
+      if (call.method === 'POST') return new Response(null, { status: 204 });
+      if (call.path === `/api/events/${EVENT_ID}`) return jsonResponse(errorEnvelope, 500);
+      if (call.path.startsWith('/api/notifications')) return page(items, unread);
+      return undefined;
+    });
+
+  /** A group's entries, by its heading. */
+  const group = (name: string) =>
+    within(screen.getByRole('region', { name })).getAllByRole('listitem');
+
+  it('groups today’s entries apart from earlier ones', async () => {
+    const lastWeek = new Date(now - 7 * 86_400_000).toISOString();
+    quiet([
+      note(12, { createdAt: new Date().toISOString() }),
+      note(4, { type: 'SPOT_CONFIRMED', createdAt: lastWeek }),
+    ]);
+    renderApp('/inbox');
+
+    await screen.findByRole('region', { name: 'Today' });
+    expect(group('Today')).toHaveLength(1);
+    expect(group('Today')[0]).toHaveTextContent('was cancelled');
+    expect(group('Earlier')).toHaveLength(1);
+    expect(group('Earlier')[0]).toHaveTextContent('You’re confirmed');
+  });
+
+  it('leaves out a group with nothing in it', async () => {
+    quiet([note(4, { createdAt: new Date(now - 7 * 86_400_000).toISOString() })]);
+    renderApp('/inbox');
+
+    await screen.findByRole('region', { name: 'Earlier' });
+    expect(screen.queryByRole('region', { name: 'Today' })).toBeNull();
+  });
+
+  it('offers Review offer on an open offer, which opens the event', async () => {
+    const offerExpiresAt = new Date(now + 600_000).toISOString();
+    quiet([note(5, { type: 'SPOT_OFFERED', payload: { eventTitle: 'Walk', offerExpiresAt } })]);
+    const router = renderApp('/inbox');
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Review offer' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/events/${EVENT_ID}`));
+  });
+
+  it('offers no review once the deadline has passed', async () => {
+    const offerExpiresAt = new Date(now - 600_000).toISOString();
+    quiet([note(5, { type: 'SPOT_OFFERED', payload: { eventTitle: 'Walk', offerExpiresAt } })]);
+    renderApp('/inbox');
+
+    expect(await screen.findByRole('link', { name: 'View event' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Review offer' })).toBeNull();
+  });
+
+  it('takes the dots off with Mark all read, and keeps the keyboard on the button', async () => {
+    const calls = quiet([note(12), note(9)], 2);
+    renderApp('/inbox');
+
+    expect(await screen.findByText('2 unread')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-unread]')).toHaveLength(2);
+    const button = screen.getByRole('button', { name: 'Mark all read' });
+    button.focus();
+    fireEvent.click(button);
+
+    await waitFor(() => expect(document.querySelectorAll('[data-unread]')).toHaveLength(0));
+    expect(screen.queryByText('2 unread')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('All marked as read.');
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toHaveFocus();
+    const posts = calls.filter((c) => c.method === 'POST');
+    expect(posts.at(-1)?.body).toEqual({ upTo: 12 });
+    // Pressed again, there is nothing to send.
+    fireEvent.click(button);
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(posts.length);
   });
 
   it('says so when there is nothing yet', async () => {
