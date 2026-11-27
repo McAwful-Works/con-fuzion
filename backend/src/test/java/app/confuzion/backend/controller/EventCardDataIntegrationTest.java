@@ -21,8 +21,13 @@ package app.confuzion.backend.controller;
 import static app.confuzion.backend.controller.EventFixtures.login;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +43,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -395,6 +401,36 @@ class EventCardDataIntegrationTest {
 	}
 
 	/**
+	 * Tests that the host's create and edit responses count the spots the RSVP
+	 * writes took: the host's own spot on create, and the waitlist's promotions
+	 * when an edit raises the capacity.
+	 */
+	@Test
+	void spotsLeftAfterCreateAndEdit() throws Exception {
+		var host = fixtures.user("Host");
+		var startsAt = Instant.now().plus(7, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+		var created = mockMvc.perform(post("/api/events").contentType(MediaType.APPLICATION_JSON)
+				.content(eventBody(startsAt, 2)).with(login(host)).with(csrf())).andReturn().getResponse();
+		assertThat(created.getStatus()).isEqualTo(201);
+		assertThat(JsonPath.<Integer>read(created.getContentAsString(), "$.body.spotsLeft")).isEqualTo(1);
+
+		String eventId = JsonPath.read(created.getContentAsString(), "$.body.id");
+		var event = new SeededEvent(
+				jdbcTemplate.queryForObject("SELECT id FROM event WHERE public_id = ?::uuid", Long.class, eventId),
+				UUID.fromString(eventId));
+		confirm(event, fixtures.user("Guest"));
+		for (var i = 0; i < 3; i++)
+			jdbcTemplate.update("INSERT INTO rsvp (event_id, user_id, status) VALUES (?, ?, 'WAITLISTED')", event.id(),
+					fixtures.user("Waiting"));
+
+		var edited = mockMvc.perform(patch("/api/events/" + eventId).contentType(MediaType.APPLICATION_JSON)
+				.content(eventBody(startsAt, 4)).with(login(host)).with(csrf())).andReturn().getResponse();
+		assertThat(edited.getStatus()).isEqualTo(200);
+		assertThat(fixtures.confirmedCount(event.id())).isEqualTo(4);
+		assertThat(JsonPath.<Integer>read(edited.getContentAsString(), "$.body.spotsLeft")).isZero();
+	}
+
+	/**
 	 * Tests that a page takes as many statements with eight events as with one,
 	 * each from a different host and reaching the viewer through every arm, so the
 	 * card data isn't loaded per event.
@@ -438,6 +474,20 @@ class EventCardDataIntegrationTest {
 		var count = StatementCounting.STATEMENTS.get();
 		assertThat(JsonPath.<List<String>>read(body, "$.body.events[*].id")).hasSize(limit);
 		return count;
+	}
+
+	/**
+	 * Builds a create or edit body for the host's friends.
+	 *
+	 * @param startsAt the start
+	 * @param capacity the headcount
+	 * @return the JSON body
+	 */
+	private static String eventBody(Instant startsAt, int capacity) {
+		return """
+				{"title": "Photo walk", "location": "Hall B", "startsAt": "%s", "timeZone": "UTC",
+				"locationVisibility": "VIEWERS", "capacity": %d, "audience": [{"type": "FRIENDS"}]}
+				""".formatted(startsAt, capacity);
 	}
 
 	/**

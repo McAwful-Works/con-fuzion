@@ -52,6 +52,13 @@ public class StatementCounting {
 	@Bean
 	static BeanPostProcessor countStatements() {
 		return new BeanPostProcessor() {
+			/**
+			 * Wraps a {@link DataSource} bean once, and passes every other bean through.
+			 *
+			 * @param bean     the bean
+			 * @param beanName its name
+			 * @return the bean, or its counting wrapper
+			 */
 			@Override
 			public Object postProcessAfterInitialization(Object bean, String beanName) {
 				return bean instanceof DataSource dataSource && !(bean instanceof CountingDataSource)
@@ -77,11 +84,25 @@ public class StatementCounting {
 			super(target);
 		}
 
+		/**
+		 * Returns a counting connection from the real data source.
+		 *
+		 * @return the {@link Connection}
+		 * @throws SQLException when the real data source fails
+		 */
 		@Override
 		public Connection getConnection() throws SQLException {
 			return counting(super.getConnection());
 		}
 
+		/**
+		 * Returns a counting connection from the real data source.
+		 *
+		 * @param username the user name
+		 * @param password the password
+		 * @return the {@link Connection}
+		 * @throws SQLException when the real data source fails
+		 */
 		@Override
 		public Connection getConnection(String username, String password) throws SQLException {
 			return counting(super.getConnection(username, password));

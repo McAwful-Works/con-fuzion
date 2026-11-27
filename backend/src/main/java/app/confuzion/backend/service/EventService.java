@@ -83,6 +83,7 @@ import app.confuzion.backend.repository.NotificationRepository;
 import app.confuzion.backend.repository.RsvpRepository;
 import app.confuzion.backend.repository.SocialRepository;
 import app.confuzion.backend.repository.UserGuildRepository;
+import jakarta.persistence.EntityManager;
 
 /**
  * Events, their audiences and the feed (D-012). Only the host may create, edit
@@ -161,6 +162,12 @@ public class EventService {
 	private final AuditLogRepository auditLogRepository;
 
 	/**
+	 * The {@link EntityManager}, to re-read {@code confirmed_count} after the RSVP
+	 * writes, which change it outside JPA.
+	 */
+	private final EntityManager entityManager;
+
+	/**
 	 * Creates the service.
 	 *
 	 * @param eventRepository        the {@link EventRepository}
@@ -171,11 +178,13 @@ public class EventService {
 	 * @param rsvpRepository         the {@link RsvpRepository}
 	 * @param notificationRepository the {@link NotificationRepository}
 	 * @param auditLogRepository     the {@link AuditLogRepository}
+	 * @param entityManager          the {@link EntityManager}
 	 */
 	public EventService(EventRepository eventRepository, EventAudienceRepository audienceRepository,
 			AppUserRepository appUserRepository, UserGuildRepository userGuildRepository,
 			SocialRepository socialRepository, RsvpRepository rsvpRepository,
-			NotificationRepository notificationRepository, AuditLogRepository auditLogRepository) {
+			NotificationRepository notificationRepository, AuditLogRepository auditLogRepository,
+			EntityManager entityManager) {
 		this.eventRepository = eventRepository;
 		this.audienceRepository = audienceRepository;
 		this.appUserRepository = appUserRepository;
@@ -184,6 +193,7 @@ public class EventService {
 		this.rsvpRepository = rsvpRepository;
 		this.notificationRepository = notificationRepository;
 		this.auditLogRepository = auditLogRepository;
+		this.entityManager = entityManager;
 	}
 
 	/**
@@ -222,6 +232,8 @@ public class EventService {
 		eventRepository.save(event);
 		eventRepository.addHostRsvp(event.getId());
 		audienceRepository.saveAll(refs.stream().map(ref -> new EventAudience(event.getId(), ref)).toList());
+		// The host's RSVP set confirmed_count outside JPA, and spotsLeft reads it.
+		entityManager.refresh(event);
 		return toResponses(hostId, List.of(event), false).getFirst();
 	}
 
@@ -322,6 +334,8 @@ public class EventService {
 							null));
 		rsvpRepository.fillFreeSpots(event.getId(),
 				event.getCapacity() == null ? Integer.MAX_VALUE : event.getCapacity() - event.getConfirmedCount());
+		// Promotions raised confirmed_count outside JPA, and spotsLeft reads it.
+		entityManager.refresh(event);
 		return toResponses(hostId, List.of(event), false).getFirst();
 	}
 
@@ -596,7 +610,8 @@ public class EventService {
 	/**
 	 * Maps an entry that reaches the viewer to their reason: the server by name, a
 	 * friend of the host, or invited, which a circle and a personal invite share so
-	 * neither is told apart (D-017).
+	 * neither is told apart (D-017). Equal reasons collapse into one, so several
+	 * invites, or two servers with the same name, show once.
 	 *
 	 * @param reason the {@link Reason}
 	 * @return the {@link VisibleReason}
