@@ -76,6 +76,10 @@ export function manyGuilds(count = 160) {
 /** Make the fake Discord answer as `user` with `guilds` for the next sign-in. */
 export const useScenario = (user, guilds = mixedGuilds()) => control('scenario', { user, guilds });
 
+/** The welcome page's own sign-in link. The top bar has a second one. */
+export const signInLink = (page) =>
+  page.getByRole('main').getByRole('link', { name: 'Sign in with Discord' });
+
 /**
  * Sign in through the real UI: the landing page, the button, the fake Discord, the callback. Resolves once the
  * app has landed on `landing` (a path, or a pattern for the URL), which is where the backend sends a first or
@@ -84,7 +88,7 @@ export const useScenario = (user, guilds = mixedGuilds()) => control('scenario',
 export async function signIn(page, user, guilds = mixedGuilds(), landing = '/onboarding') {
   await useScenario(user, guilds);
   await page.goto('/welcome');
-  await page.getByRole('link', { name: 'Sign in with Discord' }).click();
+  await signInLink(page).click();
   await expect(page).toHaveURL(
     landing instanceof RegExp ? landing : new URL(landing, page.url()).toString(),
   );

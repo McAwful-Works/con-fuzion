@@ -1,8 +1,9 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   envelope,
   errorEnvelope,
+  findSignIn,
   guilds,
   jsonResponse,
   me,
@@ -21,7 +22,7 @@ describe('auth state', () => {
 
     const router = renderApp('/settings');
 
-    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    await findSignIn();
     expect(router.state.location.pathname).toBe('/welcome');
   });
 
@@ -30,7 +31,7 @@ describe('auth state', () => {
 
     renderApp('/welcome');
 
-    const link = await screen.findByRole('link', { name: 'Sign in with Discord' });
+    const link = await findSignIn();
     expect(link).toHaveAttribute('href', '/api/oauth2/authorization/discord');
   });
 
@@ -50,7 +51,7 @@ describe('auth state', () => {
 
     renderApp('/welcome');
 
-    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    await findSignIn();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
@@ -245,7 +246,7 @@ describe('servers', () => {
 
     const router = renderApp('/settings');
     fireEvent.click(await screen.findByRole('switch', { name: /Example Con Community/ }));
-    await screen.findByRole('link', { name: 'Sign in with Discord' });
+    await findSignIn();
 
     // Wait before looking: a redirect loop never settles, even if the landing page shows for a moment.
     await pause();
@@ -253,7 +254,9 @@ describe('servers', () => {
     await pause();
 
     expect(calls).toHaveLength(settled);
-    expect(screen.getByRole('link', { name: 'Sign in with Discord' })).toBeInTheDocument();
+    // Synchronous on purpose: it has to be on screen now, after the pauses.
+    const main = screen.getByRole('main');
+    expect(within(main).getByRole('link', { name: 'Sign in with Discord' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/welcome');
     // No signed-in navigation is left on screen.
     expect(screen.queryByText('Con Goer')).toBeNull();
