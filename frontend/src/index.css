@@ -246,6 +246,17 @@
   @apply text-xs font-bold tracking-wider uppercase;
 }
 
+/* The time block of an event card, a list item. Its color takes turns down the list. */
+@utility when-block {
+  @apply rounded-control bg-when-1 text-when-ink;
+  li:nth-child(3n + 2) & {
+    @apply bg-when-2;
+  }
+  li:nth-child(3n) & {
+    @apply bg-when-3;
+  }
+}
+
 /*
  * On a `<button type="button" role="switch" aria-checked>`. The track is 48px by 28px, and its
  * `::after` makes the target 44px tall.
