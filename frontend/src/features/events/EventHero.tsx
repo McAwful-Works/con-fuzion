@@ -23,12 +23,13 @@ function reasonTexts(reasons: Reason[]): string[] {
 export function EventHero({ event }: { event: Event }) {
   const reasons = reasonTexts(event.visibleBecause ?? []);
   return (
-    <header className="bg-hero text-hero-ink border-outline md:rounded-card md:shadow-card relative -mx-4 -mt-6 overflow-hidden border-b-2 md:mx-0 md:mt-0 md:border-2">
+    <header className="bg-scrim text-hero-ink border-outline md:rounded-card md:shadow-card relative -mx-4 -mt-6 overflow-hidden border-b-2 md:mx-0 md:mt-0 md:border-2">
       <EventCover
         tag={event.tag}
         // Wider than a phone: the hero is tall there, so the photo is cropped at its sides.
         sizes="(min-width: 48rem) 48rem, 150vw"
-        className="absolute inset-0 items-start justify-end p-3.5"
+        // Rounded a little tighter than the clip, or it fringes the dark corners.
+        className="md:rounded-card absolute inset-0 items-start justify-end overflow-hidden p-3.5"
       />
       {/* Only the cover shows here, fading into the dark behind the text. */}
       <div aria-hidden="true" className="to-scrim/75 relative h-36 bg-linear-to-b lg:h-44" />
