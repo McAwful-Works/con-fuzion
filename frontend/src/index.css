@@ -69,6 +69,8 @@
   --color-hero: #7450f5;
   --color-hero-ink: #ffffff;
   --color-hero-tag: #1d1630;
+  /* The dark gradient under the hero's text, over its cover photo. */
+  --color-scrim: #1d1630;
   --color-when-1: #7450f5;
   --color-when-2: #1d1630;
   --color-when-3: #0b7a5c;
@@ -135,6 +137,7 @@
 
     --color-hero: #5b3fd9;
     --color-hero-tag: #16111f;
+    --color-scrim: #16111f;
     --color-when-1: #9b84ff;
     --color-when-2: #fbf1e4;
     --color-when-3: #4fd6a6;
@@ -257,6 +260,47 @@
   li:nth-child(3n) & {
     @apply bg-when-3;
   }
+}
+
+/*
+ * Cover placeholders, shown until the licensed photos arrive (features/events/covers.ts):
+ * `placeholder-cover` plus one tag's stripe color, the same in light and dark.
+ */
+@utility placeholder-cover {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--stripe) 0 14px,
+    color-mix(in srgb, var(--stripe), #000 7%) 14px 28px
+  );
+}
+@utility placeholder-cover-tabletop {
+  --stripe: #c8bbff;
+}
+@utility placeholder-cover-photoshoot {
+  --stripe: #ffe39a;
+}
+@utility placeholder-cover-food {
+  --stripe: #dcefa6;
+}
+@utility placeholder-cover-music {
+  --stripe: #ffc9b8;
+}
+@utility placeholder-cover-panel {
+  --stripe: #ffc6e3;
+}
+@utility placeholder-cover-shopping {
+  --stripe: #bff0d9;
+}
+@utility placeholder-cover-hobby {
+  --stripe: #bde0ff;
+}
+@utility placeholder-cover-default {
+  --stripe: #e6d8c4;
+}
+@utility cover-label {
+  @apply rounded-tag px-2.5 py-1 text-[0.6875rem] font-bold tracking-wider uppercase;
+  background: rgb(255 255 255 / 0.85);
+  color: #1d1630;
 }
 
 /*

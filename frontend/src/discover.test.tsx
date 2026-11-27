@@ -169,9 +169,9 @@ describe('the event card', () => {
     expect(link).toHaveTextContent('CDT');
     expect(within(link).getByText('Tabletop')).toBeInTheDocument();
     expect(within(link).getByText('Hall B fountain')).toBeInTheDocument();
-    expect(link.querySelector('img')).toHaveAttribute('src', ada.avatarUrl);
-    // Covers come with #124.
-    expect(link.querySelectorAll('img')).toHaveLength(1);
+    // By its address: the cover is an image too, once its photo is in the app.
+    expect(link.querySelector(`img[src="${ada.avatarUrl}"]`)).toHaveAttribute('alt', '');
+    expect(link.firstElementChild).toHaveClass('placeholder-cover-tabletop');
   });
 
   it('shows a lock in place of a hidden location', async () => {

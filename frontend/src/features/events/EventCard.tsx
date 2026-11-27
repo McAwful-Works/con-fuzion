@@ -15,6 +15,7 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import type { Event } from '../../api/events';
 import { startClock } from './cardTime';
+import { EventCover } from './EventCover';
 import { eventTimes } from './time';
 import { useViewerZone } from './useViewerZone';
 
@@ -114,8 +115,15 @@ export function EventCard({ event, overlaps = [] }: { event: Event; overlaps?: E
 
   return (
     <li>
-      <Link to={`/events/${event.id}`} className="card focus-visible:outline-offset-3 block">
-        {/* The cover photo goes here, above the body (#124). */}
+      <Link
+        to={`/events/${event.id}`}
+        className="card focus-visible:outline-offset-3 block overflow-hidden"
+      >
+        <EventCover
+          tag={event.tag}
+          sizes="(min-width: 48rem) 48rem, 100vw"
+          className="border-outline relative h-28 items-center justify-center border-b-2 lg:h-33"
+        />
         <div className="flex gap-3 p-3.5 lg:gap-4.5 lg:p-4.5">
           {/* For the eye only: the time line says the same, with the zone. */}
           <div
