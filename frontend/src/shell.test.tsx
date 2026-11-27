@@ -1,7 +1,11 @@
 import '@testing-library/jest-dom/vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createBrowserRouter } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearUnavailable, markUnavailable } from './api/maintenance';
+import { createQueryClient } from './api/queryClient';
 import type { components } from './api/schema';
 import {
   envelope,
@@ -11,16 +15,25 @@ import {
   me,
   mockApi,
   renderApp,
+  type RecordedCall,
 } from './test-utils';
+import { routes } from './router';
 
 type Schemas = components['schemas'];
 
 const moderator: Schemas['MeResponse'] = { ...me, mfaEnabled: true, roles: ['USER', 'MODERATOR'] };
 const ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-/** A signed-in user with nothing anywhere. An event or a circle by ID is a 404. */
-function signedIn({ meBody = me, unread = 0 } = {}) {
-  return mockApi(({ path }) => {
+/** A signed-in user with nothing anywhere. An event or a circle by ID is a 404, unless `extra` answers. */
+function signedIn({
+  meBody = me,
+  unread = 0,
+  extra = (() => undefined) as (call: RecordedCall) => Response | undefined,
+} = {}) {
+  return mockApi((call) => {
+    const { path } = call;
+    const custom = extra(call);
+    if (custom) return custom;
     if (path === '/api/me') return envelope('ME', meBody);
     if (path.startsWith('/api/notifications')) {
       return envelope('NOTIFICATION_PAGE', { items: [], nextCursor: null, unreadCount: unread });
@@ -41,15 +54,67 @@ function signedIn({ meBody = me, unread = 0 } = {}) {
   });
 }
 
+const browserRouters: ReturnType<typeof createBrowserRouter>[] = [];
+
+/** Like `renderApp`, on the browser's own history, which Back reads. */
+function renderInBrowser(path: string) {
+  window.history.replaceState(null, '', path);
+  const router = createBrowserRouter(routes);
+  browserRouters.push(router);
+  const queryClient = createQueryClient();
+  queryClient.setDefaultOptions({ queries: { retry: false }, mutations: { retry: false } });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+  return router;
+}
+
+const where = () => window.location.pathname + window.location.search;
+const goBack = async () => fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+
+const mine: Schemas['EventResponse'] = {
+  id: ID,
+  title: 'My panel',
+  description: null,
+  location: 'Hall B',
+  locationHidden: false,
+  locationVisibility: 'VIEWERS',
+  tag: null,
+  host: { id: me.id, displayName: 'Con Goer', avatarUrl: me.avatarUrl },
+  isHost: true,
+  myStatus: 'CONFIRMED',
+  status: 'PUBLISHED',
+  hiddenReason: null,
+  audience: [{ type: 'FRIENDS', label: null, guildId: null, circleId: null, userId: null }],
+  capacity: null,
+  signupOpensAt: null,
+  confirmWindowMinutes: 30,
+  startsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+  endsAt: new Date(Date.now() + 31 * 86_400_000).toISOString(),
+  timeZone: 'America/Chicago',
+};
+
+/** Answers for the host's own event: reading it, saving it and creating it. */
+function myEvent({ method, path }: RecordedCall) {
+  if (path === `/api/events/${ID}`) return envelope('EVENT', mine);
+  if (method === 'POST' && path === '/api/events') return envelope('EVENT', mine);
+  return undefined;
+}
+
 afterEach(() => {
+  browserRouters.splice(0).forEach((router) => router.dispose());
+  window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   clearUnavailable();
 });
 
 // jsdom applies no CSS, so the desktop and the phone navigation are both there.
-const findSidebar = () => screen.findByRole('complementary');
-const sidebar = () => within(screen.getByRole('complementary'));
+const desktopNav = () => document.querySelector<HTMLElement>('[data-sidebar]')!;
+const findSidebar = () => waitFor(() => expect(desktopNav()).not.toBeNull());
+const sidebar = () => within(desktopNav());
 const tabBar = () => document.querySelector<HTMLElement>('[data-tabbar]');
 const topBar = () => within(screen.getByRole('banner'));
 
@@ -108,7 +173,7 @@ describe('the current place', () => {
     renderApp(path);
     await findSidebar();
 
-    expect(current(screen.getByRole('complementary'))).toEqual([[label, 'page']]);
+    expect(current(desktopNav())).toEqual([[label, 'page']]);
     expect(current(tabBar()!)).toEqual([[label, 'page']]);
   });
 
@@ -121,7 +186,7 @@ describe('the current place', () => {
     renderApp(path);
     await findSidebar();
 
-    expect(current(screen.getByRole('complementary'))).toEqual([[label, value]]);
+    expect(current(desktopNav())).toEqual([[label, value]]);
   });
 
   it('links the five places from the tab bar, in order', async () => {
@@ -159,7 +224,7 @@ describe('the unread badge', () => {
     renderApp('/');
     await findSidebar();
 
-    for (const nav of [screen.getByRole('complementary'), tabBar()!]) {
+    for (const nav of [desktopNav(), tabBar()!]) {
       const inbox = await within(nav).findByRole('link', { name: 'Inbox, 3 unread' });
       expect(inbox).toHaveTextContent('3');
     }
@@ -194,7 +259,7 @@ describe('the Moderation link', () => {
     renderApp('/admin');
     await screen.findByRole('heading', { name: 'Moderation' });
 
-    expect(current(screen.getByRole('complementary'))).toEqual([['Moderation', 'page']]);
+    expect(current(desktopNav())).toEqual([['Moderation', 'page']]);
     expect(topBar().getByText('Moderation')).toBeInTheDocument();
   });
 });
@@ -228,13 +293,13 @@ describe('detail pages', () => {
 
   it('goes Back to the page before', async () => {
     signedIn();
-    const router = renderApp('/plans');
+    const router = renderInBrowser('/plans');
     await findSidebar();
     await router.navigate('/events/new');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+    await goBack();
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/plans'));
+    await waitFor(() => expect(where()).toBe('/plans'));
   });
 
   it.each([
@@ -244,15 +309,54 @@ describe('detail pages', () => {
     [`/circles/${ID}`, '/people?tab=circles'],
   ])('goes Back from %s to %s when the visit started there', async (path, parent) => {
     signedIn();
-    const router = renderApp(path);
+    const router = renderInBrowser(path);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+    await goBack();
 
-    await waitFor(() => {
-      const { pathname, search } = router.state.location;
-      expect(pathname + search).toBe(parent);
-    });
+    await waitFor(() => expect(where()).toBe(parent));
     expect(router.state.historyAction).toBe('REPLACE');
+  });
+
+  it('goes Back from You to Discover when an old path started the visit', async () => {
+    signedIn();
+    renderInBrowser('/settings');
+    await waitFor(() => expect(where()).toBe('/you'));
+
+    await goBack();
+
+    await waitFor(() => expect(where()).toBe('/'));
+  });
+
+  it('goes Back from a new event past the form it was created in', async () => {
+    signedIn({ extra: myEvent });
+    const router = renderInBrowser('/plans');
+    await findSidebar();
+    await router.navigate('/events/new');
+
+    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'My panel' } });
+    fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'Hall B' } });
+    const starts = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 16);
+    fireEvent.change(screen.getByLabelText('Starts'), { target: { value: starts } });
+    fireEvent.click(screen.getByLabelText('All my friends'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    await waitFor(() => expect(where()).toBe(`/events/${ID}`));
+    await goBack();
+
+    await waitFor(() => expect(where()).toBe('/plans'));
+  });
+
+  it('goes Back from a saved event past the edit form', async () => {
+    signedIn({ extra: myEvent });
+    const router = renderInBrowser('/plans');
+    await findSidebar();
+    await router.navigate(`/events/${ID}`);
+    await router.navigate(`/events/${ID}/edit`);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(where()).toBe(`/events/${ID}`));
+    await goBack();
+
+    await waitFor(() => expect(where()).toBe('/plans'));
   });
 });
 
@@ -274,7 +378,6 @@ describe('around the page', () => {
 
     expect(await screen.findByRole('link', { name: 'Sign in with Discord' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation')).toBeNull();
-    expect(screen.queryByRole('complementary')).toBeNull();
     expect(screen.getByRole('contentinfo')).toBeInTheDocument();
   });
 

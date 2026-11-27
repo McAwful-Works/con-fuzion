@@ -18,7 +18,7 @@ export function Home() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Events</h1>
         <div className="flex flex-wrap gap-2">
-          <Link to="/plans" className="btn btn-secondary">
+          <Link to="/schedule" className="btn btn-secondary">
             My schedule
           </Link>
           <Link to="/events/new" className="btn btn-primary">

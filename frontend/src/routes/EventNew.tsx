@@ -28,7 +28,10 @@ export function EventNew() {
         pending={create.isPending}
         error={create.error}
         onSubmit={(request) =>
-          create.mutate(request, { onSuccess: (event) => void navigate(`/events/${event.id}`) })
+          create.mutate(request, {
+            // Replaced, so Back from the new event doesn't return to the empty form.
+            onSuccess: (event) => void navigate(`/events/${event.id}`, { replace: true }),
+          })
         }
       />
     </div>

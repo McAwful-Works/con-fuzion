@@ -1,14 +1,16 @@
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { ApiError } from '../api/client';
 import { useEvent, useUpdateEvent } from '../api/events';
 import { ErrorState } from '../components/ErrorState';
+import { useGoBack } from '../components/shell/useGoBack';
 import { Skeleton } from '../components/Skeleton';
 import { EventForm } from '../features/events/EventForm';
 import { EventNotFound } from './EventDetail';
 
 export function EventEdit() {
   const { eventId = '' } = useParams();
-  const navigate = useNavigate();
+  // After a save: back to the event, so Back from there doesn't return to this form.
+  const leave = useGoBack(`/events/${eventId}`);
   const event = useEvent(eventId);
   const update = useUpdateEvent(eventId);
 
@@ -47,7 +49,7 @@ export function EventEdit() {
         submitLabel="Save changes"
         pending={update.isPending}
         error={update.error}
-        onSubmit={(request) => update.mutate(request, { onSuccess: () => void navigate(back) })}
+        onSubmit={(request) => update.mutate(request, { onSuccess: leave })}
       />
     </div>
   );

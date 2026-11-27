@@ -1,21 +1,15 @@
 import { ChevronLeft, Shield } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { isModerator, type Me } from '../../api/me';
 import { Wordmark } from './places';
+import { useGoBack } from './useGoBack';
 
 const ICON_BUTTON = 'flex size-11 shrink-0 items-center justify-center rounded-full';
 
-/** Back to the page before this one, or to `parent` when this page is where the visit started. */
 function BackButton({ parent }: { parent: string }) {
-  const navigate = useNavigate();
-  const { key } = useLocation();
+  const goBack = useGoBack(parent);
   return (
-    <button
-      type="button"
-      aria-label="Back"
-      className={`${ICON_BUTTON} -ml-2.5`}
-      onClick={() => void (key === 'default' ? navigate(parent, { replace: true }) : navigate(-1))}
-    >
+    <button type="button" aria-label="Back" className={`${ICON_BUTTON} -ml-2.5`} onClick={goBack}>
       <ChevronLeft aria-hidden="true" className="size-6" />
     </button>
   );

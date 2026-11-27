@@ -46,9 +46,13 @@ function Item({ place, unread = 0 }: { place: Place; unread?: number }) {
 export function Sidebar({ user, unread }: { user: Me; unread: number }) {
   const name = user.globalName ?? user.username;
   return (
-    <aside className="bg-side text-side-ink **:focus-visible:outline-side-ink sticky top-0 hidden h-dvh flex-col overflow-y-auto px-4 py-5 lg:flex">
+    <nav
+      aria-label="Main"
+      data-sidebar
+      className="bg-side text-side-ink **:focus-visible:outline-side-ink sticky top-0 hidden h-dvh flex-col overflow-y-auto px-4 py-5 lg:flex"
+    >
       <Wordmark accent="text-accent" className="mb-4 shrink-0 self-start px-3" />
-      <nav aria-label="Main" className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <Item place={DISCOVER} />
         <Item place={PLANS} />
         <Item place={PEOPLE} />
@@ -63,7 +67,7 @@ export function Sidebar({ user, unread }: { user: Me; unread: number }) {
         <div className="bg-side-line mx-1 mb-2 h-px shrink-0" />
         {isModerator(user) && <Item place={MODERATION} />}
         <Item place={YOU} />
-      </nav>
+      </div>
       <div className="mt-auto shrink-0 pt-4">
         <p className="text-side-muted px-3 pb-3 text-xs">Free meetups for convention-goers.</p>
         <Link
@@ -78,6 +82,6 @@ export function Sidebar({ user, unread }: { user: Me; unread: number }) {
           <ChevronRight aria-hidden="true" className="text-side-muted size-4 shrink-0" />
         </Link>
       </div>
-    </aside>
+    </nav>
   );
 }

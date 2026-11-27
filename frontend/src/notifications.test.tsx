@@ -44,7 +44,8 @@ afterEach(() => {
 
 /** The sidebar's link: the tab bar has the same one, and jsdom shows both. */
 async function findInboxLink(name: string) {
-  return within(await screen.findByRole('complementary')).findByRole('link', { name });
+  const [sidebar] = await screen.findAllByRole('navigation', { name: 'Main' });
+  return within(sidebar!).findByRole('link', { name });
 }
 
 describe('describeNotification', () => {
