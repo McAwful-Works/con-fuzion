@@ -159,8 +159,8 @@
   @apply rounded-control border-outline bg-surface-raised text-ink shadow-control border-2;
   @apply inline-flex min-h-12 items-center justify-center gap-2 px-5 py-2;
   @apply text-center text-[0.9375rem] font-bold;
-  @apply focus-visible:outline-focus focus-visible:outline-2 focus-visible:outline-offset-3;
-  @apply disabled:opacity-50;
+  /* The focus ring clears the offset shadow. */
+  @apply focus-visible:outline-offset-3 disabled:opacity-50;
 }
 @utility btn-primary {
   @apply bg-accent text-accent-ink;
