@@ -5,14 +5,17 @@ import { expect } from '@playwright/test';
 import { createEvent } from './social.mjs';
 import { guild } from './support.mjs';
 
-/** The Spots and signup panel on an event page. */
+/** A guest's action on an event page (the bar on phones, the side card on desktop). The host has none. */
 export const panel = ({ page }) => page.getByRole('region', { name: 'Spots and signup' });
 
-/** Opens an event page and waits for its title and the spots panel to load. */
+/** The facts card of an event page: when, where, and the spot counts. */
+export const facts = ({ page }) => page.getByRole('region', { name: 'Event details' });
+
+/** Opens an event page and waits for its title and facts to load. */
 export async function openEvent(player, eventId) {
   await player.page.goto(`/events/${eventId}`);
   await expect(player.page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(panel(player)).toBeVisible();
+  await expect(facts(player)).toBeVisible();
 }
 
 /** Presses Join (waiting for the button to unlock) and waits for `expected`: "Joined" or "Waitlisted #N". */
@@ -31,14 +34,14 @@ export async function expectStatus(player, eventId, expected) {
 }
 
 /**
- * Reloads the event until the spots panel shows `text`. The counts in `/spots` can be up to a second old (the
+ * Reloads the event until the facts card shows `text`. The counts in `/spots` can be up to a second old (the
  * backend's counts cache), and the page only refetches them on a poll, so a count read straight after a change
  * needs a fresh look.
  */
 export async function expectSpots(player, eventId, text) {
   await expect(async () => {
     await openEvent(player, eventId);
-    await expect(panel(player).getByText(text)).toBeVisible({ timeout: 1_500 });
+    await expect(facts(player).getByText(text)).toBeVisible({ timeout: 1_500 });
   }).toPass({ timeout: 20_000 });
 }
 
@@ -69,22 +72,28 @@ export async function removeAttendee(host, who) {
   await expect(host.page.getByRole('alertdialog')).toHaveCount(0);
 }
 
-/** The "Going (N)" and "Waitlist (N)" headings of the attendee list. */
+/** The "Going (N)" heading of the attendee list, and the host's "Waitlist N" tab. */
 export const goingHeading = ({ page }, n) =>
   page.getByRole('heading', { name: `Going (${n})`, exact: true });
-export const waitlistHeading = ({ page }, n) =>
-  page.getByRole('heading', { name: `Waitlist (${n})`, exact: true });
+export const waitlistTab = ({ page }, n) =>
+  page.getByRole('button', { name: `Waitlist ${n}`, exact: true });
 
 /**
  * Waits for the attendee list to show exactly these names, in order: `confirmed` (the host first) and `waitlist`
- * (empty when the viewer gets no waitlist, or nobody is waiting).
+ * (empty when the viewer gets no waitlist, or nobody is waiting). The host's lists are behind tabs, and the Going
+ * tab is left open.
  */
 export async function expectAttendees({ page }, { confirmed, waitlist }) {
-  const section = page.getByRole('region', { name: /^Going \(/ });
-  await expect(section.getByRole('list').first().getByRole('listitem')).toContainText(confirmed);
-  const waiting = section.getByRole('list', { name: /^Waitlist \(/ });
-  if (waitlist.length === 0) await expect(waiting).toHaveCount(0);
-  else await expect(waiting.getByRole('listitem')).toContainText(waitlist);
+  const names = (list) => page.getByRole('list', { name: list }).getByRole('listitem');
+  await expect(names(/^Going \(/)).toContainText(confirmed);
+  const tabs = page.getByRole('group', { name: 'Guest lists' });
+  if (waitlist.length === 0) {
+    await expect(tabs.getByRole('button', { name: /^Waitlist [1-9]/ })).toHaveCount(0);
+    return;
+  }
+  await tabs.getByRole('button', { name: /^Waitlist / }).click();
+  await expect(names(/^Waitlist \(/)).toContainText(waitlist);
+  await tabs.getByRole('button', { name: /^Going / }).click();
 }
 
 /**

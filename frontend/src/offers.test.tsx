@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { components } from './api/schema';
 import { envelope, jsonResponse, me, mockApi, renderApp, type RecordedCall } from './test-utils';
@@ -234,13 +234,16 @@ describe('the host’s attendee list', () => {
 
     renderApp(`/events/${mine.id}`);
 
-    const heading = await screen.findByRole('heading', { name: 'Offered a spot (2)' });
-    const list = heading.parentElement!.querySelector('ol')!;
+    expect(await screen.findByRole('heading', { name: 'Going (1)' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Offered 2' }));
+
+    const list = screen.getByRole('list', { name: 'Offered a spot (2)' });
     expect(
       within(list)
         .getAllByRole('listitem')
         .map((li) => li.textContent),
     ).toEqual(['Bo', 'Ada']);
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Going (1)' })).toBeVisible());
+    // One list at a time.
+    expect(screen.queryByRole('heading', { name: /^Going/ })).toBeNull();
   });
 });

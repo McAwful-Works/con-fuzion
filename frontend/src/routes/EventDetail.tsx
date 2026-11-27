@@ -1,4 +1,4 @@
-import { MapPin } from 'lucide-react';
+import { Flag, Pencil, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ApiError } from '../api/client';
@@ -6,11 +6,10 @@ import { useCancelEvent, useEvent, type Event } from '../api/events';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorState } from '../components/ErrorState';
 import { Skeleton } from '../components/Skeleton';
-import { entryKey, entryLabel } from '../features/events/audience';
-import { HIDDEN_LOCATION_TEXT } from '../features/events/EventCard';
-import { EventTimes } from '../features/events/EventTimes';
-import { AttendeeList } from '../features/rsvp/AttendeeList';
+import { EventFacts } from '../features/events/EventFacts';
+import { EventHero } from '../features/events/EventHero';
 import { ReportSheet } from '../features/reports/ReportSheet';
+import { AttendeeList, LockedGuestList } from '../features/rsvp/AttendeeList';
 import { RsvpPanel } from '../features/rsvp/RsvpPanel';
 
 export function EventNotFound() {
@@ -25,32 +24,62 @@ export function EventNotFound() {
   );
 }
 
-function CancelEvent({ event }: { event: Event }) {
+/** The host's tools: Edit, Change who can see it, and Cancel behind a confirmation. */
+function HostActions({ event }: { event: Event }) {
   const cancel = useCancelEvent(event.id);
   const [asking, setAsking] = useState(false);
+  const edit = `/events/${event.id}/edit`;
 
-  if (!asking) {
-    return (
-      <button type="button" className="btn btn-secondary" onClick={() => setAsking(true)}>
-        Cancel event
-      </button>
-    );
-  }
   return (
-    <ConfirmPanel
-      title={`Cancel “${event.title}”?`}
-      confirmLabel="Cancel event"
-      cancelLabel="Keep event"
-      pending={cancel.isPending}
-      error={cancel.error}
-      onCancel={() => setAsking(false)}
-      onConfirm={() => cancel.mutate(undefined, { onSuccess: () => setAsking(false) })}
-    >
-      <p>
-        The event is cancelled and drops out of everyone’s feed. Only you and the people who are
-        going or waiting can still open it, and a cancelled event can’t be edited or brought back.
-      </p>
-    </ConfirmPanel>
+    <section aria-label="Host actions">
+      {asking ? (
+        <ConfirmPanel
+          title={`Cancel “${event.title}”?`}
+          confirmLabel="Cancel event"
+          cancelLabel="Keep event"
+          pending={cancel.isPending}
+          error={cancel.error}
+          onCancel={() => setAsking(false)}
+          onConfirm={() => cancel.mutate(undefined, { onSuccess: () => setAsking(false) })}
+        >
+          <p>
+            The event is cancelled and drops out of everyone’s feed. Only you and the people who are
+            going or waiting can still open it, and a cancelled event can’t be edited or brought
+            back.
+          </p>
+        </ConfirmPanel>
+      ) : (
+        <>
+          <h2 className="mb-3 text-base font-extrabold max-lg:hidden">Your meetup</h2>
+          {/* Phones show shorter labels; the full ones stay for screen readers. */}
+          <div className="flex flex-wrap gap-2 lg:flex-col lg:gap-2.5">
+            <Link to={edit} className="btn btn-primary btn-sm flex-1 lg:min-h-12">
+              <Pencil aria-hidden="true" className="size-4" />
+              <span>
+                Edit <span className="max-lg:sr-only">event</span>
+              </span>
+            </Link>
+            <Link to={edit} className="btn btn-secondary btn-sm flex-1 lg:min-h-12">
+              <Users aria-hidden="true" className="size-4 max-lg:hidden" />
+              <span className="whitespace-nowrap">
+                <span className="max-lg:sr-only">Change</span>{' '}
+                <span className="inline-block max-lg:first-letter:uppercase">who can see it</span>
+              </span>
+            </Link>
+            <button
+              type="button"
+              className="btn btn-ghost btn-danger btn-sm lg:min-h-12"
+              onClick={() => setAsking(true)}
+            >
+              <X aria-hidden="true" className="size-4 max-lg:hidden" />
+              <span>
+                Cancel <span className="max-lg:sr-only">event</span>
+              </span>
+            </button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -62,10 +91,11 @@ function ReportEvent({ event }: { event: Event }) {
     <div className="space-y-3">
       <button
         type="button"
-        className="btn btn-secondary"
+        className="btn btn-ghost btn-sm"
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
+        <Flag aria-hidden="true" className="size-4" />
         Report event
       </button>
       {open && (
@@ -81,15 +111,75 @@ function ReportEvent({ event }: { event: Event }) {
   );
 }
 
+function EventPage({ event }: { event: Event }) {
+  const cancelled = event.status === 'CANCELLED';
+  // Only the host and confirmed attendees get the list; anyone else would get a 404.
+  const seesGuests = event.isHost || event.myStatus === 'CONFIRMED';
+  return (
+    // `data-event-page` makes the shell's main column wider on desktop, and full height.
+    <article
+      data-event-page
+      className="flex flex-1 flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8"
+    >
+      <div className="min-w-0 space-y-5">
+        <EventHero event={event} />
+        {cancelled && (
+          <div role="status" className="card p-4">
+            <p className="font-semibold">This event was cancelled.</p>
+          </div>
+        )}
+        {event.isHost && event.hiddenReason && (
+          <div role="status" className="card space-y-1 p-4">
+            <p className="font-semibold">The moderators hid this event.</p>
+            <p className="text-sm">
+              Only you and the moderators can see it. People who were going can’t open it, and no
+              one new can join. You can still edit or cancel it.
+            </p>
+            <p className="text-sm break-words">Reason: {event.hiddenReason}</p>
+          </div>
+        )}
+        <EventFacts event={event} />
+        {event.isHost && <AttendeeList event={event} />}
+        {event.description && (
+          <section aria-labelledby="about-heading" className="space-y-2">
+            <h2 id="about-heading" className="text-base font-extrabold">
+              About
+            </h2>
+            <p className="leading-relaxed break-words whitespace-pre-wrap">{event.description}</p>
+          </section>
+        )}
+        {!event.isHost &&
+          (seesGuests ? <AttendeeList event={event} /> : <LockedGuestList event={event} />)}
+        {!event.isHost && <ReportEvent event={event} />}
+      </div>
+
+      {/* The main action: a bar under the thumb on phones, a card beside the page on desktop. */}
+      {!(event.isHost && cancelled) && (
+        <div
+          data-actionbar
+          className="border-outline bg-bar lg:card sticky bottom-0 z-10 -mx-4 mt-auto -mb-6 max-h-[70dvh] overflow-y-auto border-t-2 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:top-8 lg:bottom-auto lg:m-0 lg:max-h-[calc(100dvh-4rem)] lg:p-5"
+        >
+          {event.isHost ? <HostActions event={event} /> : <RsvpPanel event={event} />}
+        </div>
+      )}
+    </article>
+  );
+}
+
 export function EventDetail() {
   const { eventId = '' } = useParams();
   const query = useEvent(eventId);
 
   if (query.isPending) {
     return (
-      <div role="status" aria-label="Loading the event" className="space-y-3">
-        <Skeleton className="h-8 w-2/3" />
-        <Skeleton className="h-24 w-full" />
+      <div
+        data-event-page
+        role="status"
+        aria-label="Loading the event"
+        className="w-full space-y-5"
+      >
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-40 w-full" />
       </div>
     );
   }
@@ -98,88 +188,6 @@ export function EventDetail() {
   }
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
 
-  const event = query.data;
-  const cancelled = event.status === 'CANCELLED';
-  return (
-    <article className="space-y-6">
-      <Link to="/" className="text-sm underline">
-        All events
-      </Link>
-      {cancelled && (
-        <div role="status" className="border-line bg-surface-raised rounded-card border p-4">
-          <p className="font-semibold">This event was cancelled.</p>
-        </div>
-      )}
-      {event.isHost && event.hiddenReason && (
-        <div
-          role="status"
-          className="border-line bg-surface-raised rounded-card space-y-1 border p-4"
-        >
-          <p className="font-semibold">The moderators hid this event.</p>
-          <p className="text-sm">
-            Only you and the moderators can see it. People who were going can’t open it, and no one
-            new can join. You can still edit or cancel it.
-          </p>
-          <p className="text-sm break-words">Reason: {event.hiddenReason}</p>
-        </div>
-      )}
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold break-words">{event.title}</h1>
-        {event.tag && <p className="text-ink-muted break-all">{event.tag}</p>}
-      </header>
-
-      <div className="space-y-2">
-        <EventTimes event={event} />
-        <p className="flex items-start gap-2">
-          <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-          <span className="min-w-0 break-words">
-            {event.locationHidden ? HIDDEN_LOCATION_TEXT : event.location}
-          </span>
-        </p>
-        {event.isHost && event.locationVisibility === 'CONFIRMED' && (
-          <p className="text-ink-muted text-sm">
-            Only you and confirmed attendees see the location.
-          </p>
-        )}
-      </div>
-
-      <p className="flex items-center gap-3">
-        <img src={event.host.avatarUrl} alt="" className="size-8 rounded-full" />
-        <span>{event.isHost ? 'You’re hosting' : `Hosted by ${event.host.displayName}`}</span>
-      </p>
-
-      {event.description && <p className="break-words whitespace-pre-wrap">{event.description}</p>}
-
-      <RsvpPanel event={event} />
-
-      {/* Only the host and confirmed attendees get the list; anyone else would get a 404. */}
-      {(event.isHost || event.myStatus === 'CONFIRMED') && <AttendeeList event={event} />}
-
-      {event.isHost && event.audience && (
-        <section aria-labelledby="audience-heading" className="space-y-2">
-          <h2 id="audience-heading" className="text-xl font-semibold">
-            Who can see this
-          </h2>
-          <ul className="list-disc space-y-1 pl-5">
-            {event.audience.map((entry) => (
-              <li key={entryKey(entry)}>
-                <span className="break-words">{entryLabel(entry)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {event.isHost && !cancelled && (
-        <section aria-label="Host actions" className="space-y-3">
-          <Link to={`/events/${event.id}/edit`} className="btn btn-secondary">
-            Edit event
-          </Link>
-          <CancelEvent event={event} />
-        </section>
-      )}
-
-      {!event.isHost && <ReportEvent event={event} />}
-    </article>
-  );
+  // Keyed by event, so an open confirmation or tab never carries over to another one.
+  return <EventPage key={query.data.id} event={query.data} />;
 }
