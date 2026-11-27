@@ -158,15 +158,13 @@ test('45. the first sign-in is a guided setup with no navigation; a visit from i
   await skip.click();
   await expect(page).toHaveURL(/\/$/);
 
-  // What a link inside the app does: a new history entry and no page load.
-  await page.evaluate(() => {
-    history.pushState({ usr: null, key: 'in-app', idx: 1 }, '', '/onboarding');
-    dispatchEvent(new PopStateEvent('popstate'));
-  });
+  // From inside the app: a host who is discoverable nowhere is offered the way there.
+  await page.goto('/events/new');
+  await page.getByRole('link', { name: 'Choose where you’re discoverable' }).click();
   await expect(page.getByRole('heading', { name: 'Where can people find you?' })).toBeVisible();
   await expect(switches(page)).toHaveCount(mixedGuilds().length);
   await expect(skip).toHaveCount(0);
   await expect(navigation).toBeVisible();
   await page.getByRole('button', { name: 'Done' }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/events\/new$/);
 });
