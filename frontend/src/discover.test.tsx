@@ -118,6 +118,10 @@ describe('the event card', () => {
       'a full event has started',
       { spotsLeft: 0, startsAt: new Date(Date.now() - HOUR).toISOString() },
     ],
+    [
+      'a full event’s sign-up hasn’t opened',
+      { spotsLeft: 0, signupOpensAt: new Date(Date.now() + HOUR).toISOString() },
+    ],
   ])('shows a newcomer no pill when %s', async (_when, extra) => {
     signedIn({ feed: [event('Panel', extra)] });
     renderApp('/');

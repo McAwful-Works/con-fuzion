@@ -21,7 +21,11 @@ export function Home() {
   const servers = sortedDiscoverable(useGuilds().data ?? []);
   const desktop = useDesktop();
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start lg:gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+    // `data-discover` makes the shell give this page more room, for the side cards.
+    <div
+      data-discover
+      className="lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start lg:gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]"
+    >
       <div className="min-w-0 space-y-4">
         <div>
           {servers.length > 0 && (
