@@ -588,7 +588,8 @@ describe('user search', () => {
       'Username',
       'Discord ID',
     ]);
-    expect(cells(person.getAllByRole('row')[0]!).slice(2)).toEqual(['None', 'None', '3']);
+    // After the name's cell, Joined and Last signed in.
+    expect(cells(person.getAllByRole('row')[0]!).slice(3)).toEqual(['None', 'None', '3']);
     expect(person.getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Suspend Rowdy',
       'Ban Rowdy',

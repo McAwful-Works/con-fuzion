@@ -22,7 +22,8 @@ export function SuspendAction({ userId, name }: { userId: string; name: string }
   const last = localDay(SUSPEND_MAX_DAYS - 1);
 
   return (
-    <div className="space-y-3">
+    // A name can be one long word, and it's on the button and in the report's narrow column.
+    <div className="space-y-3 wrap-anywhere">
       <ModAction
         label={`Suspend ${name}`}
         confirm="Suspend"

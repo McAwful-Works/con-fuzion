@@ -106,7 +106,8 @@ function UserActions({ user, className }: { user: AdminUser; className: string }
   const admin = isAdmin(useMe().data);
   const name = nameOf(user);
   return (
-    <div className={className}>
+    // The buttons carry the person's name, which may be one long word.
+    <div className={`wrap-anywhere ${className}`}>
       <SuspendAction userId={user.id} name={name} />
       {admin && (
         <>
@@ -147,14 +148,16 @@ function UserTable({ users, now }: ResultsProps) {
         {users.map((user) => (
           <tbody key={user.id} className="border-line border-t-2 align-top">
             <tr>
-              <th scope="rowgroup" className={`${cell} font-normal`}>
+              {/* Not a `<th>`: a header cell may hold no heading. */}
+              <td className={cell}>
                 <h3 className="text-base font-extrabold">{nameOf(user)}</h3>
                 <dl className="mt-1 space-y-1">
                   <Identity user={user} />
                 </dl>
-              </th>
+              </td>
               {RECORD.map(({ label, value }) => (
-                <td key={label} className={cell}>
+                // A ban's reason keeps its line breaks, as on a card.
+                <td key={label} className={`${cell} whitespace-pre-wrap`}>
                   {value(user, now)}
                 </td>
               ))}
