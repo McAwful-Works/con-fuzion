@@ -1,7 +1,11 @@
 import { MapPin, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { EVENT_DESCRIPTION_MAX, EVENT_LOCATION_MAX, EVENT_TAG_MAX } from '../../api/events';
-import { EVENT_TITLE_MAX } from '../../api/events';
+import {
+  EVENT_DESCRIPTION_MAX,
+  EVENT_LOCATION_MAX,
+  EVENT_TAG_MAX,
+  EVENT_TITLE_MAX,
+} from '../../api/events';
 import { HIDDEN_LOCATION_TEXT } from './EventCard';
 import { Field, SwitchRow } from './formFields';
 import type { SectionProps } from './validation';

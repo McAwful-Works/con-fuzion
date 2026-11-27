@@ -33,7 +33,7 @@ function OptionCard({
 }) {
   const id = useId();
   return (
-    <label className="card has-checked:border-accent has-checked:shadow-[4px_4px_0_var(--color-accent)] flex cursor-pointer items-center gap-3 p-3.5 has-disabled:cursor-default has-disabled:opacity-50">
+    <label className="card has-checked:border-accent has-checked:shadow-picked flex cursor-pointer items-center gap-3 p-3.5 has-disabled:cursor-default has-disabled:opacity-50">
       {icon}
       <span className="min-w-0 flex-1">
         <span id={`${id}-title`} className="block font-bold break-words">

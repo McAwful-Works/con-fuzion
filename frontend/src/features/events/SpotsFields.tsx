@@ -38,7 +38,10 @@ function Stepper({
   const id = useId();
   const number = Number(value);
   return (
-    <div className="space-y-1.5">
+    <div className="field">
+      <label htmlFor={id} className="field-label">
+        Capacity
+      </label>
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
         <div
           className={`rounded-control bg-surface-raised flex w-fit overflow-hidden border-2 ${error ? 'border-danger' : 'border-control-outline'}`}
@@ -53,11 +56,11 @@ function Stepper({
             <Minus aria-hidden="true" className="size-5" />
           </button>
           <input
+            id={id}
             type="text"
             inputMode="numeric"
-            aria-label="Capacity"
             aria-invalid={Boolean(error)}
-            aria-describedby={`${id}-hint ${id}-error`}
+            aria-describedby={error ? `${id}-hint ${id}-error` : `${id}-hint`}
             maxLength={String(EVENT_CAPACITY_MAX).length}
             value={value}
             onChange={(e) => onChange(e.target.value)}

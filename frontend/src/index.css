@@ -87,6 +87,8 @@
   --shadow-selected: 2px 2px 0 var(--color-outline);
   --shadow-control: 3px 3px 0 var(--color-outline);
   --shadow-card: 4px 4px 0 var(--color-outline);
+  /* A picked option card. */
+  --shadow-picked: 4px 4px 0 var(--color-accent);
 }
 
 /* `dark:` follows the app's choice, not only the device. Prefer the tokens, which swap by themselves. */
