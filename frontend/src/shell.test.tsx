@@ -130,7 +130,7 @@ const current = (element: HTMLElement) =>
 
 describe('the old paths', () => {
   it.each([
-    ['/schedule', '/plans', '', 'My schedule'],
+    ['/schedule', '/plans', '', 'My plans'],
     ['/friends', '/people', '', 'Friends'],
     ['/circles', '/people', '?tab=circles', 'Circles'],
     ['/notifications', '/inbox', '', 'Notifications'],
@@ -392,7 +392,7 @@ describe('around the page', () => {
     markUnavailable();
 
     expect(await screen.findByRole('heading', { name: 'Back soon' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'My schedule' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'My plans' })).toBeNull();
     expect(tabBar()).not.toBeNull();
   });
 });

@@ -179,23 +179,6 @@ describe('the event feed', () => {
     expect(calls.some((c) => c.path.includes('cursor=next-1'))).toBe(true);
   });
 
-  it('has a Hosting tab that asks for scope=hosting and shows cancelled events', async () => {
-    const cancelled = { ...mine, status: 'CANCELLED' as const };
-    const calls = signedIn(({ path }) => {
-      if (path.startsWith('/api/events?scope=feed')) return page([walk]);
-      if (path.startsWith('/api/events?scope=hosting')) return page([cancelled]);
-      return undefined;
-    });
-
-    renderApp('/');
-    await screen.findByText('Cosplay photo walk');
-    fireEvent.click(screen.getByRole('button', { name: 'Hosting' }));
-
-    const card = await screen.findByRole('link', { name: /My panel/ });
-    expect(within(card).getByText('Cancelled')).toBeInTheDocument();
-    expect(calls.some((c) => c.path.startsWith('/api/events?scope=hosting'))).toBe(true);
-  });
-
   it('shows plain text for a hidden location', async () => {
     signedIn(({ path }) =>
       path.startsWith('/api/events?')

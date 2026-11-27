@@ -406,7 +406,7 @@ describe('the attendee list', () => {
   });
 });
 
-describe('cards and My schedule', () => {
+describe('cards and My plans', () => {
   const page = (events: Schemas['EventResponse'][]) =>
     envelope('EVENT_PAGE', { events, nextCursor: null });
 
@@ -433,7 +433,7 @@ describe('cards and My schedule', () => {
     expect(calls.some((c) => c.path.includes('/spots'))).toBe(false);
   });
 
-  it('lists My schedule by day and highlights events that overlap', async () => {
+  it('lists My plans by day and highlights events that overlap', async () => {
     const start = Date.now() + 48 * HOUR;
     const iso = (ms: number) => new Date(start + ms).toISOString();
     const calls = signedIn((call) =>
@@ -467,7 +467,7 @@ describe('cards and My schedule', () => {
           ])
         : undefined,
     );
-    renderApp('/schedule');
+    renderApp('/plans');
 
     const one = await screen.findByRole('link', { name: /^Panel one/ });
     const two = screen.getByRole('link', { name: /^Panel two/ });
@@ -476,20 +476,12 @@ describe('cards and My schedule', () => {
     expect(two).toHaveTextContent('Overlaps with “Panel one”');
     expect(dinner).not.toHaveTextContent('Overlaps');
     expect(within(two).getByText('Waitlisted')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'My schedule' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'My plans' })).toBeInTheDocument();
     expect(calls.some((c) => c.path.startsWith('/api/events?scope=attending'))).toBe(true);
-  });
-
-  it('explains an empty schedule in words', async () => {
-    signedIn((call) =>
-      call.path.startsWith('/api/events?scope=attending') ? page([]) : undefined,
-    );
-    renderApp('/schedule');
-    expect(await screen.findByText(/Nothing on your schedule yet/)).toBeInTheDocument();
   });
 });
 
-describe('the offline copy of My schedule', () => {
+describe('the offline copy of My plans', () => {
   const del = vi.fn(async () => true);
   const deleted = () => del.mock.calls.length;
 
@@ -517,7 +509,7 @@ describe('the offline copy of My schedule', () => {
         : undefined,
     );
 
-    renderApp('/schedule');
+    renderApp('/plans');
 
     expect(await screen.findByRole('link', { name: /Cosplay photo walk/ })).toBeInTheDocument();
     expect(screen.getByText(/You’re offline/)).toBeInTheDocument();

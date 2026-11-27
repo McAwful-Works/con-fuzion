@@ -37,7 +37,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
-            // My schedule reads offline from its last good response, and so does `/api/me`, which
+            // My plans reads offline from its last good responses, and so does `/api/me`, which
             // the app needs to know you're signed in. Nothing else is cached: every other API call,
             // and every write, goes to the network. The app clears this cache when a session ends.
             urlPattern: ({ url }) =>

@@ -1,4 +1,4 @@
-/** The service worker's cache of My schedule and `/api/me` (see `vite.config.ts`), read when offline. */
+/** The service worker's cache of My plans and `/api/me` (see `vite.config.ts`), read when offline. */
 export const OFFLINE_CACHE = 'my-schedule';
 
 const LAST_USER_KEY = 'cf-last-user';

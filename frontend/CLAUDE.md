@@ -17,7 +17,7 @@ Testing Library. End-to-end tests live in `e2e/` (Playwright against the jar and
   Mutations send the CSRF token from the `XSRF-TOKEN` cookie as the `X-XSRF-TOKEN` header.
 - **Time**: store and send UTC ISO strings. Show times in the event's time zone, plus the viewer's zone when they differ.
 - **Polling, not sockets.** Spot counts use adaptive `refetchInterval` (plan B2 hot-spot table).
-- **Offline**: "My schedule" is cached for reading. Mutations need a connection and show an offline banner when there isn't one.
+- **Offline**: My plans is cached for reading. Mutations need a connection and show an offline banner when there isn't one.
 
 ## Art and assets (strict)
 - **Never create art**, including images, logos, icons, illustrations, or decorative SVG. A hook blocks image writes

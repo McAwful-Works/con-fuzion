@@ -163,7 +163,7 @@ export async function createEvent(
   return page.url().split('/').pop();
 }
 
-/** Discover's event cards, in their day sections. The side cards beside them link to events too. */
+/** The event cards of Discover and My plans, in their day sections. Side cards link to events too. */
 const feedCards = (page) => page.locator('main section[aria-labelledby^="day-"] a');
 
 /** Opens Discover and waits for the feed to load (an empty feed shows its message instead). */
@@ -192,17 +192,21 @@ export async function expectFeed(viewer, { sees = [], hidden = [] }) {
   }
 }
 
-/** Asserts what the viewer's My schedule shows, once it has loaded, like `expectFeed`. */
+/** Asserts what the viewer's My plans shows, once it has loaded, like `expectFeed`. */
 export async function expectSchedule({ page }, { sees = [], hidden = [] }) {
   await page.goto('/plans');
-  await expect(page.getByRole('heading', { level: 1, name: 'My schedule' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'My plans' })).toBeVisible();
   await expect(page.getByRole('status', { name: 'Loading events' })).toHaveCount(0);
   await expect(page.getByRole('alert')).toHaveCount(0);
-  const cards = page.locator('main a[href^="/events/"]');
-  await expect(cards.first().or(page.getByText(/Nothing on your schedule yet/))).toBeVisible();
+  await expect(
+    feedCards(page)
+      .first()
+      .or(page.getByRole('heading', { name: 'Nothing planned yet' })),
+  ).toBeVisible();
   for (const title of sees) {
-    await expect(page.getByRole('link', { name: literal(title) })).toBeVisible();
+    await expect(feedCards(page).filter({ hasText: title })).toBeVisible();
   }
+  // Nowhere on the page, side cards included.
   for (const title of hidden) {
     await expect(page.getByRole('link', { name: literal(title) })).toHaveCount(0);
   }

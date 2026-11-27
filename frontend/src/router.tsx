@@ -14,7 +14,7 @@ import { Landing } from './routes/Landing';
 import { Notifications } from './routes/Notifications';
 import { Onboarding } from './routes/Onboarding';
 import { People } from './routes/People';
-import { Schedule } from './routes/Schedule';
+import { Plans } from './routes/Plans';
 import { Settings } from './routes/Settings';
 
 const home = () => '/';
@@ -46,7 +46,7 @@ export const routes: RouteObject[] = [
             // The top bar of a return visit. The first-run setup has its own header.
             handle: { title: 'Servers', parent: () => '/you' } satisfies ShellPage,
           },
-          { path: '/plans', element: <Schedule /> },
+          { path: '/plans', element: <Plans /> },
           { path: '/people', element: <People /> },
           { path: '/inbox', element: <Notifications /> },
           {
