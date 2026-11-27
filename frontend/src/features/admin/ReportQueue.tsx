@@ -46,11 +46,14 @@ function ReportTable({ label, reports, selected, to, waited, heading }: ListProp
             return (
               <tr
                 key={report.id}
-                // The whole row follows its link.
+                // The whole row follows its link, except for a modified click (meant for the link
+                // itself) or the end of a text selection.
                 onClick={(e) => {
-                  if (!(e.target as Element).closest('a')) {
-                    e.currentTarget.querySelector('a')?.click();
+                  if ((e.target as Element).closest('a')) return;
+                  if (e.ctrlKey || e.metaKey || e.shiftKey || window.getSelection()?.toString()) {
+                    return;
                   }
+                  e.currentTarget.querySelector('a')?.click();
                 }}
                 className={`border-line cursor-pointer border-t border-dashed first:border-t-0 ${
                   current ? 'bg-surface-sunken' : 'hover:bg-surface'

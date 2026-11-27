@@ -216,7 +216,7 @@ test.describe('reports and hidden events', () => {
   });
 
   // The layout, which unit tests can't see.
-  test('44. the report sits beside the queue on desktop, and replaces it on a phone', async ({
+  test('46. the report sits beside the queue on desktop, and replaces it on a phone', async ({
     join,
   }) => {
     const admin = await joinAdmin(join);
@@ -244,6 +244,8 @@ test.describe('reports and hidden events', () => {
     const queue = await table.boundingBox();
     const beside = await detail.boundingBox();
     expect(beside.x).toBeGreaterThan(queue.x + queue.width);
+    // The shell's column is wider here than on other pages (52.5rem, 840px).
+    expect((await page.getByRole('main').boundingBox()).width).toBeGreaterThan(900);
     expect(await noSidewaysScroll()).toBe(true);
 
     await page.setViewportSize({ width: 375, height: 800 });

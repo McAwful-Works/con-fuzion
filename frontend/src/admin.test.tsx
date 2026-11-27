@@ -992,8 +992,12 @@ describe('the queue and the selected report on desktop', () => {
     expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('aria-current', 'true');
     expect(screen.queryByText('Choose a report to see it here.')).toBeNull();
 
-    // Anywhere in a row follows its link, and the queue isn't asked for again.
-    fireEvent.click(screen.getByRole('cell', { name: 'Harassment or bullying' }));
+    // Anywhere in a row follows its link, unless the click is modified.
+    const reason = screen.getByRole('cell', { name: 'Harassment or bullying' });
+    fireEvent.click(reason, { ctrlKey: true });
+    expect(row).toHaveAttribute('aria-current', 'true');
+    // The queue isn't asked for again.
+    fireEvent.click(reason);
     const next = await screen.findByRole('heading', { name: 'Report 13' });
     await waitFor(() => expect(next).toHaveFocus());
     expect(row).not.toHaveAttribute('aria-current');

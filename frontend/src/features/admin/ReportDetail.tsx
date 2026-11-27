@@ -45,52 +45,54 @@ function EventActions({ eventId }: { eventId: string }) {
   });
 
   return (
-    <div className="grid grid-cols-2 gap-x-3">
-      <ModAction
-        className="col-span-full mb-3"
-        primary
-        icon={Lock}
-        label="Hide event"
-        confirm="Hide"
-        mutation={hide}
-        note={reason}
-        onOpen={clear}
-        onSubmit={(note, close) => hide.mutate(note, finish(close, 'Event hidden.'))}
-      >
-        <p className="text-sm">
-          Only the host and moderators will be able to open it. People who were going aren’t told.
-        </p>
-      </ModAction>
-      <ModAction
-        label="Unhide event"
-        confirm="Unhide"
-        mutation={unhide}
-        onOpen={clear}
-        onSubmit={(_, close) => unhide.mutate(undefined, finish(close, 'Event unhidden.'))}
-      >
-        <p className="text-sm">
-          Its audience can open it again. Nobody is told, though any free spots are offered to the
-          waitlist.
-        </p>
-      </ModAction>
-      <ModAction
-        label="Cancel event"
-        confirm="Cancel it"
-        mutation={cancel}
-        note={reason}
-        onOpen={clear}
-        onSubmit={(note, close) => cancel.mutate(note, finish(close, 'Event cancelled.'))}
-      >
-        <p className="text-sm">
-          People who were going or waiting are told it’s cancelled, without your reason. This can’t
-          be undone. An event that has already ended isn’t changed.
-        </p>
-      </ModAction>
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <ModAction
+          className="col-span-full"
+          primary
+          icon={Lock}
+          label="Hide event"
+          confirm="Hide"
+          mutation={hide}
+          note={reason}
+          onOpen={clear}
+          onSubmit={(note, close) => hide.mutate(note, finish(close, 'Event hidden.'))}
+        >
+          <p className="text-sm">
+            Only the host and moderators will be able to open it. People who were going aren’t told.
+          </p>
+        </ModAction>
+        <ModAction
+          label="Unhide event"
+          confirm="Unhide"
+          mutation={unhide}
+          onOpen={clear}
+          onSubmit={(_, close) => unhide.mutate(undefined, finish(close, 'Event unhidden.'))}
+        >
+          <p className="text-sm">
+            Its audience can open it again. Nobody is told, though any free spots are offered to the
+            waitlist.
+          </p>
+        </ModAction>
+        <ModAction
+          label="Cancel event"
+          confirm="Cancel it"
+          mutation={cancel}
+          note={reason}
+          onOpen={clear}
+          onSubmit={(note, close) => cancel.mutate(note, finish(close, 'Event cancelled.'))}
+        >
+          <p className="text-sm">
+            People who were going or waiting are told it’s cancelled, without your reason. This
+            can’t be undone. An event that has already ended isn’t changed.
+          </p>
+        </ModAction>
+      </div>
       {/* Always there, so screen readers announce the text when it arrives. */}
-      <p role="status" className="col-span-full text-sm font-medium not-empty:mt-3">
+      <p role="status" className="text-sm font-medium">
         {done}
       </p>
-    </div>
+    </>
   );
 }
 

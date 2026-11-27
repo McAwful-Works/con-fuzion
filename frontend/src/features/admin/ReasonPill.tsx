@@ -14,7 +14,9 @@ const COLORS: Record<Report['reason'], string> = {
 /** Why something was reported. The label wraps where a table column is narrow. */
 export function ReasonPill({ reason }: { reason: Report['reason'] }) {
   return (
-    <span className={`pill py-0.5 whitespace-normal xl:whitespace-nowrap ${COLORS[reason]}`}>
+    <span
+      className={`pill max-xl:rounded-control py-0.5 whitespace-normal xl:whitespace-nowrap ${COLORS[reason]}`}
+    >
       {reasonLabel(reason)}
     </span>
   );

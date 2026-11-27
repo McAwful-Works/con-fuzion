@@ -26,7 +26,8 @@ function SectionLink({ to, label }: (typeof SECTIONS)[number]) {
 function Layout() {
   const sections = isAdmin(useMe().data) ? ADMIN_SECTIONS : SECTIONS;
   return (
-    // The first class widens the shell's main column on desktop, for the tables.
+    // The `main:has(>&)` class widens the shell's column on desktop, for the tables. It works only
+    // while this element is a direct child of `<main>`.
     <div className="space-y-5 [main:has(>&)]:lg:max-w-[77.5rem]">
       <div>
         <p className="text-ink-muted text-xs font-bold tracking-wider uppercase">
