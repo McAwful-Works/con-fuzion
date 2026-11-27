@@ -1,4 +1,11 @@
-import { apiGuilds, denyNextSignIn, mixedGuilds, newUser, signIn } from './support.mjs';
+import {
+  apiGuilds,
+  denyNextSignIn,
+  mixedGuilds,
+  newUser,
+  signIn,
+  signInLink,
+} from './support.mjs';
 import { expect, test } from './hooks.mjs';
 
 /** Open You from the sidebar (the Settings link) and press one of the Account buttons. */
@@ -12,7 +19,7 @@ test('1. landing: no session goes to /welcome, and /api/me is a 401 in the D-010
 }) => {
   await page.goto('/');
   await expect(page).toHaveURL(/\/welcome$/);
-  await expect(page.getByRole('link', { name: 'Sign in with Discord' })).toBeVisible();
+  await expect(signInLink(page)).toBeVisible();
 
   const response = await page.request.get('/api/me');
   expect(response.status()).toBe(401);
@@ -30,7 +37,7 @@ test('2. failed sign-in: access_denied lands on /welcome with the alert, and the
   await page.goto('/welcome');
   const historyBefore = await page.evaluate(() => history.length);
   await denyNextSignIn();
-  await page.getByRole('link', { name: 'Sign in with Discord' }).click();
+  await signInLink(page).click();
 
   await expect(page.getByRole('alert')).toHaveText('Sign-in didn’t complete. Please try again.');
   await expect(page).toHaveURL(/\/welcome$/); // ?login=failed is gone
@@ -40,7 +47,7 @@ test('2. failed sign-in: access_denied lands on /welcome with the alert, and the
   expect((await page.request.get('/api/me')).status()).toBe(401);
   // A reload no longer shows the alert.
   await page.reload();
-  await expect(page.getByRole('link', { name: 'Sign in with Discord' })).toBeVisible();
+  await expect(signInLink(page)).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
@@ -77,7 +84,7 @@ test('9. sign out lands on /welcome and ends the session', async ({ page }) => {
 
   await pressAccountButton(page, 'Sign out');
   await expect(page).toHaveURL(/\/welcome$/);
-  await expect(page.getByRole('link', { name: 'Sign in with Discord' })).toBeVisible();
+  await expect(signInLink(page)).toBeVisible();
   expect((await page.request.get('/api/me')).status()).toBe(401);
 });
 
@@ -99,7 +106,7 @@ test('10. log out everywhere ends the same user’s other session', async ({ bro
     expect((await pageB.request.get('/api/me')).status()).toBe(401);
     await pageB.goto('/');
     await expect(pageB).toHaveURL(/\/welcome$/);
-    await expect(pageB.getByRole('link', { name: 'Sign in with Discord' })).toBeVisible();
+    await expect(signInLink(pageB)).toBeVisible();
   } finally {
     await contextA.close();
     await contextB.close();

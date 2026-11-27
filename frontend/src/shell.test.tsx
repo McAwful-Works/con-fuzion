@@ -10,6 +10,7 @@ import type { components } from './api/schema';
 import {
   envelope,
   errorEnvelope,
+  findSignIn,
   guilds,
   jsonResponse,
   me,
@@ -378,7 +379,7 @@ describe('around the page', () => {
     mockApi(() => jsonResponse(errorEnvelope, 401));
     renderApp('/welcome');
 
-    expect(await screen.findByRole('link', { name: 'Sign in with Discord' })).toBeInTheDocument();
+    expect(await findSignIn()).toBeInTheDocument();
     expect(screen.queryByRole('navigation')).toBeNull();
     expect(screen.getByRole('contentinfo')).toBeInTheDocument();
   });
