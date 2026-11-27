@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react';
 import { Link } from 'react-router';
-import { useEventFeed, type EventScope } from '../../api/events';
+import { useEventFeed, type EventScope, type FeedFilters } from '../../api/events';
 import { ErrorState } from '../../components/ErrorState';
 import { Skeleton } from '../../components/Skeleton';
 import { dayParts } from './cardTime';
@@ -56,9 +56,31 @@ function EmptyDiscover() {
   );
 }
 
+/** A search or filter that matches nothing. */
+function NoMatches({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="card space-y-3 p-5">
+      <h2 className="text-xl font-extrabold">No meetups match</h2>
+      <p className="text-ink-muted">Try a different search, or clear the filters.</p>
+      <button type="button" className="btn btn-secondary w-full sm:w-auto" onClick={onClear}>
+        Clear filters
+      </button>
+    </div>
+  );
+}
+
+interface Props {
+  scope: EventScope;
+  /** Discover's search and filters. */
+  filters?: FeedFilters;
+  /** True while the filters aren't known yet: show the placeholders and ask for nothing. */
+  waiting?: boolean;
+  onClearFilters?: () => void;
+}
+
 /** Upcoming events grouped by day in each event's own time zone, loaded a page at a time. */
-export function EventFeed({ scope }: { scope: EventScope }) {
-  const feed = useEventFeed(scope);
+export function EventFeed({ scope, filters = {}, waiting = false, onClearFilters }: Props) {
+  const feed = useEventFeed(scope, filters, !waiting);
 
   const { data } = feed;
 
@@ -70,6 +92,9 @@ export function EventFeed({ scope }: { scope: EventScope }) {
 
   const events = data.pages.flatMap((page) => page.events);
   if (events.length === 0) {
+    if (onClearFilters && Object.keys(filters).length > 0) {
+      return <NoMatches onClear={onClearFilters} />;
+    }
     if (scope === 'feed') return <EmptyDiscover />;
     return <p className="text-ink-muted">{EMPTY[scope]}</p>;
   }
