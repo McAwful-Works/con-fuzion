@@ -247,7 +247,7 @@ describe('servers', () => {
     fireEvent.click(await screen.findByRole('switch', { name: /Example Con Community/ }));
     await screen.findByRole('link', { name: 'Sign in with Discord' });
 
-    // Wait before looking: a redirect loop only passes through the landing page.
+    // Wait before looking: a redirect loop never settles, even if the landing page shows for a moment.
     await pause();
     const settled = calls.length;
     await pause();
@@ -255,8 +255,9 @@ describe('servers', () => {
     expect(calls).toHaveLength(settled);
     expect(screen.getByRole('link', { name: 'Sign in with Discord' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/welcome');
-    // Nothing of the old session is left on screen.
+    // No signed-in navigation is left on screen.
     expect(screen.queryByText('Con Goer')).toBeNull();
+    expect(screen.queryByRole('link', { name: /Notifications/ })).toBeNull();
   });
 
   it('sorts servers case-insensitively', async () => {
