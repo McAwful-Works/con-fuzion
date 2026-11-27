@@ -148,7 +148,9 @@ describe('servers', () => {
     const first = await screen.findByRole('switch', { name: /Example Con Community/ });
     expect(first).not.toBeChecked();
     expect(screen.getByRole('switch', { name: /Cosplay Corner/ })).toBeChecked();
-    expect(screen.getByText(/We never see your messages or other members/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/never shows us your messages or a server’s member list/),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue' })).toHaveAttribute('href', '/');
   });
 

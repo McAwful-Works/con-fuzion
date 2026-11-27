@@ -69,7 +69,8 @@ function Setup() {
   return (
     <>
       <header className="border-outline flex items-center gap-2 border-b-2 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 lg:px-12">
-        <Wordmark accent="text-accent-text" className="mr-auto" />
+        {/* Not a link: Continue and Skip are the ways on, and they record what was dismissed. */}
+        <Wordmark accent="text-accent-text" className="mr-auto" asText />
         <button type="button" className="btn btn-ghost btn-sm" onClick={advance}>
           Skip for now
         </button>
@@ -158,12 +159,13 @@ function Servers() {
     <>
       <p className="text-ink-muted">
         Turn on the servers where you’re happy to be found. Members who’ve turned on the same server
-        can see you, invite you and open meetups to you. Everything starts off.
+        can find you, invite you to their meetups and add you to their circles. Everything starts
+        off.
       </p>
       <ServerList />
       <p className="hint">
-        You can change this any time in Settings → Servers. We never see your messages or other
-        members.
+        You can change this any time in Settings → Servers. Discord never shows us your messages or
+        a server’s member list.
       </p>
     </>
   );

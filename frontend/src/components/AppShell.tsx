@@ -35,8 +35,8 @@ export function AppShell() {
   const page = useShellPage(isModerator(user));
   const onYou = useMatch('/you') !== null;
   const onWelcome = useMatch('/welcome') !== null;
-  // "Back soon" replaces the setup too, and then the usual frame comes back.
-  const setup = useSetupVisit() && !unavailable;
+  // Only once there's a user to set up: loading, errors and "Back soon" keep the usual frame.
+  const setup = useSetupVisit() && me.isSuccess && !unavailable;
   const navigation = Boolean(user) && !setup;
   const tabs = navigation && !page?.detail;
 

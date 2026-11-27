@@ -48,7 +48,7 @@ test('42. maintenance mode: every API route but health is a 503, and the app say
   // Signed in on the normal jar first. The two jars share the session store and cookies ignore the port, so the
   // second one gets a real session: signed in or not, the answer is the same.
   await signIn(page, newUser('maintenance'));
-  await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Skip for now' })).toBeVisible();
   expect((await page.request.get('/api/me')).status()).toBe(200);
 
   for (const path of [

@@ -26,16 +26,29 @@ export function inboxLabel(unread: number): string | undefined {
   return unread > 0 ? `${INBOX.label}, ${formatUnread(unread)} unread` : undefined;
 }
 
-/** The wordmark, as a link to Discover. `accent` is the coral that reads on its background. */
-export function Wordmark({ accent, className = '' }: { accent: string; className?: string }) {
+/**
+ * The wordmark, as a link to Discover unless `asText`. `accent` is the coral that reads on its
+ * background.
+ */
+export function Wordmark({
+  accent,
+  className = '',
+  asText = false,
+}: {
+  accent: string;
+  className?: string;
+  asText?: boolean;
+}) {
+  const classes = `font-head rounded-control inline-flex min-h-11 items-center text-xl font-extrabold tracking-tight whitespace-nowrap ${className}`;
+  const name = (
+    <span>
+      Con<span className={accent}>-Fuzion</span>
+    </span>
+  );
+  if (asText) return <p className={classes}>{name}</p>;
   return (
-    <Link
-      to={DISCOVER.to}
-      className={`font-head rounded-control inline-flex min-h-11 items-center text-xl font-extrabold tracking-tight whitespace-nowrap ${className}`}
-    >
-      <span>
-        Con<span className={accent}>-Fuzion</span>
-      </span>
+    <Link to={DISCOVER.to} className={classes}>
+      {name}
     </Link>
   );
 }

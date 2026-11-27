@@ -1,7 +1,15 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chooseInstallHint } from './features/install/install';
-import { envelope, guilds, me, mockApi, renderApp } from './test-utils';
+import {
+  envelope,
+  errorEnvelope,
+  guilds,
+  jsonResponse,
+  me,
+  mockApi,
+  renderApp,
+} from './test-utils';
 
 const IPHONE =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
@@ -127,10 +135,22 @@ describe('onboarding: servers, notifications, install', () => {
     renderApp('/onboarding');
     await heading(SERVERS);
 
-    expect(screen.getByRole('link', { name: 'Con-Fuzion' })).toBeInTheDocument();
+    const header = screen.getByRole('button', { name: 'Skip for now' }).closest('header');
+    expect(header).toHaveTextContent('Con-Fuzion');
+    // Nothing leads away but the setup's own buttons.
+    expect(screen.queryByRole('link', { name: 'Con-Fuzion' })).toBeNull();
     expect(screen.queryByRole('navigation')).toBeNull();
     expect(screen.queryByRole('contentinfo')).toBeNull();
     expect(screen.queryByRole('link', { name: 'You' })).toBeNull();
+  });
+
+  it('keeps the usual frame when it can’t tell who is signed in', async () => {
+    mockApi(({ path }) => (path === '/api/me' ? jsonResponse(errorEnvelope, 500) : undefined));
+    renderApp('/onboarding');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong');
+    expect(screen.getByRole('banner')).toBeInTheDocument();
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
   });
 
   it('can skip every step, ending in the app', async () => {
