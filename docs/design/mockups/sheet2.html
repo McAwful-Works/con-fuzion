@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#e9e9ee;font-family:Inter,sans-serif;color:#18181b;width:1600px}
+.wrap{padding:34px 40px 40px}
+h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
+p.lead{margin:0 0 24px;font-size:16px;color:#52525b;max-width:1250px}
+.row{display:flex;gap:28px;align-items:flex-start;margin-bottom:30px}
+figure{margin:0}
+figcaption{font-size:13px;font-weight:600;color:#52525b;margin:10px 2px 0;max-width:744px}
+.desk img{width:1000px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);display:block}
+.desk.sm img{width:744px}
+.phone img{width:300px;border-radius:34px;border:10px solid #111;box-shadow:0 10px 30px rgba(0,0,0,.25);display:block}
+</style></head><body><div class="wrap" id="w"></div>
+<script>
+const S = {
+  1: ['Round 2 · Welcome and first sign-in', 'A real front door: what the app is, how it works and the privacy promises, then a focused 3-step setup that starts with where you’re discoverable.',
+      [['d', 'welcome', 'Welcome (signed out), desktop'], ['m', 'welcome', 'Welcome, phone (top of the page)'], ['d', 'onboarding', 'First sign-in, step 1 of 3: servers'], ['m', 'onboarding', 'Step 1, phone']]],
+  2: ['Round 2 · My plans and your own meetup', 'My plans merges “My schedule” and the Hosting tab, with filters and overlap warnings. Hosts get a Manage section and their tools in one place.',
+      [['d', 'plans', 'My plans, desktop'], ['m', 'plans', 'My plans, phone'], ['d', 'event-host', 'Your own meetup (host view), desktop'], ['m', 'event-host', 'Host view, phone: tools pinned at the bottom']]],
+  3: ['Round 2 · Host a meetup', 'Desktop: one page in four sections with a live preview of the card and who it’s visible to. Phone: five short steps. A searchable time-zone picker, tag chips, a spots stepper and toggles replace raw inputs.',
+      [['d', 'create', 'New meetup, desktop'], ['m', 'create-when', 'Phone, step 2: when'], ['m', 'create', 'Phone, step 4: who can see it']]],
+  4: ['Round 2 · People and Inbox', 'Friends, circles and blocks live together under People, with the invite QR and link one tap away. The Inbox groups by day, marks unread, and lets you act on an offer right there.',
+      [['d', 'people', 'People, desktop: friends, invite and circles'], ['m', 'people', 'People, phone'], ['d', 'inbox', 'Inbox, desktop'], ['m', 'inbox', 'Inbox, phone']]],
+  5: ['Round 2 · You and Moderation', 'Settings becomes “You”: grouped, scannable rows. Moderation is a queue with the selected report beside it, so moderators act without changing pages.',
+      [['d', 'you', 'You / Settings, desktop'], ['m', 'you', 'You, phone'], ['d', 'moderation', 'Moderation queue with report detail, desktop'], ['m', 'moderation', 'Moderation, phone']]],
+}[new URLSearchParams(location.search).get('s')];
+const fig = ([k, p, c]) => k === 'd'
+  ? `<figure class="desk ${S[2].length === 3 ? 'sm' : ''}"><img src="shots/${p}-a-desktop.png"><figcaption>${c}</figcaption></figure>`
+  : `<figure class="phone"><img src="shots/${p}-a-mobile.png"><figcaption>${c}</figcaption></figure>`;
+let rows = '';
+if (S[2].length === 3) rows = `<div class="row">${S[2].map(fig).join('')}</div>`;
+else for (let i = 0; i < S[2].length; i += 2) rows += `<div class="row">${fig(S[2][i])}${fig(S[2][i + 1])}</div>`;
+document.getElementById('w').innerHTML = `<h1>${S[0]}</h1><p class="lead">${S[1]}</p>${rows}`;
+</script></body></html>

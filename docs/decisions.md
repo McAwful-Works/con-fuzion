@@ -735,3 +735,67 @@ Context · Decision · Consequences · Trigger to revisit
   plan.
 - **Revisit:** split prod into its own account if a second person needs AWS access, or before storing anything more
   sensitive than today's data. Move Valkey to cluster mode if one node's memory or CPU is a measured limit.
+
+## D-017 M5.5: the UI redesign (2026-11-26) — Accepted
+- **Context:** local testing before M6 showed the UI was bland and hard to navigate. Friends, Circles and
+  discoverability sat as buttons under the feed, Settings hid behind the user's name, "My schedule" overlapped the
+  Hosting tab, cards showed no spots or status, and the create form was one long page. The owner chose a direction
+  from mockups (`docs/design/`) and confirmed the choices marked *(owner)*. M5.5 (#111–#124) runs before M6.
+- **Decision:**
+  - **The look** *(owner)*: option A, "Con Badge": warm cream, ink outlines, offset shadows and sticker-style tags.
+    Coral marks actions, violet marks tags. Headings use Bricolage Grotesque
+    (`@fontsource-variable/bricolage-grotesque`, SIL OFL 1.1, owner-approved dependency), and text stays Inter. Every
+    value lives in the theme tokens in `frontend/src/index.css`, so the artist's palette still drops in.
+  - **Dark mode** *(owner)*: the same look on a deep plum. It follows the device by default, and You offers Light,
+    Dark or Automatic, stored on the device only (no API).
+  - **Navigation:** five places: **Discover** (`/`), **My plans** (`/plans`), **Host** (create), **People**
+    (`/people`: friends, circles, blocked), **Inbox** (`/inbox`). **You** (`/you`) is behind the avatar, and
+    **Moderation** shows for moderators only. Desktop has a left sidebar; phones have a top bar and a bottom tab bar
+    with a raised Host button. Detail pages hide the tab bar and pin their main action to the bottom of the screen.
+  - **Routes:** Discover `/`, My plans `/plans`, Host `/events/new`, People `/people` (`?tab=circles`,
+    `?tab=blocked`), Inbox `/inbox`, You `/you`, Moderation `/admin/*`. Unchanged: `/welcome`, `/onboarding`,
+    `/invite/:token`, `/circles/:circleId`, `/events/:eventId` and `/events/:eventId/edit`.
+  - **Old routes redirect** (a replace, not a push): `/schedule` → `/plans`, `/friends` → `/people`,
+    `/circles` → `/people?tab=circles`, `/notifications` → `/inbox`, `/settings` → `/you`. Links in old notifications
+    and bookmarks keep working.
+  - **Features** *(owner)*: Discover search and filter chips, desktop side cards (Needs your answer, Next up, Where
+    you're discoverable), a searchable time-zone picker, a new welcome page and three-step onboarding, cover photos by
+    tag, and dark mode.
+  - **"Why you can see this"** *(owner)*: a viewer who isn't the host gets only their own reasons, as
+    `visibleBecause`, built from the same arms as D-012's visibility rule and never wider:
+    - **a server** (by name) for each `GUILD` entry that reaches the viewer under D-012 now: the viewer **and the
+      host** are both members and discoverable there. A server the host has left, or turned discoverability off in,
+      is never named, because D-012 stops that entry from exposing the host;
+    - `FRIEND` when the event has a `FRIENDS` entry and the viewer is the host's friend;
+    - `INVITED` for a `CIRCLE` entry that includes the viewer or a `USER` entry naming them, **without the circle's
+      name or ID**, and without saying which of the two.
+    - never the other audiences. The host gets `null` and keeps the full `audience` list. A viewer who sees the event
+      only through an exception (an active RSVP after the audience stopped reaching them, D-013 rule 10 and D-014;
+      a moderator reviewing it, D-015 rule 10) gets an empty list, never a fallback to the audience.
+  - **This amends D-011's "members aren't told"** for circles: a member now learns they were invited individually or
+    through a circle, though never which circle, who else is in it, or what else the event is open to. Seeing
+    `INVITED` without `FRIEND` does let a friend infer the event isn't open to all the host's friends; the owner
+    accepted that.
+  - **Card data:** `spotsLeft` (`capacity - confirmed_count`, null when unlimited) joins `EventResponse`, loaded in a
+    fixed number of queries per page.
+  - **Search** *(owner)*: `q` on `GET /api/events?scope=feed` matches the **title, tag and description**,
+    case-insensitively, inside the visibility query. **Never the location**, which can be hidden until the viewer is
+    confirmed (D-013), so search can't be used to find it.
+  - **Filters**, all optional and combinable, run in the API because the feed is paged, and only narrow it:
+    - `guild=X`: X must be a server where the caller is a member and discoverable, or it's a 400 (so it can't probe
+      servers). It matches the events whose `visibleBecause` names X, so the host's discoverability counts as above.
+    - `friends=true`: the event has a `FRIENDS` entry and the host is the caller's friend.
+    - `hasSpots=true`: unlimited events, or events with spots left.
+  - **Tags:** seven presets (Tabletop, Photoshoot, Food, Music, Panel, Shopping, Hobby) plus "Other", which keeps
+    today's free text. The tag column doesn't change.
+  - **Cover photos:** one per preset tag plus a default, licensed stock photos that the owner supplies and lists in
+    `frontend/ASSETS.md`. Until then, CSS-only `placeholder-cover-*` boxes. Hosts can't upload, and covers come from
+    the app's own assets, so the CSP (`img-src 'self' https://cdn.discordapp.com`) doesn't change.
+  - **The welcome page** shows static sample cards (fixed text, no API call) to signed-out visitors. It never loads
+    real events.
+- **Consequences:** most frontend files change across about 14 PRs, and the e2e helpers change with them. The two
+  backend PRs (#114, #115) carry the `security` label and truth-table tests for the new fields and filters. The
+  mockups in `docs/design/` are the visual reference; where they and today's behavior disagree, the behavior and the
+  API win.
+- **Revisit:** host-chosen covers or uploads (needs moderation and storage), searching more than Discover, or a
+  light-only theme if dark mode costs too much to maintain.

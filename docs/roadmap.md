@@ -40,5 +40,17 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | | Frontend: report sheet, the 2FA note, hidden, refused and maintenance states | done | #87 → #91 |
 | | Frontend: the admin area: queue and report detail, then search and suspend, then bans, roles and the audit log (split in three) | done | #88 → #95, #97, #98 |
 | | End-to-end tests for M5 flows (hidden-event break check) | done | #89 → #100 |
-| **M6** AWS deploy | Terraform (VPC, Aurora Serverless v2, ElastiCache Serverless, ECS, ALB, CloudFront+WAF), CD, staging/prod, client IP behind CloudFront | todo | — |
+| **M5.5** UI redesign | D-017 and the approved mockups in `docs/design/` | in review | #111 |
+| | Option A design tokens, fonts and dark mode | todo | #112 |
+| | App shell and the five-place navigation (old routes redirect) | todo | #113 |
+| | Backend: spots left and "why you can see this" on events, then Discover search and filters (`security`) | todo | #114, #115 |
+| | Frontend: the event card and Discover, then My plans | todo | #116, #117 |
+| | Frontend: the event page, the time-zone picker, host a meetup | todo | #118, #119, #120 |
+| | Frontend: People, Inbox and You; welcome and onboarding; moderation; cover photos by tag | todo | #121, #122, #123, #124 |
+| **M6** AWS deploy | Container image: multi-stage `Dockerfile`, non-root, image build and Trivy scan in CI | done | #102 → #108 |
+| | Terraform bootstrap (state, GitHub OIDC roles), then the account baseline (CloudTrail, GuardDuty, alarms, budget) (split in two) | done | #103 → #109, #110 |
+| | Network, Aurora, Valkey and the secret containers (waits on the owner applying `infra/bootstrap`) | todo | #104 |
+| | ECS, the ALB, CloudFront, WAF, certificates and alarms | todo | #105 |
+| | Client IP behind CloudFront, Valkey TLS and logging for AWS | todo | #106 |
+| | Build, push and deploy to staging and prod, and the first-deploy runbook | todo | #107 |
 | **M7** Polish + launch gates | accessibility, account deletion, donation links, artist assets (including the 192px and 512px manifest icons, without which browsers never offer #78's Install button), legal pages, load test, security pass, a manual push check on staging (a real iPhone from the Home Screen, plus Chrome and Firefox, with the production VAPID keys) | todo | — |

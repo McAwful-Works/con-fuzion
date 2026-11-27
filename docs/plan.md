@@ -197,6 +197,9 @@ New backend dependencies, kept to the minimum:
 - Testcontainers (test only)
 
 ## B7. Frontend
+- **Redesign (M5.5):** D-017 sets the look (option A, light and dark), the five-place navigation and the routes, and
+  the mockups in [`docs/design/`](design/README.md) show every screen. For screens and navigation they replace the
+  list below (for example, "My schedule" is now My plans). Behavior still follows D-011 to D-015.
 - **Stack:** React Router, TanStack Query, Tailwind, `vite-plugin-pwa`, `openapi-typescript`, `date-fns-tz`.
 - **Offline:** cache "My schedule" for read-only use. Mutations need a connection.
 - **Screens:**

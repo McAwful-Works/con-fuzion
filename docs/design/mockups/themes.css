@@ -1,0 +1,117 @@
+/* Three visual directions. Fonts are OFL (Google Fonts here; @fontsource packages in the app). */
+
+/* A — "Con Badge": warm cream, ink outlines, offset shadows, sticker-like tags. Loud and playful. */
+.t-a{
+  --font-head:'Bricolage Grotesque',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --head-weight:800;--head-tracking:-.02em;
+  --bg:#fff6ea;--surface:#ffffff;--surface-2:#f6ead9;--ink:#1d1630;--muted:#6b6079;
+  --accent-text:#e0431f;--tab-on:#1d1630;
+  --primary-bg:#ff5a36;--primary-ink:#fff;--primary-shadow:3px 3px 0 #1d1630;
+  --btn-border:2px solid #1d1630;--btn-radius:12px;--btn-shadow:3px 3px 0 #1d1630;
+  --card-border:2px solid #1d1630;--card-shadow:4px 4px 0 #1d1630;--radius:16px;--divider:2px dashed #e6d8c4;
+  --chip-radius:999px;--chip-bg:#fff;--chip-border:2px solid #1d1630;--chip-on-bg:#1d1630;--chip-on-ink:#fff6ea;
+  --bar-bg:rgba(255,246,234,.94);--bar-border:2px solid #1d1630;
+  --badge-bg:#ff5a36;--badge-ink:#fff;
+  --fab-radius:14px;--fab-shadow:3px 3px 0 #1d1630;
+  --ok-bg:#c9f2d6;--ok-ink:#0d5c2c;--warn-bg:#ffe08a;--warn-ink:#6b4a00;--host-bg:#e3dbff;--host-ink:#3d22b8;
+  --tag-bg:#7c5cff;--tag-ink:#fff;--tag-radius:6px;--tag-case:uppercase;--tag-tracking:.05em;
+  --when-bg:#1d1630;--when-ink:#fff6ea;--when-border:0;
+  --meter:#ff5a36;
+  --hero-bg:#7c5cff;--hero-ink:#fff;--hero-border:2px solid #1d1630;--hero-card-border:2px solid #1d1630;
+  --side-bg:#1d1630;--side-ink:#fff6ea;--side-muted:#c8bfd6;--side-border:0;--side-line:#3a3150;--side-me-bg:#2b2342;
+  --nav-radius:12px;--nav-on-bg:#ff5a36;--nav-on-ink:#fff;
+}
+.t-a .card,.t-a .chip,.t-a .btn{transition:none}
+.t-a .hero{box-shadow:4px 4px 0 #1d1630}
+.t-a .ev:nth-child(3n+1) .when{background:#7c5cff}
+.t-a .ev:nth-child(3n+2) .when{background:#1d1630}
+.t-a .ev:nth-child(3n) .when{background:#0f9d76}
+.t-a .tab.on .i{color:#e0431f}
+.t-a .actionbar{border-top:2px solid #1d1630}
+
+/* B — "Day Planner": calm, airy, light. Teal accent, soft shadows, schedule-first. */
+.t-b{
+  --font-head:'Plus Jakarta Sans',system-ui,sans-serif;--font-body:'Plus Jakarta Sans',system-ui,sans-serif;
+  --head-weight:800;--head-tracking:-.025em;
+  --bg:#f4f6f8;--surface:#ffffff;--surface-2:#eef2f4;--ink:#13212b;--muted:#5d6b75;
+  --accent-text:#0b8a78;--tab-on:#0b8a78;
+  --primary-bg:#0f9d8a;--primary-ink:#fff;--primary-shadow:0 6px 16px rgba(15,157,138,.28);
+  --btn-border:1px solid #dfe5e9;--btn-radius:14px;--btn-shadow:0 1px 2px rgba(19,33,43,.06);
+  --card-border:1px solid #e6ebee;--card-shadow:0 1px 2px rgba(19,33,43,.04),0 6px 20px rgba(19,33,43,.05);--radius:20px;--divider:1px solid #edf1f3;
+  --chip-radius:12px;--chip-bg:#fff;--chip-border:1px solid #dfe5e9;--chip-on-bg:#13212b;--chip-on-ink:#fff;
+  --bar-bg:rgba(255,255,255,.92);--bar-border:1px solid #e6ebee;
+  --badge-bg:#ef5b4c;--badge-ink:#fff;
+  --fab-radius:999px;--fab-shadow:0 8px 20px rgba(15,157,138,.35);
+  --ok-bg:#dcf5ee;--ok-ink:#08705f;--warn-bg:#fff1d6;--warn-ink:#8a5a00;--host-bg:#e7eefc;--host-ink:#2f5bb8;
+  --tag-bg:#eef2f4;--tag-ink:#3b4a55;--tag-radius:8px;--tag-case:none;--tag-tracking:0;
+  --when-bg:#eaf7f4;--when-ink:#08705f;--when-border:0;
+  --meter:#0f9d8a;
+  --hero-bg:#ffffff;--hero-ink:#13212b;--hero-border:1px solid #e6ebee;--hero-card-border:1px solid #e6ebee;
+  --side-bg:#ffffff;--side-ink:#13212b;--side-muted:#5d6b75;--side-border:1px solid #e6ebee;--side-line:#edf1f3;--side-me-bg:#f4f6f8;
+  --nav-radius:12px;--nav-on-bg:#eaf7f4;--nav-on-ink:#08705f;
+}
+.t-b .hero{box-shadow:0 6px 20px rgba(19,33,43,.05)}
+.t-b .hero .tagchip{background:#eaf7f4;color:#08705f}
+
+/* C — "After Dark": dark by default, neon gradient accents, glassy panels. Con-floor-at-night energy. */
+.t-c{
+  --font-head:'Space Grotesk',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --head-weight:700;--head-tracking:-.02em;
+  --bg:#0c0a13;--surface:#16131f;--surface-2:#221d2e;--ink:#f3f0fa;--muted:#a49cb6;
+  --accent-text:#ff63b8;--tab-on:#fff;
+  --primary-bg:linear-gradient(100deg,#ff3ea5,#8a5cff 55%,#38d6ff);--primary-ink:#fff;--primary-shadow:0 0 0 1px rgba(255,255,255,.08),0 8px 28px rgba(255,62,165,.35);
+  --btn-border:1px solid rgba(255,255,255,.12);--btn-radius:14px;--btn-shadow:none;
+  --card-border:1px solid rgba(255,255,255,.07);--card-shadow:0 10px 30px rgba(0,0,0,.35);--radius:18px;--divider:1px solid rgba(255,255,255,.06);
+  --chip-radius:999px;--chip-bg:rgba(255,255,255,.05);--chip-border:1px solid rgba(255,255,255,.1);--chip-on-bg:#f3f0fa;--chip-on-ink:#0c0a13;
+  --bar-bg:rgba(16,13,24,.86);--bar-border:1px solid rgba(255,255,255,.07);
+  --badge-bg:#ff3ea5;--badge-ink:#fff;
+  --fab-radius:16px;--fab-shadow:0 8px 28px rgba(255,62,165,.45);
+  --ok-bg:rgba(46,230,160,.14);--ok-ink:#4ff0b3;--warn-bg:rgba(255,196,61,.14);--warn-ink:#ffd36b;--host-bg:rgba(138,92,255,.18);--host-ink:#c3adff;
+  --tag-bg:rgba(56,214,255,.12);--tag-ink:#7fe4ff;--tag-radius:999px;--tag-case:none;--tag-tracking:0;
+  --when-bg:rgba(255,255,255,.05);--when-ink:#f3f0fa;--when-border:1px solid rgba(255,255,255,.1);
+  --meter:linear-gradient(90deg,#ff3ea5,#38d6ff);
+  --hero-bg:radial-gradient(120% 140% at 0% 0%,rgba(255,62,165,.35),transparent 55%),radial-gradient(120% 140% at 100% 100%,rgba(56,214,255,.28),transparent 55%),#16131f;
+  --hero-ink:#fff;--hero-border:1px solid rgba(255,255,255,.07);--hero-card-border:1px solid rgba(255,255,255,.08);
+  --side-bg:#100d18;--side-ink:#f3f0fa;--side-muted:#a49cb6;--side-border:1px solid rgba(255,255,255,.06);--side-line:rgba(255,255,255,.07);--side-me-bg:rgba(255,255,255,.04);
+  --nav-radius:12px;--nav-on-bg:rgba(255,255,255,.08);--nav-on-ink:#fff;
+}
+.t-c .nav.on{box-shadow:inset 3px 0 0 #ff3ea5}
+.t-c .wordmark b{background:linear-gradient(100deg,#ff3ea5,#38d6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.t-c .countdown{background:linear-gradient(100deg,#ff3ea5,#38d6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.t-c .pill.offer{box-shadow:0 0 18px rgba(255,62,165,.45)}
+.t-a .hero .tagchip{background:#1d1630}
+.t-a .switch.on{background:#ff5a36}
+.t-a .seg{border:2px solid #1d1630;background:#f6ead9}
+.t-a .seg span.on{border:2px solid #1d1630;box-shadow:2px 2px 0 #1d1630}
+.t-a .input{border:2px solid #1d1630}
+.t-a .sicon{border:2px solid #1d1630}
+.t-a .optcard.sel{outline:none;background:#fff0e6;box-shadow:4px 4px 0 #ff5a36;border-color:#1d1630}
+.t-a .dot{background:#ff5a36}
+
+/* A, dark: the same ink-outline personality on a deep plum. Outlines go near-black, shadows deepen, coral stays. */
+.t-a.dark{
+  --bg:#16111f;--surface:#211a2e;--surface-2:#2d2440;--ink:#fbf1e4;--muted:#b4a9c6;
+  --accent-text:#ff7a5c;--tab-on:#fbf1e4;
+  --primary-bg:#ff5a36;--primary-ink:#1a0f08;--primary-shadow:3px 3px 0 #000;
+  --btn-border:2px solid #000;--btn-shadow:3px 3px 0 #000;
+  --card-border:2px solid #000;--card-shadow:4px 4px 0 #000;--divider:2px dashed #3a3050;
+  --chip-bg:#211a2e;--chip-border:2px solid #000;--chip-on-bg:#fbf1e4;--chip-on-ink:#16111f;
+  --bar-bg:rgba(22,17,31,.94);--bar-border:2px solid #000;
+  --ok-bg:#163d27;--ok-ink:#8ff0b4;--warn-bg:#47380a;--warn-ink:#ffd76a;--host-bg:#2f2560;--host-ink:#c9bcff;
+  --tag-bg:#7c5cff;--tag-ink:#fff;
+  --when-bg:#fbf1e4;--when-ink:#16111f;
+  --hero-bg:#5b3fd9;--hero-border:2px solid #000;--hero-card-border:2px solid #000;
+  --side-bg:#0f0b16;--side-line:#2a2238;--side-me-bg:#1d1729;
+}
+.t-a.dark .hero{box-shadow:4px 4px 0 #000}
+.t-a.dark .ev:nth-child(3n+1) .when{background:#9b84ff;color:#16111f}
+.t-a.dark .ev:nth-child(3n+2) .when{background:#fbf1e4;color:#16111f}
+.t-a.dark .ev:nth-child(3n) .when{background:#4fd6a6;color:#16111f}
+.t-a.dark .tab.on .i{color:#ff7a5c}
+.t-a.dark .actionbar{border-top:2px solid #000}
+.t-a.dark .seg{border-color:#000;background:#2d2440}
+.t-a.dark .seg span.on{border-color:#000;box-shadow:2px 2px 0 #000}
+.t-a.dark .input,.t-a.dark .sicon{border-color:#000}
+.t-a.dark .optcard.sel{background:#3a2120;box-shadow:4px 4px 0 #ff5a36;border-color:#000}
+.t-a.dark .switch i{background:#fbf1e4}
+.t-a.dark .hero .tagchip{background:#16111f}
