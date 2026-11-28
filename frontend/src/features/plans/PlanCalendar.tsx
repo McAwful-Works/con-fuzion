@@ -11,7 +11,7 @@ import { dayHeading, dayKey, eventTimes } from '../events/time';
 import { useViewerZone } from '../events/useViewerZone';
 
 /** How a plan is marked: by a dot where cells are narrow, by its title's chip where they're wide. */
-const KINDS = {
+export const KINDS = {
   going: { label: 'Going', dot: 'bg-dot-going', chip: 'bg-going text-going-ink' },
   waiting: { label: 'Waiting', dot: 'bg-dot-waiting', chip: 'bg-waiting text-waiting-ink' },
   offer: { label: 'Offer', dot: 'bg-dot-offer', chip: 'bg-offer text-offer-ink' },
@@ -23,7 +23,7 @@ const KINDS = {
   },
 };
 
-function kindOf(event: Event): keyof typeof KINDS {
+export function kindOf(event: Event): keyof typeof KINDS {
   if (event.status === 'CANCELLED') return 'cancelled';
   if (event.isHost) return 'hosting';
   if (event.myStatus === 'OFFERED') return 'offer';
@@ -31,7 +31,7 @@ function kindOf(event: Event): keyof typeof KINDS {
 }
 
 /** The plans on each day, the day being the one they start on where the viewer is. */
-function byViewerDay(plans: Event[], zone: string): Map<string, Event[]> {
+export function byViewerDay(plans: Event[], zone: string): Map<string, Event[]> {
   const days = new Map<string, Event[]>();
   for (const event of plans) {
     const key = dayKey(event.startsAt, zone);
@@ -114,7 +114,7 @@ function DayMarks({ events }: { events: Event[] }) {
   );
 }
 
-const counted = (count: number, noun: string) =>
+export const counted = (count: number, noun: string) =>
   count === 0 ? `no ${noun}s` : `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 /** The month with your plans on it, and under dots what their colors mean. */

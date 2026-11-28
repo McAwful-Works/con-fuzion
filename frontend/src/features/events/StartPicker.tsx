@@ -3,6 +3,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { usePlans, type Event } from '../../api/events';
 import { monthOf } from '../../components/month';
 import { MonthGrid } from '../../components/MonthGrid';
+import { byViewerDay, counted, KINDS, kindOf } from '../plans/PlanCalendar';
 import { dayParts } from './cardTime';
 import { Field, FieldError } from './formFields';
 import { dayHeading, dayKey, isValidTimeZone } from './time';
@@ -35,19 +36,18 @@ function clock(iso: string, timeZone: string, withZoneName = false): string {
   }).format(new Date(iso));
 }
 
-/** How one of your plans is marked: its dot, and in words unless you're simply going. */
-function mark(plan: Event): { dot: string; note?: string } {
-  if (plan.isHost) return { dot: 'bg-dot-hosting', note: 'hosting' };
-  if (plan.myStatus === 'OFFERED') return { dot: 'bg-dot-offer', note: 'spot offered' };
-  if (plan.myStatus === 'WAITLISTED') return { dot: 'bg-dot-waiting', note: 'waitlisted' };
-  return { dot: 'bg-dot-going' };
-}
+/** What the list says after a plan's title, unless you're simply going. */
+const NOTES: Partial<Record<ReturnType<typeof kindOf>, string>> = {
+  waiting: 'waitlisted',
+  offer: 'spot offered',
+  hosting: 'hosting',
+};
 
 const Dot = ({ plan, className = '' }: { plan: Event; className?: string }) => (
   <span
     aria-hidden="true"
     data-dot={plan.id}
-    className={`size-1.75 shrink-0 rounded-full ${mark(plan).dot} ${className}`}
+    className={`size-1.75 shrink-0 rounded-full ${KINDS[kindOf(plan)].dot} ${className}`}
   />
 );
 
@@ -94,12 +94,8 @@ export function StartPicker({
 
   // Your own plans, by the day they start on where you are (D-018), without the one being edited.
   const plans = usePlans();
-  const byDay = new Map<string, Event[]>();
-  for (const plan of plans.data ?? []) {
-    if (plan.status === 'CANCELLED' || plan.id === event?.id) continue;
-    const key = dayKey(plan.startsAt, viewerZone);
-    byDay.set(key, [...(byDay.get(key) ?? []), plan]);
-  }
+  const mine = (plans.data ?? []).filter((p) => p.status !== 'CANCELLED' && p.id !== event?.id);
+  const byDay = byViewerDay(mine, viewerZone);
   const on = (key: string) => byDay.get(key) ?? [];
   const agenda = day ? on(day) : [];
   const parts = day ? dayParts(day) : null;
@@ -116,10 +112,7 @@ export function StartPicker({
             onSelect={(picked) => pick({ day: picked, time })}
             today={today}
             isDisabled={(key) => key < today && key !== original}
-            dayLabel={(key) => {
-              const count = on(key).length;
-              return count === 0 ? 'no plans' : `${count} plan${count === 1 ? '' : 's'}`;
-            }}
+            dayLabel={(key) => counted(on(key).length, 'plan')}
             renderDay={(key) => (
               <span className="mt-1 flex gap-0.75">
                 {on(key)
@@ -201,7 +194,7 @@ export function StartPicker({
                   {agenda.map((p) => {
                     // The plan's own date and zone, where they differ from what's being picked.
                     const ownDay = dayKey(p.startsAt, p.timeZone);
-                    const { note } = mark(p);
+                    const note = NOTES[kindOf(p)];
                     return (
                       <li key={p.id} className="flex gap-2">
                         <Dot plan={p} className="mt-1.5" />
