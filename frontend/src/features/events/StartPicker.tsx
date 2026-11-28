@@ -108,7 +108,7 @@ export function StartPicker({
     <fieldset className="min-w-0">
       <legend className="field-label mb-1.5">Starts</legend>
       <div className="@container">
-        <div className="grid items-start gap-4 @2xl:grid-cols-[22.5rem_minmax(0,1fr)]">
+        <div className="grid items-start gap-4 @min-[38.5rem]:grid-cols-[22.5rem_minmax(0,1fr)]">
           <MonthGrid
             month={month}
             onMonthChange={setMonth}

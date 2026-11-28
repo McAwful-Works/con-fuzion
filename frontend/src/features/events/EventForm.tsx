@@ -190,7 +190,7 @@ export function EventForm({
       data-event-page
       onSubmit={submit}
       noValidate
-      className="flex w-full flex-1 flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8"
+      className="flex w-full flex-1 flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_15.5rem] lg:items-start lg:gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]"
     >
       <div className="min-w-0 space-y-5">
         {desktop ? <Heading event={event} /> : <StepHeader step={step} ref={heading} />}
