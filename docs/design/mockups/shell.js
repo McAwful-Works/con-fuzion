@@ -3,6 +3,7 @@ const params = new URLSearchParams(location.search);
 const T = params.get('t') || 'a';
 document.body.classList.add('t-' + T[0]);
 if (T.endsWith('d')) document.body.classList.add('dark');
+if (params.get('v')) document.body.classList.add('v-' + params.get('v'));
 
 const ic = (n, cls = '') =>
   `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${window.ICONS[n] || ''}</svg>`;

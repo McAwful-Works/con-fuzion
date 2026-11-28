@@ -50,6 +50,10 @@ this file is a one-glance summary. Issues for M2–M7 are written as each milest
 | | Frontend: welcome and onboarding (split in two), moderation (split in two), cover photos by tag (CSS placeholders until the owner adds licensed photos) | done | #122 → #139, #143; #123 → #140, #145; #124 → #149 |
 | | Frontend: People, then the Inbox and You (split in three) | done | #121 → #147, #152, #153 |
 | | Fix found along the way: sign-in redirect loop when a session ends while the app is open | done | #128 → #129 |
+| **M5.6** Calendar | D-018 and the round 4 mockups in `docs/design/` | in review | #157 |
+| | A month calendar in My plans (the shared month grid) | todo | #158 |
+| | Pick the start date on a calendar when hosting | todo | #159 |
+| | Add to calendar: .ics and a Google Calendar link (`security`) | todo | #160 |
 | **M6** AWS deploy | Container image: multi-stage `Dockerfile`, non-root, image build and Trivy scan in CI | done | #102 → #108 |
 | | Terraform bootstrap (state, GitHub OIDC roles), then the account baseline (CloudTrail, GuardDuty, alarms, budget) (split in two) | done | #103 → #109, #110 |
 | | Network, Aurora, Valkey and the secret containers (waits on the owner applying `infra/bootstrap`) | todo | #104 |

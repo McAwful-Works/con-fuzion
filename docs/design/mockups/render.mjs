@@ -27,7 +27,7 @@ for (const [vp, opts] of Object.entries(VP)) {
   }
 }
 const sheetPage = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-for (const [src, out] of [1, 2, 3, 4, 5].map((s) => [`sheet2.html?s=${s}`, `round2-${s}.png`]).concat([['sheet3.html', 'round3.png']])) {
+for (const [src, out] of [1, 2, 3, 4, 5].map((s) => [`sheet2.html?s=${s}`, `round2-${s}.png`]).concat([['sheet3.html', 'round3.png'], ['sheet4.html', 'round4.png']])) {
   await sheetPage.goto(new URL(src, here).href);
   await sheetPage.waitForLoadState('networkidle');
   await sheetPage.screenshot({ path: file(`../sheets/${out}`), fullPage: true });

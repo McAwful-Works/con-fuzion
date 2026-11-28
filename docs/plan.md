@@ -57,6 +57,7 @@ Starting point (Nov 2026): Spring Boot 3.3 / Java 21 scaffold, being upgraded to
 - Account deletion.
 - Passive donation links.
 - Deploy to AWS.
+- An interactive calendar in My plans and Host a meetup, and Add to calendar (.ics and a Google Calendar link), per D-018.
 
 **Not in MVP** (backlog, each needs its own decision):
 - Discord bot (role audiences, DMs, slash commands).
