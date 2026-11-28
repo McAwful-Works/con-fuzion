@@ -93,8 +93,13 @@ export function StartPicker({
 
   // Your own plans, by the day they start on where you are (D-018), without the one being edited.
   const plans = usePlans();
-  const mine = (plans.data ?? []).filter((p) => p.status !== 'CANCELLED' && p.id !== event?.id);
-  const on = (key: string) => mine.filter((p) => dayKey(p.startsAt, viewerZone) === key);
+  const byDay = new Map<string, Event[]>();
+  for (const plan of plans.data ?? []) {
+    if (plan.status === 'CANCELLED' || plan.id === event?.id) continue;
+    const key = dayKey(plan.startsAt, viewerZone);
+    byDay.set(key, [...(byDay.get(key) ?? []), plan]);
+  }
+  const on = (key: string) => byDay.get(key) ?? [];
   const agenda = day ? on(day) : [];
   const parts = day ? dayParts(day) : null;
 
