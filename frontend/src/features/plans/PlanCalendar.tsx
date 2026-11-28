@@ -11,7 +11,7 @@ import { dayHeading, dayKey, eventTimes } from '../events/time';
 import { useViewerZone } from '../events/useViewerZone';
 
 /** How a plan is marked: by a dot where cells are narrow, by its title's chip where they're wide. */
-const KINDS = {
+export const KINDS = {
   going: { label: 'Going', dot: 'bg-dot-going', chip: 'bg-going text-going-ink' },
   waiting: { label: 'Waiting', dot: 'bg-dot-waiting', chip: 'bg-waiting text-waiting-ink' },
   offer: { label: 'Offer', dot: 'bg-dot-offer', chip: 'bg-offer text-offer-ink' },
@@ -23,15 +23,15 @@ const KINDS = {
   },
 };
 
-function kindOf(event: Event): keyof typeof KINDS {
+export function kindOf(event: Event): keyof typeof KINDS {
   if (event.status === 'CANCELLED') return 'cancelled';
   if (event.isHost) return 'hosting';
   if (event.myStatus === 'OFFERED') return 'offer';
   return event.myStatus === 'WAITLISTED' ? 'waiting' : 'going';
 }
 
-/** The plans on each day, the day being the one they start on where the viewer is. */
-function byViewerDay(plans: Event[], zone: string): Map<string, Event[]> {
+/** The plans on each day, the day being the one they start on in `zone`. */
+export function byStartDay(plans: Event[], zone: string): Map<string, Event[]> {
   const days = new Map<string, Event[]>();
   for (const event of plans) {
     const key = dayKey(event.startsAt, zone);
@@ -114,12 +114,12 @@ function DayMarks({ events }: { events: Event[] }) {
   );
 }
 
-const counted = (count: number, noun: string) =>
+export const counted = (count: number, noun: string) =>
   count === 0 ? `no ${noun}s` : `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 /** The month with your plans on it, and under dots what their colors mean. */
 export function PlanMonth({ plans, calendar }: { plans: Event[]; calendar: CalendarState }) {
-  const days = byViewerDay(plans, useViewerZone());
+  const days = byStartDay(plans, useViewerZone());
   const on = (day: string) => days.get(day) ?? [];
   const cancelled = plans.some((event) => event.status === 'CANCELLED');
   return (
@@ -220,7 +220,7 @@ export function DayPlans({
   /** A list item to put right after a meetup. */
   after: (event: Event) => ReactNode;
 }) {
-  const events = byViewerDay(plans, useViewerZone()).get(day) ?? [];
+  const events = byStartDay(plans, useViewerZone()).get(day) ?? [];
   const { weekday, date } = dayParts(day);
   return (
     <section aria-labelledby="picked-day" className="lg:card space-y-3 lg:p-4">

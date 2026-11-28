@@ -18,6 +18,7 @@ import {
   onDesktop,
   renderApp,
   type RecordedCall,
+  typeStart,
 } from './test-utils';
 import { routes } from './router';
 
@@ -341,7 +342,7 @@ describe('detail pages', () => {
     fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'My panel' } });
     fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'Hall B' } });
     const starts = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 16);
-    fireEvent.change(screen.getByLabelText('Starts'), { target: { value: starts } });
+    typeStart(starts);
     fireEvent.click(screen.getByLabelText('All my friends'));
     fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
     await waitFor(() => expect(where()).toBe(`/events/${ID}`));

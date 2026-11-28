@@ -11,6 +11,7 @@ import {
   mockApi,
   renderApp,
   type RecordedCall,
+  typeStart,
 } from './test-utils';
 
 // jsdom has no `matchMedia`, so every test here sees the phone's five steps.
@@ -83,7 +84,7 @@ async function reach(step: 'When' | 'Spots' | 'Who can see this' | 'Review') {
   fill('Location', 'Room 4');
   click('Next: When');
   if (step === 'When') return;
-  fill('Starts', inDays(10));
+  typeStart(inDays(10));
   click('Next: Spots');
   if (step === 'Spots') return;
   click('Next: Who can see this');
@@ -143,10 +144,10 @@ describe('the phone’s steps', () => {
 
     click('Next: Spots');
     expect(screen.getByText('Choose when it starts.')).toBeInTheDocument();
-    fill('Starts', inDays(-2));
+    typeStart(inDays(-2));
     click('Next: Spots');
     expect(screen.getByText('The start can’t be in the past.')).toBeInTheDocument();
-    fill('Starts', inDays(10));
+    typeStart(inDays(10));
     fill('Ends (optional)', inDays(9));
     click('Next: Spots');
     expect(screen.getByText('The end must be after the start.')).toBeInTheDocument();

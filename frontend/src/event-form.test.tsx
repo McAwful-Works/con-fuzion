@@ -10,6 +10,7 @@ import {
   onDesktop,
   renderApp,
   type RecordedCall,
+  typeStart,
 } from './test-utils';
 
 type Schemas = components['schemas'];
@@ -69,7 +70,7 @@ async function newMeetup() {
   fill('Title', 'Panel');
   fill('Location', 'Room 4');
   const soon = new Date(Date.now() + 10 * 86_400_000).toISOString();
-  fill('Starts', utcToZonedLocal(soon, 'America/Chicago'));
+  typeStart(utcToZonedLocal(soon, 'America/Chicago'));
   fireEvent.click(field('All my friends'));
 }
 
@@ -245,7 +246,7 @@ describe('the preview', () => {
 
     fill('Title', 'Board games');
     fill('Location', 'Table 4');
-    fill('Starts', '2030-07-01T18:00');
+    typeStart('2030-07-01T18:00');
     click('Tabletop');
 
     expect(preview().getByRole('heading', { name: 'Board games' })).toBeInTheDocument();
@@ -292,7 +293,7 @@ describe('your own time', () => {
     signedIn();
     renderApp('/events/new');
     await screen.findByLabelText('Title');
-    fill('Starts', '2030-07-01T18:00');
+    typeStart('2030-07-01T18:00');
     // The new event starts in the viewer's own zone.
     expect(screen.queryByText(/^Your time: .*CDT/, { selector: 'span' })).toBeNull();
 

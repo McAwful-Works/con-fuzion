@@ -53,6 +53,33 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('days that can’t be picked', () => {
+  it('can be reached with the arrows, but not picked, even by Today', () => {
+    const onSelect = vi.fn();
+    render(
+      <MonthGrid
+        month="2026-11"
+        onMonthChange={() => {}}
+        selected={null}
+        onSelect={onSelect}
+        today={TODAY}
+        isDisabled={(key) => key <= TODAY}
+        renderDay={() => null}
+        dayLabel={() => 'no plans'}
+      />,
+    );
+
+    press('Today');
+    fireEvent.click(day('November 25'));
+    expect(onSelect).not.toHaveBeenCalled();
+    day('November 27').focus();
+    fireEvent.keyDown(day('November 27'), { key: 'ArrowLeft' });
+    expect(day('November 26')).toHaveFocus();
+    expect(day('November 26')).toHaveAttribute('aria-disabled', 'true');
+    expect(day('November 27')).not.toHaveAttribute('aria-disabled');
+  });
+});
+
 describe('month days', () => {
   it('starts the week where the locale does, and on Sunday when the browser can’t say', () => {
     expect(firstWeekday('en-US')).toBe(0);

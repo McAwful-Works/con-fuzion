@@ -186,11 +186,12 @@ export function EventForm({
 
   return (
     // `data-event-page` gives the shell's main column room for the side column on desktop.
+    // Below 1280px that column is narrower: at 20rem, the date picker’s days were under 44px wide.
     <form
       data-event-page
       onSubmit={submit}
       noValidate
-      className="flex w-full flex-1 flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8"
+      className="flex w-full flex-1 flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_15.5rem] lg:items-start lg:gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]"
     >
       <div className="min-w-0 space-y-5">
         {desktop ? <Heading event={event} /> : <StepHeader step={step} ref={heading} />}
@@ -203,7 +204,7 @@ export function EventForm({
           sub="Times are in the event’s own time zone, where the con is."
           {...shown(1)}
         >
-          <WhenFields {...section} isNew={!event} />
+          <WhenFields {...section} event={event} />
         </SectionCard>
         <SectionCard id="spots" title="Spots" sub="First come, first served." {...shown(2)}>
           <SpotsFields {...section} originalWindow={event?.confirmWindowMinutes} />
