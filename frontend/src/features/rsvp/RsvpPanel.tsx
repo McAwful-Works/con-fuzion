@@ -6,15 +6,19 @@ import type { Event } from '../../api/events';
 import { useAccept, useJoin, useLeave, useSpots } from '../../api/rsvp';
 import { ConfirmPanel } from '../../components/ConfirmPanel';
 import { ErrorState } from '../../components/ErrorState';
+import { AddToCalendar, useCanAddToCalendar } from '../events/AddToCalendar';
 import { formatCountdown, formatDeadline, useNow, useSignupUnlocked } from './signup';
 import { useOnline } from './useOnline';
 
 function LeaveEvent({
   event,
   kind,
+  look = kind === 'offered' ? 'btn-ghost' : 'btn-secondary',
 }: {
   event: Event;
   kind: 'confirmed' | 'waitlisted' | 'offered';
+  /** The button's variant. Quieter where another action comes first. */
+  look?: string;
 }) {
   const leave = useLeave(event.id);
   const online = useOnline();
@@ -24,7 +28,7 @@ function LeaveEvent({
     return (
       <button
         type="button"
-        className={`btn ${kind === 'offered' ? 'btn-ghost' : 'btn-secondary'}`}
+        className={`btn ${look}`}
         disabled={!online}
         onClick={() => setAsking(true)}
       >
@@ -213,15 +217,26 @@ export function RsvpPanel({ event }: { event: Event }) {
   // Only a person who can still join needs the clock, to notice that the event has started.
   const now = useNow(1000, !cancelled && status === 'NONE');
   const started = Date.parse(event.startsAt) <= now;
+  const calendar = useCanAddToCalendar(event);
 
   let action: ReactNode;
   if (status === 'CONFIRMED') {
-    action = (
+    const joined = (
+      <p role="status" className="pill pill-going lg:self-start">
+        <CircleCheck aria-hidden="true" />
+        Joined
+      </p>
+    );
+    // With Add to calendar: one row in the phone bar, a stack in the desktop card.
+    action = calendar ? (
+      <div className="flex flex-wrap items-center gap-2 lg:flex-col lg:items-stretch lg:gap-2.5">
+        {joined}
+        <AddToCalendar event={event} className="flex-1" buttonClassName="btn-primary px-3" />
+        <LeaveEvent event={event} kind="confirmed" look="btn-ghost max-lg:px-3" />
+      </div>
+    ) : (
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p role="status" className="pill pill-going">
-          <CircleCheck aria-hidden="true" />
-          Joined
-        </p>
+        {joined}
         <LeaveEvent event={event} kind="confirmed" />
       </div>
     );

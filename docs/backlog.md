@@ -10,7 +10,6 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | Read replicas, RDS Proxy, multi-region | Triggers are in D-004 |
 | Co-hosts, plus-ones | |
 | Event chat / comments | Adds moderation load |
-| `.ics` calendar export | Small, a good first post-MVP item |
 | Admin support lookups, ops dashboard | Use CloudWatch until then |
 | Privacy-respecting analytics | |
 | Convention directory / convention entity | Rejected for the MVP (events are standalone) |
@@ -68,3 +67,4 @@ owner's OK, and if it adds infrastructure, an entry in `docs/decisions.md`.
 | Call the You page one thing | The desktop sidebar says "Settings", phones say "You", and the copy in the setup says "Settings → Servers", though the row is now You → Discovery → Servers (#121) |
 | Keep the calendar's picked day across Back | #158 keeps the view and segment in the URL, not the month or day, so Back from a meetup reopens the calendar on the next plan's day. Put the day in the URL (`?day=`) if that annoys people |
 | Easier filter chips for mouse and keyboard below 1024px | #155 hid the row's scrollbar, so a mouse with no horizontal wheel needs Shift+wheel (a plain wheel over the chips never scrolled it): an edge fade, or wrapping from `md`, would help. Separately, as before #155, Chromium can leave a keyboard-focused chip partly off screen (seen at 375px and 800px) |
+| Very long descriptions in the Google Calendar link | #160 puts the whole description in the link. At 2,000 characters of non-Latin text it is far longer encoded, and the longest link Google accepts is untested. If one fails, shorten the details in the link only (the .ics keeps them whole) |
