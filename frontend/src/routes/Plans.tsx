@@ -1,4 +1,4 @@
-import { Plus, Timer } from 'lucide-react';
+import { CalendarDays, List, Plus, Timer } from 'lucide-react';
 import { Fragment } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { usePlans, type Event } from '../api/events';
@@ -9,6 +9,7 @@ import { EventCard } from '../features/events/EventCard';
 import { EventDays, LoadingCards } from '../features/events/EventFeed';
 import { findOverlaps } from '../features/events/schedule';
 import { dayHeading, dayKey } from '../features/events/time';
+import { DayPlans, PlanMonth, useCalendarState } from '../features/plans/PlanCalendar';
 import { NudgeCard } from '../features/push/NudgeCard';
 import { isOpenOffer, useOfferCountdown } from '../features/rsvp/offers';
 import { formatCountdown } from '../features/rsvp/signup';
@@ -60,14 +61,39 @@ const SEGMENTS: Segment[] = [
   },
 ];
 
-/** My plans: what you're going to, waiting for or hosting, by day, with clashes marked. */
+const VIEWS = [
+  { calendar: false, label: 'List', icon: List },
+  { calendar: true, label: 'Calendar', icon: CalendarDays },
+];
+
+/**
+ * My plans: what you're going to, waiting for or hosting, as a list by day or on a month calendar,
+ * with clashes marked.
+ */
 export function Plans() {
-  // In the URL so Back from an event returns to the segment it was opened from.
+  // In the URL so Back from an event returns to the segment and view it was opened from.
   const [params, setParams] = useSearchParams();
   const segment = SEGMENTS.find((s) => s.id === params.get('tab')) ?? ALL;
+  const calendarView = params.get('view') === 'calendar';
+  const show = (tab: Segment, calendar: boolean) =>
+    setParams(
+      { ...(tab !== ALL && { tab: tab.id }), ...(calendar && { view: 'calendar' }) },
+      { replace: true },
+    );
   const plans = usePlans();
   const events = plans.data;
+  const shown = events?.filter(segment.has);
+  const calendar = useCalendarState(calendarView ? shown : undefined);
   const desktop = useDesktop();
+  // Beside the calendar on desktop, below it on phones.
+  const day = calendarView && calendar && events && shown && (
+    <DayPlans
+      plans={shown}
+      all={events}
+      day={calendar.selected}
+      after={(event) => isOpenOffer(event) && <OfferCountdown event={event} />}
+    />
+  );
   return (
     // `data-plans-page` makes the shell give this page room for the side column.
     <div
@@ -75,15 +101,31 @@ export function Plans() {
       className="lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start lg:gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]"
     >
       <div className="min-w-0 space-y-4">
-        <div>
-          {events && events.length > 0 && (
-            <p className="text-ink-muted text-xs font-bold tracking-wider uppercase">
-              {events.length} upcoming
-            </p>
-          )}
-          <h1 className="text-[1.75rem] leading-tight font-extrabold lg:text-[2.125rem]">
-            My plans
-          </h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            {events && events.length > 0 && (
+              <p className="text-ink-muted text-xs font-bold tracking-wider uppercase">
+                {events.length} upcoming
+              </p>
+            )}
+            <h1 className="text-[1.75rem] leading-tight font-extrabold lg:text-[2.125rem]">
+              My plans
+            </h1>
+          </div>
+          <div role="group" aria-label="View" className="seg w-auto">
+            {VIEWS.map(({ calendar, label, icon: Icon }) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={calendar === calendarView}
+                className="seg-item px-3"
+                onClick={() => show(segment, calendar)}
+              >
+                <Icon aria-hidden="true" className="size-4" />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div role="group" aria-label="Which plans" className="seg max-sm:gap-0.5">
           {SEGMENTS.map((s) => (
@@ -92,7 +134,7 @@ export function Plans() {
               type="button"
               aria-pressed={s === segment}
               className="seg-item max-sm:px-1"
-              onClick={() => setParams(s === ALL ? {} : { tab: s.id }, { replace: true })}
+              onClick={() => show(s, calendarView)}
             >
               {s.label}{' '}
               {events && (
@@ -103,17 +145,28 @@ export function Plans() {
             </button>
           ))}
         </div>
-        {events ? (
+        {!events ? (
+          plans.isError ? (
+            <ErrorState error={plans.error} onRetry={() => void plans.refetch()} />
+          ) : (
+            <LoadingCards />
+          )
+        ) : !calendarView ? (
           <PlanList plans={events} segment={segment} />
-        ) : plans.isError ? (
-          <ErrorState error={plans.error} onRetry={() => void plans.refetch()} />
         ) : (
-          <LoadingCards />
+          calendar &&
+          shown && (
+            <>
+              <PlanMonth plans={shown} calendar={calendar} />
+              {!desktop && day}
+            </>
+          )
         )}
       </div>
       {desktop && (
         // Each card is a region of its own, and there may be none.
         <div className="space-y-4">
+          {day}
           <NeedsAnswer plans={events ?? []} />
           <NudgeCard />
         </div>
