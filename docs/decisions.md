@@ -830,6 +830,9 @@ Context · Decision · Consequences · Trigger to revisit
   - **Defaults:**
     - The week starts on the browser locale's first day (`Intl.Locale` week info), else Sunday.
     - Calendar days are in the viewer's own time zone. Times are shown in the event's zone, as cards do.
+      **Except in the date picker** *(owner, 2026-11-28, #165)*: there the host's plans sit on days in the
+      **meetup's** time zone, the zone being scheduled in, so "Already that day" catches a real overlap when the host
+      is somewhere else. My plans keeps the viewer's zone.
     - **No backend change:** My plans already loads every plan (#148), so the calendar is a view of the same data
       and works offline the same way.
   - **Privacy:**
