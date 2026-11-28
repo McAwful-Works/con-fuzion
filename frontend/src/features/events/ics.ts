@@ -18,12 +18,16 @@ function visibleLocation(event: Event): string | null {
   return event.locationHidden ? null : event.location;
 }
 
+/** Control characters, apart from tabs and line breaks. */
+const CONTROLS = /(?![\t\n\r])\p{Cc}/gu;
+
 /**
  * The description and the event's own time zone. Google Calendar reads HTML in a description, and
- * the host's text is plain text, so a space goes after any `<` that could start a tag.
+ * the host's text is plain text, so a space goes after any `<` that could start a tag. Control
+ * characters go first, so that removing one can't join a `<` to a tag name afterwards.
  */
 function details(event: Event): string {
-  const description = event.description?.replace(/<(?=[a-z/!?])/gi, '< ');
+  const description = event.description?.replace(CONTROLS, '').replace(/<(?=[a-z/!?])/gi, '< ');
   return [description, `Event time zone: ${event.timeZone}`].filter(Boolean).join('\n\n');
 }
 
@@ -31,7 +35,7 @@ function details(event: Event): string {
 function escapeText(text: string): string {
   return text
     .replace(/\r\n|[\r\n\u2028\u2029]/g, '\n')
-    .replace(/(?![\t\n])\p{Cc}/gu, '')
+    .replace(CONTROLS, '')
     .replace(/[\\;,]/g, '\\$&')
     .replace(/\n/g, '\\n');
 }

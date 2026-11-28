@@ -138,6 +138,15 @@ describe('the .ics file', () => {
     expect(google.searchParams.get('details')).toContain('< a href=');
     expect(google.searchParams.get('details')).not.toContain('<a');
   });
+
+  it.each([1, 7, 127, 133])('can’t be given a tag by dropping control character %i', (code) => {
+    const hidden = String.fromCharCode(code);
+    const description = `<${hidden}a href=x>map<${hidden}/a>`;
+    const safe = '< a href=x>map< /a>\n\nEvent time zone: America/Chicago';
+    expect(lines(file({ description }))).toContain(`DESCRIPTION:${safe.replace(/\n/g, '\\n')}`);
+    const google = new URL(googleCalendarUrl({ ...walk, description }));
+    expect(google.searchParams.get('details')).toBe(safe);
+  });
 });
 
 describe('the file name', () => {

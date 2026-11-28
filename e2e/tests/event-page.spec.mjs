@@ -53,7 +53,7 @@ test('43. on a phone the action is a bar at the bottom of the screen; on desktop
   expect(card.y).toBeLessThan(title.y + title.height);
 });
 
-test('52. a confirmed guest downloads the .ics file under the real CSP; Google is asked for nothing first', async ({
+test('53. a confirmed guest downloads the .ics file under the real CSP; Google is asked for nothing first', async ({
   join,
 }) => {
   const { con, host, guests } = await crowd(join, 1);
