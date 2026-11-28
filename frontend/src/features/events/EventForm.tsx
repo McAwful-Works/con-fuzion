@@ -186,6 +186,7 @@ export function EventForm({
 
   return (
     // `data-event-page` gives the shell's main column room for the side column on desktop.
+    // Below 1280px that column is narrower: at 20rem, the date picker’s days were under 44px wide.
     <form
       data-event-page
       onSubmit={submit}
