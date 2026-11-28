@@ -113,34 +113,39 @@ export function AddToCalendar({
           data-calendar-menu
           className="card divide-line absolute inset-x-4 bottom-full z-20 mb-2 divide-y-2 divide-dashed p-1.5 lg:inset-x-0 lg:top-full lg:bottom-auto lg:mt-2 lg:mb-0"
         >
-          <button
-            type="button"
-            className={CHOICE}
-            onClick={() => {
-              download(event);
-              close();
-            }}
-          >
-            <ChoiceText
-              icon={Download}
-              title="Download .ics"
-              note="Apple Calendar, Outlook, most apps"
-            />
-          </button>
-          <a
-            href={googleCalendarUrl(event)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={CHOICE}
-            // After the click has done its work, so the link is still on the page when it does.
-            onClick={() => setTimeout(close)}
-          >
-            <ChoiceText
-              icon={CalendarPlus}
-              title="Open in Google Calendar"
-              note="Adds it from a link"
-            />
-          </a>
+          {/* Each choice in a box of its own, so the dividers stay straight past its corners. */}
+          <div>
+            <button
+              type="button"
+              className={CHOICE}
+              onClick={() => {
+                download(event);
+                close();
+              }}
+            >
+              <ChoiceText
+                icon={Download}
+                title="Download .ics"
+                note="Apple Calendar, Outlook, most apps"
+              />
+            </button>
+          </div>
+          <div>
+            <a
+              href={googleCalendarUrl(event)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={CHOICE}
+              // After the click has done its work, so the link is still on the page when it does.
+              onClick={() => setTimeout(close)}
+            >
+              <ChoiceText
+                icon={CalendarPlus}
+                title="Open in Google Calendar"
+                note="Adds it from a link"
+              />
+            </a>
+          </div>
           <p className="text-ink-muted flex items-start gap-3 px-3 py-2.5 text-[0.8125rem]">
             <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             <span>
