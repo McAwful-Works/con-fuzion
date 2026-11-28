@@ -112,7 +112,7 @@ describe('the .ics file', () => {
     for (const line of physical) expect(octets(line)).toBeLessThanOrEqual(75);
     // A split character would leave half a surrogate pair on a line.
     for (const line of physical) expect(line).not.toMatch(/\p{Cs}/u);
-    const escaped = description.replace(/[;,]/g, '\\$&');
+    const escaped = description.replace(/[\\;,]/g, '\\$&');
     expect(lines(text)).toContain(`DESCRIPTION:${escaped}\\n\\nEvent time zone: America/Chicago`);
   });
 

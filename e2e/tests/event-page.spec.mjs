@@ -67,7 +67,8 @@ test('53. a confirmed guest downloads the .ics file under the real CSP; Google i
   const { page } = guest;
   const toGoogle = [];
   guest.context.on('request', (request) => {
-    if (new URL(request.url()).hostname.endsWith('google.com')) toGoogle.push(request.url());
+    const { hostname } = new URL(request.url());
+    if (hostname === 'google.com' || hostname.endsWith('.google.com')) toGoogle.push(request.url());
   });
   await page.addInitScript(() => {
     window.cspViolations = [];
