@@ -65,7 +65,6 @@ Starting point (Nov 2026): Spring Boot 3.3 / Java 21 scaffold, being upgraded to
 - Read replicas, RDS Proxy, multi-region.
 - Co-hosts and plus-ones.
 - Event chat or comments.
-- `.ics` export.
 - Admin support lookups and ops dashboard (use CloudWatch).
 - Analytics.
 - Convention directory.
