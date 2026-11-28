@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { components } from './api/schema';
 import { envelope, me, mockApi, renderApp } from './test-utils';
@@ -172,7 +172,7 @@ describe('the action bar', () => {
       ['A spot is held for you.', /Offer ends in/],
       ['Decline', 'Accept spot'],
     ],
-    ['joined', { myStatus: 'CONFIRMED' }, {}, ['Joined'], ['Leave']],
+    ['joined', { myStatus: 'CONFIRMED' }, {}, ['Joined'], ['Add to calendar', 'Leave']],
     ['removed', { myStatus: 'REMOVED' }, {}, ['You can’t rejoin this event.'], []],
     ['cancelled', { status: 'CANCELLED' }, {}, [/Signup is closed because the event was/], []],
     // D-013 rule 12: someone still signed up can leave a cancelled event, which takes it off My plans.
@@ -210,6 +210,125 @@ describe('the action bar', () => {
     if (name === 'not open yet') {
       expect(dock().getByRole('button', { name: 'Join' })).toBeDisabled();
     }
+  });
+});
+
+describe('add to calendar', () => {
+  const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString();
+  const joined: Event = { ...walk, myStatus: 'CONFIRMED' };
+  const button = () => screen.queryByRole('button', { name: 'Add to calendar' });
+
+  it.each<[string, Event]>([
+    ['the host', mine],
+    ['a confirmed guest', joined],
+    ['a guest while it is on', { ...joined, startsAt: ago(2), endsAt: null }],
+  ])('is there for %s, in the action bar', async (_, event) => {
+    open(event);
+    await findTitle();
+    expect(await dock().findByRole('button', { name: 'Add to calendar' })).toBeInTheDocument();
+  });
+
+  it.each<[string, Event]>([
+    ['a viewer', walk],
+    ['someone waitlisted', { ...walk, myStatus: 'WAITLISTED' }],
+    ['someone offered a spot', { ...walk, myStatus: 'OFFERED' }],
+    ['someone removed', { ...walk, myStatus: 'REMOVED' }],
+    ['a guest of a cancelled event', { ...joined, status: 'CANCELLED' }],
+    ['the host of a cancelled event', { ...mine, status: 'CANCELLED' }],
+    ['a guest after the end', { ...joined, startsAt: ago(2), endsAt: ago(1) }],
+    ['a guest 3 hours after a start with no end', { ...joined, startsAt: ago(4), endsAt: null }],
+    ['the host after the end', { ...mine, startsAt: ago(2), endsAt: ago(1) }],
+  ])('is not there for %s', async (_, event) => {
+    open(event);
+    await findTitle();
+    // Once the spots have answered, the bar shows where the viewer really stands.
+    if (event.status === 'PUBLISHED') await screen.findByText('Spots left: 7');
+    expect(button()).toBeNull();
+  });
+
+  it('follows the polled status, which is the fresher one', async () => {
+    open(walk, { myStatus: 'CONFIRMED' });
+    expect(await screen.findByRole('button', { name: 'Add to calendar' })).toBeInTheDocument();
+  });
+
+  const openMenu = async (event: Event = joined) => {
+    const calls = open(event);
+    const toggle = await screen.findByRole('button', { name: 'Add to calendar' });
+    await screen.findByText('Spots left: 7');
+    expect(screen.queryByRole('link', { name: /Open in Google Calendar/ })).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    return { calls, toggle };
+  };
+  const google = () => screen.queryByRole('link', { name: /Open in Google Calendar/ });
+
+  it('offers the file, the Google link in a new tab, and the note', async () => {
+    await openMenu();
+    expect(dock().getByRole('button', { name: /Download \.ics/ })).toBeInTheDocument();
+    const link = google()!;
+    expect(link).toHaveAttribute(
+      'href',
+      expect.stringContaining('https://calendar.google.com/calendar/render?action=TEMPLATE&'),
+    );
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(
+      dock().getByText(/Not kept in sync: if the host changes it, add it again\./),
+    ).toBeInTheDocument();
+  });
+
+  it('saves the file in the browser, asking the API for nothing', async () => {
+    const createObjectURL = vi.fn<(file: Blob) => string>(() => 'blob:file');
+    // jsdom has neither.
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
+    const saved: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      saved.push(`${this.download} ${this.href}`);
+    });
+    const { calls, toggle } = await openMenu();
+    expect(createObjectURL).not.toHaveBeenCalled();
+    const before = calls.length;
+
+    fireEvent.click(screen.getByRole('button', { name: /Download \.ics/ }));
+
+    expect(saved).toEqual(['Cosplay photo walk.ics blob:file']);
+    const file = createObjectURL.mock.calls[0]![0];
+    expect(file.type).toBe('text/calendar;charset=utf-8');
+    const text = await file.text();
+    expect(text).toContain('LOCATION:Hall B fountain\r\n');
+    expect(text.replace(/\r\n /g, '')).toContain(
+      `URL:${window.location.origin}/events/${walk.id}\r\n`,
+    );
+    expect(calls).toHaveLength(before);
+    expect(google()).toBeNull();
+    expect(toggle).toHaveFocus();
+  });
+
+  it('closes on Escape, handing focus back, and on a press elsewhere', async () => {
+    const { toggle } = await openMenu(mine);
+    const choice = screen.getByRole('button', { name: /Download \.ics/ });
+    choice.focus();
+    fireEvent.keyDown(choice, { key: 'Escape' });
+    expect(google()).toBeNull();
+    expect(toggle).toHaveFocus();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(toggle);
+    fireEvent.pointerDown(google()!);
+    expect(google()).not.toBeNull();
+    fireEvent.pointerDown(screen.getByRole('heading', { level: 1 }));
+    expect(google()).toBeNull();
+  });
+
+  it('closes when focus moves on past it', async () => {
+    const { toggle } = await openMenu();
+    toggle.focus();
+    google()!.focus();
+    expect(google()).not.toBeNull();
+    screen.getByRole('button', { name: 'Leave' }).focus();
+    await waitFor(() => expect(google()).toBeNull());
   });
 });
 

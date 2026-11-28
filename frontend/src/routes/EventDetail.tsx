@@ -6,6 +6,7 @@ import { useCancelEvent, useEvent, type Event } from '../api/events';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorState } from '../components/ErrorState';
 import { Skeleton } from '../components/Skeleton';
+import { AddToCalendar, useCanAddToCalendar } from '../features/events/AddToCalendar';
 import { EventFacts } from '../features/events/EventFacts';
 import { EventHero } from '../features/events/EventHero';
 import { ReportSheet } from '../features/reports/ReportSheet';
@@ -24,9 +25,10 @@ export function EventNotFound() {
   );
 }
 
-/** The host's tools: Edit, Change who can see it, and Cancel behind a confirmation. */
+/** The host's tools: Add to calendar, Edit, Change who can see it, and Cancel behind a confirmation. */
 function HostActions({ event }: { event: Event }) {
   const cancel = useCancelEvent(event.id);
+  const calendar = useCanAddToCalendar(event);
   const [asking, setAsking] = useState(false);
   const edit = `/events/${event.id}/edit`;
 
@@ -53,6 +55,13 @@ function HostActions({ event }: { event: Event }) {
           <h2 className="mb-3 text-base font-extrabold max-lg:hidden">Your meetup</h2>
           {/* Phones show shorter labels; the full ones stay for screen readers. */}
           <div className="flex flex-wrap gap-2 lg:flex-col lg:gap-2.5">
+            {calendar && (
+              <AddToCalendar
+                event={event}
+                className="basis-full lg:basis-auto"
+                buttonClassName="btn-secondary btn-sm lg:min-h-12"
+              />
+            )}
             <Link to={edit} className="btn btn-primary btn-sm flex-1 lg:min-h-12">
               <Pencil aria-hidden="true" className="size-4" />
               <span>
@@ -157,7 +166,7 @@ function EventPage({ event }: { event: Event }) {
       {!(event.isHost && cancelled) && (
         <div
           data-actionbar
-          className="border-outline bg-bar lg:card sticky bottom-0 z-10 -mx-4 mt-auto -mb-6 max-h-[70dvh] overflow-y-auto border-t-2 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:top-8 lg:bottom-auto lg:m-0 lg:max-h-[calc(100dvh-4rem)] lg:p-5"
+          className="border-outline bg-bar lg:card sticky bottom-0 z-10 -mx-4 mt-auto -mb-6 max-h-[70dvh] overflow-y-auto border-t-2 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur has-[[data-calendar-menu]]:overflow-visible lg:top-8 lg:bottom-auto lg:m-0 lg:max-h-[calc(100dvh-4rem)] lg:p-5"
         >
           {event.isHost ? <HostActions event={event} /> : <RsvpPanel event={event} />}
         </div>
