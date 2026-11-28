@@ -64,6 +64,7 @@ export function StartPicker({
   children,
 }: SectionProps & { event?: Event; children: ReactNode }) {
   const timeId = useId();
+  const errorId = useId();
   const agendaId = useId();
   const viewerZone = useViewerZone();
   const zone = isValidTimeZone(values.timeZone) ? values.timeZone : viewerZone;
@@ -142,7 +143,12 @@ export function StartPicker({
               <p id={timeId} className="field-label">
                 {parts ? `${parts.weekday}, ${parts.date} · start time` : 'Start time'}
               </p>
-              <div role="group" aria-labelledby={timeId} className="flex flex-wrap gap-2">
+              <div
+                role="group"
+                aria-labelledby={timeId}
+                aria-describedby={!other && errors.startsAt ? errorId : undefined}
+                className="flex flex-wrap gap-2"
+              >
                 {QUICK.map((quick) => (
                   <button
                     key={quick}
@@ -179,7 +185,7 @@ export function StartPicker({
                   )}
                 </Field>
               ) : (
-                <FieldError>{errors.startsAt}</FieldError>
+                <FieldError id={errorId}>{errors.startsAt}</FieldError>
               )}
             </div>
 

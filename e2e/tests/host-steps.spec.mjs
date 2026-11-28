@@ -41,8 +41,7 @@ test('51. on a phone a meetup is hosted in five steps, with Next in a bar at the
   await expect(question).toBeInViewport({ ratio: 1 });
   // The day picked on the month grid, then a quick time (#159).
   const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
-  const date = start.toLocaleDateString('en-US', { dateStyle: 'full', timeZone: 'UTC' });
-  const day = page.getByRole('button', { name: `${date},` });
+  const day = page.locator(`[data-day="${start.toISOString().slice(0, 10)}"]`);
   // At the very end of a month it can be past the last week shown.
   if (!(await day.isVisible())) await page.getByRole('button', { name: 'Next month' }).click();
   await day.click();

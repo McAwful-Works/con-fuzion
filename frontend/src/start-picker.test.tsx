@@ -182,6 +182,9 @@ describe('picking the start', () => {
     click('Create meetup');
 
     expect(await screen.findByText('Choose when it starts.')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /start time/i })).toHaveAccessibleDescription(
+      'Choose when it starts.',
+    );
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
