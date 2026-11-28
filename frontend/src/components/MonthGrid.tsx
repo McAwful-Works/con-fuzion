@@ -29,6 +29,8 @@ interface Props {
   renderDay: (day: string) => ReactNode;
   /** Ends a day's accessible name, after its date: "3 plans". */
   dayLabel: (day: string) => string;
+  /** Days that can't be picked. The arrow keys still reach them. */
+  isDisabled?: (day: string) => boolean;
   /** From 1280px, tall cells with room for titles. Without it the grid stays compact. */
   titles?: boolean;
   /** Inside the card, under the grid. */
@@ -47,6 +49,7 @@ export function MonthGrid({
   today,
   renderDay,
   dayLabel,
+  isDisabled,
   titles = false,
   children,
 }: Props) {
@@ -83,6 +86,7 @@ export function MonthGrid({
   }
 
   function select(day: string) {
+    if (isDisabled?.(day)) return;
     // Turning the month can redraw the button that was clicked, and drop the focus.
     focusOn(day);
     onSelect(day);
@@ -118,7 +122,7 @@ export function MonthGrid({
             className="btn btn-secondary btn-sm"
             onClick={() => {
               moveTo(today);
-              onSelect(today);
+              if (!isDisabled?.(today)) onSelect(today);
             }}
           >
             Today
@@ -162,7 +166,8 @@ export function MonthGrid({
             {week.map((day) => {
               const isSelected = day === selected;
               const isToday = day === today;
-              const dimmed = monthOf(day) !== month;
+              const disabled = isDisabled?.(day) ?? false;
+              const dimmed = disabled || monthOf(day) !== month;
               return (
                 <div key={day} role="gridcell" aria-selected={isSelected} className="flex min-w-0">
                   <button
@@ -170,6 +175,8 @@ export function MonthGrid({
                     data-day={day}
                     tabIndex={day === tabStop ? 0 : -1}
                     aria-current={isToday ? 'date' : undefined}
+                    // Not `disabled`, which the arrow keys couldn't move onto.
+                    aria-disabled={disabled || undefined}
                     aria-label={`${format(day, { dateStyle: 'full' })}, ${dayLabel(day)}`}
                     className={[
                       'rounded-control flex min-h-12 w-full min-w-0 flex-col items-center pt-1.5 text-sm',

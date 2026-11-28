@@ -203,7 +203,7 @@ export function EventForm({
           sub="Times are in the event’s own time zone, where the con is."
           {...shown(1)}
         >
-          <WhenFields {...section} isNew={!event} />
+          <WhenFields {...section} event={event} />
         </SectionCard>
         <SectionCard id="spots" title="Spots" sub="First come, first served." {...shown(2)}>
           <SpotsFields {...section} originalWindow={event?.confirmWindowMinutes} />

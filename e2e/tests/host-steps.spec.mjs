@@ -39,8 +39,14 @@ test('51. on a phone a meetup is hosted in five steps, with Next in a bar at the
   // A move starts at the new step's question.
   await expect(question).toBeFocused();
   await expect(question).toBeInViewport({ ratio: 1 });
-  const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
-  await page.getByLabel('Starts').fill(start);
+  // The day picked on the month grid, then a quick time (#159).
+  const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  const date = start.toLocaleDateString('en-US', { dateStyle: 'full', timeZone: 'UTC' });
+  const day = page.getByRole('button', { name: `${date},` });
+  // At the very end of a month it can be past the last week shown.
+  if (!(await day.isVisible())) await page.getByRole('button', { name: 'Next month' }).click();
+  await day.click();
+  await page.getByRole('button', { name: '6:00 PM' }).click();
   await next('Spots');
 
   await onStep('How many spots?');

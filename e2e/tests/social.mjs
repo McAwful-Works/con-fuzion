@@ -150,6 +150,8 @@ export async function createEvent(
       .getByRole('switch', { name: 'Hide the location until people are confirmed' })
       .click();
   }
+  // The date and time field, which "Other…" shows under the month grid.
+  await page.getByRole('button', { name: 'Other…' }).click();
   await page.getByLabel('Starts').fill(localInput(days, hour));
   if (capacity !== undefined) {
     await page.getByRole('switch', { name: 'Limit the spots' }).click();

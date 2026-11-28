@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { vi } from 'vitest';
@@ -54,6 +54,12 @@ export function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+/** Types a start into the date and time field, which "Other…" opens. */
+export function typeStart(value: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'Other…' }));
+  fireEvent.change(screen.getByLabelText('Starts'), { target: { value } });
 }
 
 /** A success response in the D-010 envelope. */

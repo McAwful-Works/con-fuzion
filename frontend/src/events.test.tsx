@@ -12,6 +12,7 @@ import {
   onDesktop,
   renderApp,
   type RecordedCall,
+  typeStart,
 } from './test-utils';
 
 type Schemas = components['schemas'];
@@ -363,7 +364,7 @@ describe('creating an event', () => {
     await screen.findByLabelText('Title');
     fill('Title', 'Panel');
     fill('Location', 'Room 4');
-    fill('Starts', soon());
+    typeStart(soon());
     fireEvent.click(screen.getByLabelText('Hide the location until people are confirmed'));
     fireEvent.click(screen.getByLabelText('Limit the spots'));
     fill('Capacity', '25');
@@ -440,7 +441,7 @@ describe('creating an event', () => {
     expect(await screen.findByLabelText('Time zone')).toHaveValue(timeZoneLabel('UTC'));
     fill('Title', 'Panel');
     fill('Location', 'Room 4');
-    fill('Starts', soon());
+    typeStart(soon());
     fireEvent.click(await screen.findByLabelText('All my friends'));
     fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
 
@@ -459,7 +460,7 @@ describe('creating an event', () => {
     const zone = await screen.findByLabelText('Time zone');
     fill('Title', 'Panel');
     fill('Location', 'Room 4');
-    fill('Starts', soon());
+    typeStart(soon());
     fireEvent.click(await screen.findByLabelText('All my friends'));
 
     fireEvent.change(zone, { target: { value: 'tokyo' } });
@@ -541,7 +542,7 @@ describe('creating an event', () => {
     await screen.findByLabelText('Title');
     fill('Title', 'Panel');
     fill('Location', 'Room 4');
-    fill('Starts', soon());
+    typeStart(soon());
     fireEvent.click(await screen.findByLabelText('All my friends'));
     fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
 
@@ -554,12 +555,12 @@ describe('creating an event', () => {
     await screen.findByLabelText('Title');
     fill('Title', 'Panel');
     fill('Location', 'Room 4');
-    fill('Starts', soon(-2));
+    typeStart(soon(-2));
     fireEvent.click(await screen.findByLabelText('All my friends'));
     fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
     expect(await screen.findByText('The start can’t be in the past.')).toBeInTheDocument();
 
-    fill('Starts', soon(10));
+    typeStart(soon(10));
     fill('Ends (optional)', soon(18));
     fireEvent.click(screen.getByRole('button', { name: 'Create meetup' }));
     expect(await screen.findByText('An event can last at most 7 days.')).toBeInTheDocument();
