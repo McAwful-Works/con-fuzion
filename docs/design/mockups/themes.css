@@ -115,3 +115,11 @@
 .t-a.dark .optcard.sel{background:#3a2120;box-shadow:4px 4px 0 #ff5a36;border-color:#000}
 .t-a.dark .switch i{background:#fbf1e4}
 .t-a.dark .hero .tagchip{background:#16111f}
+/* Coral-text comparison for PR #126 */
+.t-a.v-ink{--primary-ink:#1d1630;--badge-ink:#1d1630;--nav-on-ink:#1d1630}
+.t-a.v-ink .pill.offer{color:#1d1630}
+.t-a.v-deep{--primary-bg:#d63a17;--badge-bg:#d63a17;--meter:#d63a17;--accent-text:#c23614}
+.t-a.v-deep .nav.on{background:#d63a17}
+.t-a.v-deep .switch.on{background:#d63a17}
+.t-a.v-deep .optcard.sel{box-shadow:4px 4px 0 #d63a17}
+.t-a.v-deep .dot{background:#d63a17}

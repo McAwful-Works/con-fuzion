@@ -14,13 +14,14 @@ use sample data and show the look, not the rules.
 | `round2-4.png` | People and Inbox |
 | `round2-5.png` | You (settings) and Moderation |
 | `round3.png` | Dark mode, cover photos and search; the final Discover |
+| `round4.png` | M5.6 (D-018): the My plans calendar, the calendar date picker when hosting, and Add to calendar |
 
 ## The mockups (`mockups/`)
 Plain HTML, CSS and a little JavaScript. No build step and no dependencies of their own.
 
 - **Pages:** `discover`, `event` (a guest with an offer), `event-cover` (the same with a cover photo), `event-host`,
   `plans`, `create` (desktop page, phone step 4), `create-when` (phone step 2), `people`, `inbox`, `you`,
-  `moderation`, `welcome`, `onboarding`. Each `<name>.html` is generated from `pages/<name>.js` by `gen.sh`, except
+  `moderation`, `welcome`, `onboarding`, and for M5.6 `plans-cal` (My plans as a calendar), `create-cal` (the date picker) and `event-ics` (Add to calendar). Each `<name>.html` is generated from `pages/<name>.js` by `gen.sh`, except
   `event.html`.
 - **Themes:** add `?t=a` for light or `?t=ad` for dark. The layout switches to desktop at 1024px wide. (`themes.css`
   also keeps options B and C from the first round, as `?t=b` and `?t=c`, for the record.)

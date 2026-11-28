@@ -808,3 +808,42 @@ Context · Decision · Consequences · Trigger to revisit
   API win.
 - **Revisit:** host-chosen covers or uploads (needs moderation and storage), searching more than Discover, or a
   light-only theme if dark mode costs too much to maintain.
+
+## D-018 M5.6: the calendar and Add to calendar (2026-11-27) — Accepted
+- **Context:** after M5.5 the owner asked for an interactive calendar. They chose where it goes, how it works and
+  when, from the round 4 mockups in `docs/design/` (`plans-cal`, `create-cal`, `event-ics`, `sheets/round4.png`).
+  M5.6 (#157–#160) runs before M6. Every choice marked *(owner)* was confirmed on 2026-11-27.
+- **Decision:**
+  - **Where** *(owner)*: a calendar view in **My plans**, and a calendar date picker in **Host a meetup**. Not in
+    Discover, which would need a date-range API.
+  - **How** *(owner)*: a **month grid**.
+    - **Phones:** up to three coloured dots per day: green going, amber waiting, coral offer, violet hosting.
+    - **Desktop:** titles in the cells, with "+N more".
+    - **Tapping a day** lists its meetups, with the overlap warning.
+    - **My plans** switches between List and Calendar, kept in the URL (`?view=calendar`). The segments filter both.
+  - **The date picker** shows the host's own plans as dots and disables past days. The time comes from quick chips
+    or today's time field, and an "Already that day" list shows the host's plans on the chosen day. Validation and
+    the API don't change.
+  - **Add to calendar** *(owner)*: a **.ics download** and an **Open in Google Calendar** link, for the **host and
+    confirmed guests** only, and not on a cancelled or finished event. This brings `.ics` export into the MVP
+    (plan B1 had it out).
+  - **Defaults:**
+    - The week starts on the browser locale's first day (`Intl.Locale` week info), else Sunday.
+    - Calendar days are in the viewer's own time zone. Times are shown in the event's zone, as cards do.
+    - **No backend change:** My plans already loads every plan (#148), so the calendar is a view of the same data
+      and works offline the same way.
+  - **Privacy:**
+    - **The .ics file** is built in the browser from what the viewer already sees. It includes a `LOCATION` only
+      when the viewer can see the location, which the host and confirmed guests always can. Nothing is sent
+      anywhere to make it.
+    - **The Google link** sends the title, times, description and that same location to Google, and only when the
+      user taps it. No CSP change: it's a navigation in a new tab and a file download.
+  - **One-off, not synced:** the .ics is a single file, not a subscription. If the host changes the meetup, the
+    guest adds it again; the app already notifies them of changes.
+- **Consequences:** a shared month-grid component (#158) that the date picker (#159) reuses, and a small RFC 5545
+  builder (#160), labelled `security` for its privacy rules. No new dependency: dates use `Intl` and the existing
+  time helpers.
+- **Revisit:**
+  - **A subscribable calendar feed** (`webcal://`) of My plans would need a secret per-user URL, stored and
+    revocable. Add it only if people ask, with its own decision.
+  - **A calendar in Discover** would need a date-range query on the feed.
