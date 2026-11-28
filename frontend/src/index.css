@@ -55,6 +55,13 @@
   --color-full: var(--color-surface-sunken);
   --color-full-ink: var(--color-ink-muted);
 
+  /* The calendar's dots. Each has 3:1 on a card and on the selected day, in light and in dark. */
+  --color-dot-going: #15915d;
+  --color-dot-waiting: #a87800;
+  --color-dot-offer: #e8451f;
+  --color-dot-hosting: #7c5cff;
+  --color-dot-cancelled: #857a94;
+
   --color-knob: #ffffff;
 
   /* The top and tab bars, and the desktop sidebar. */

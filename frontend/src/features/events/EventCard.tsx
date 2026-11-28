@@ -46,7 +46,7 @@ function takesSignups(event: Event, now: number): boolean {
 }
 
 /** Where the viewer stands, or that joining a full event means waiting. */
-function status(event: Event, now: number): Status | undefined {
+export function viewerStatus(event: Event, now: number): Status | undefined {
   if (event.isHost) return { text: 'Hosting', variant: 'pill-hosting', icon: Sparkles };
   switch (event.myStatus) {
     case 'CONFIRMED':
@@ -64,7 +64,7 @@ function status(event: Event, now: number): Status | undefined {
   }
 }
 
-function Pill({ text, variant, icon: Icon }: Status) {
+export function Pill({ text, variant, icon: Icon }: Status) {
   return (
     <span className={`pill ${variant}`}>
       {Icon && <Icon aria-hidden="true" />}
@@ -110,7 +110,7 @@ export function EventCard({ event, overlaps = [] }: { event: Event; overlaps?: E
   const clock = startClock(event.startsAt, event.timeZone);
   const [now] = useState(() => Date.now());
   const cancelled = event.status === 'CANCELLED';
-  const mine = status(event, now);
+  const mine = viewerStatus(event, now);
   const host = event.isHost ? 'You’re hosting' : `Hosted by ${event.host.displayName}`;
 
   return (
