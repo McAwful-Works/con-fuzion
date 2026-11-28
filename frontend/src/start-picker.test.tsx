@@ -59,7 +59,7 @@ const plans = [
     myStatus: 'WAITLISTED',
     startsAt: '2030-11-29T19:00:00Z',
   }),
-  // Early on the 30th in Tokyo, and the evening of the 29th where the viewer is.
+  // Early on the 30th in Tokyo, and the evening of the 29th in Chicago.
   plan({
     id: 'p-tokyo',
     title: 'Tokyo call',
@@ -72,9 +72,13 @@ const plans = [
   mine,
 ];
 
-function signedIn(event = mine, attending: () => Response | undefined = () => undefined) {
+function signedIn(
+  event = mine,
+  attending: () => Response | undefined = () => undefined,
+  viewerZone = me.timeZone,
+) {
   return mockApi((call) => {
-    if (call.path === '/api/me') return envelope('ME', me);
+    if (call.path === '/api/me') return envelope('ME', { ...me, timeZone: viewerZone });
     if (call.path === '/api/me/guilds') return envelope('GUILD_LIST', { guilds });
     if (call.path === '/api/circles') return envelope('CIRCLE_LIST', { circles: [] });
     if (call.path.startsWith('/api/events?scope=attending'))
@@ -278,7 +282,7 @@ describe('your own plans', () => {
   it('dots their days, and lists the ones already on the picked day', async () => {
     signedIn();
     await newMeetup();
-    // The cancelled one doesn't count; the one in Tokyo falls on the viewer's 29th.
+    // The cancelled one doesn't count; the one in Tokyo falls on Chicago's 29th.
     const friday = await screen.findByRole('button', { name: /November 29, 2030, 4 plans/ });
     expect(friday.querySelectorAll('[data-dot]')).toHaveLength(3);
     expect(agenda()).toBeNull();
@@ -294,6 +298,28 @@ describe('your own plans', () => {
     ]);
     fireEvent.click(day('November 28'));
     expect(agenda()).toBeNull();
+  });
+
+  it('puts them on the meetup’s days: a New York host, a Tokyo meetup', async () => {
+    // 9 AM on the 29th in Tokyo, which is still the evening of the 28th in New York.
+    const breakfast = plan({
+      id: 'p-breakfast',
+      title: 'Breakfast',
+      startsAt: '2030-11-29T00:00:00Z',
+      timeZone: 'Asia/Tokyo',
+    });
+    const attending = () => envelope('EVENT_PAGE', { events: [breakfast], nextCursor: null });
+    signedIn(mine, attending, 'America/New_York');
+    await newMeetup();
+    // While the meetup is still in the host's own zone.
+    await screen.findByRole('button', { name: /November 28, 2030, 1 plan/ });
+
+    useTimeZone('tokyo');
+
+    expect(day('November 28')).toHaveAccessibleName(/no plans/);
+    expect(day('November 29')).toHaveAccessibleName(/1 plan/);
+    fireEvent.click(day('November 29'));
+    expect(within(agenda()!).getByRole('listitem')).toHaveTextContent(/^9:00 AM · Breakfast$/);
   });
 
   it('leaves out the meetup being edited', async () => {

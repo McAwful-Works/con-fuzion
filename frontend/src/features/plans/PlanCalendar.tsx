@@ -30,8 +30,8 @@ export function kindOf(event: Event): keyof typeof KINDS {
   return event.myStatus === 'WAITLISTED' ? 'waiting' : 'going';
 }
 
-/** The plans on each day, the day being the one they start on where the viewer is. */
-export function byViewerDay(plans: Event[], zone: string): Map<string, Event[]> {
+/** The plans on each day, the day being the one they start on in `zone`. */
+export function byStartDay(plans: Event[], zone: string): Map<string, Event[]> {
   const days = new Map<string, Event[]>();
   for (const event of plans) {
     const key = dayKey(event.startsAt, zone);
@@ -119,7 +119,7 @@ export const counted = (count: number, noun: string) =>
 
 /** The month with your plans on it, and under dots what their colors mean. */
 export function PlanMonth({ plans, calendar }: { plans: Event[]; calendar: CalendarState }) {
-  const days = byViewerDay(plans, useViewerZone());
+  const days = byStartDay(plans, useViewerZone());
   const on = (day: string) => days.get(day) ?? [];
   const cancelled = plans.some((event) => event.status === 'CANCELLED');
   return (
@@ -220,7 +220,7 @@ export function DayPlans({
   /** A list item to put right after a meetup. */
   after: (event: Event) => ReactNode;
 }) {
-  const events = byViewerDay(plans, useViewerZone()).get(day) ?? [];
+  const events = byStartDay(plans, useViewerZone()).get(day) ?? [];
   const { weekday, date } = dayParts(day);
   return (
     <section aria-labelledby="picked-day" className="lg:card space-y-3 lg:p-4">

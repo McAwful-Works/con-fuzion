@@ -3,7 +3,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { usePlans, type Event } from '../../api/events';
 import { monthOf } from '../../components/month';
 import { MonthGrid } from '../../components/MonthGrid';
-import { byViewerDay, counted, KINDS, kindOf } from '../plans/PlanCalendar';
+import { byStartDay, counted, KINDS, kindOf } from '../plans/PlanCalendar';
 import { dayParts } from './cardTime';
 import { Field, FieldError } from './formFields';
 import { dayHeading, dayKey, isValidTimeZone } from './time';
@@ -92,10 +92,11 @@ export function StartPicker({
     set('startsAt', value);
   }
 
-  // Your own plans, by the day they start on where you are (D-018), without the one being edited.
+  // Your own plans, without the one being edited. Their days are the meetup's zone's, like the
+  // picked day (owner's decision on #159); My plans uses your own zone.
   const plans = usePlans();
   const mine = (plans.data ?? []).filter((p) => p.status !== 'CANCELLED' && p.id !== event?.id);
-  const byDay = byViewerDay(mine, viewerZone);
+  const byDay = byStartDay(mine, zone);
   const on = (key: string) => byDay.get(key) ?? [];
   const agenda = day ? on(day) : [];
   const parts = day ? dayParts(day) : null;
